@@ -1,0 +1,127 @@
+{
+  "name": "megaenvironment",
+  "displayName": "Mega Drive Environment",
+  "publisher": "Brotherhood0",
+  "description": "Provides integration with The Macro Assembler AS, among other features.",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.96.0" },
+  "categories": [ "Programming Languages" ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "megaenvironment.assemble",
+        "title": "Assemble",
+        "category": "Build"
+      },
+	  {
+        "command": "megaenvironment.clean_assemble",
+        "title": "Clean & Assemble",
+        "category": "Build"
+      },
+      {
+        "command": "megaenvironment.run_blastem",
+        "title": "Run Latest ROM with BlastEm",
+        "category": "Execution"
+      },
+	  {
+        "command": "megaenvironment.run_regen",
+        "title": "Run Latest ROM with Regen",
+        "category": "Execution"
+      },
+      {
+        "command": "megaenvironment.assemble_run_blastem",
+        "title": "Assemble & Run with BlastEm",
+        "category": "Test"
+      },
+	  {
+        "command": "megaenvironment.assemble_run_regen",
+        "title": "Assemble & Run with Regen",
+        "category": "Test"
+      },
+      {
+        "command": "megaenvironment.backup",
+        "title": "Backup Files And Clean Folder",
+        "category": "Cleaning"
+      },
+	  {
+        "command": "megaenvironment.cleanup",
+        "title": "Clean Folder",
+        "category": "Cleaning"
+      },
+      {
+        "command": "megaenvironment.open_easy68k",
+        "title": "Open Current Selection In EASy68k",
+        "category": "Debug"
+      },
+      {
+        "command": "megaenvironment.rename_main",
+        "title": "Change Main Source Code Name",
+		"category": "Rename"
+      },
+	  {
+        "command": "megaenvironment.rename_constants",
+        "title": "Change Constants Source Code Name",
+		"category": "Rename"
+      },
+	  {
+        "command": "megaenvironment.rename_variables",
+        "title": "Change Variables Source Code Name",
+		"category": "Rename"
+      }
+    ],
+	"configuration": {
+      "title": "Mega Drive Environment",
+      "properties": {
+        "megaenvironment.mainFileName": {
+          "type": "string",
+          "default": "Sonic.asm",
+          "description": "The main source code file name used in the project."
+        },
+        "megaenvironment.constantsFileName": {
+          "type": "string",
+          "default": "Constants.asm",
+          "description": "The constants source code file name used in the project."
+        },
+        "megaenvironment.variablesFileName": {
+          "type": "string",
+          "default": "Variables.asm",
+          "description": "The variables source code file name used in the project."
+        },
+		"megaenvironment.fillValue": {
+		  "type": "string",
+		  "default": "FF",
+		  "description": "The hexadecimal value used to fill empty spaces in the ROM. AS defaults to FF which might cause conflicts.",
+		  "pattern": "^[0-9A-Fa-f]{1,2}$",
+  		  "patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
+		}
+      }
+    },
+    "languages": [
+      {
+        "id": "clcxce.motorola-68k-assembly",
+        "aliases": ["The Macroassembler AS", "as"],
+        "extensions": [".asm", ".lst"]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.96.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "eslint": "^9.16.0",
+    "typescript": "^5.7.2",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  }
+}
