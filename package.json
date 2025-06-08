@@ -4,8 +4,12 @@
   "publisher": "Brotherhood0",
   "description": "Provides integration with The Macro Assembler AS, among other features.",
   "version": "0.0.1",
-  "engines": { "vscode": "^1.96.0" },
-  "categories": [ "Programming Languages" ],
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -14,7 +18,7 @@
         "title": "Assemble",
         "category": "Build"
       },
-	  {
+      {
         "command": "megaenvironment.clean_assemble",
         "title": "Clean & Assemble",
         "category": "Build"
@@ -24,7 +28,7 @@
         "title": "Run Latest ROM with BlastEm",
         "category": "Execution"
       },
-	  {
+      {
         "command": "megaenvironment.run_regen",
         "title": "Run Latest ROM with Regen",
         "category": "Execution"
@@ -34,7 +38,7 @@
         "title": "Assemble & Run with BlastEm",
         "category": "Test"
       },
-	  {
+      {
         "command": "megaenvironment.assemble_run_regen",
         "title": "Assemble & Run with Regen",
         "category": "Test"
@@ -44,7 +48,7 @@
         "title": "Backup Files And Clean Folder",
         "category": "Cleaning"
       },
-	  {
+      {
         "command": "megaenvironment.cleanup",
         "title": "Clean Folder",
         "category": "Cleaning"
@@ -57,20 +61,20 @@
       {
         "command": "megaenvironment.rename_main",
         "title": "Change Main Source Code Name",
-		"category": "Rename"
+        "category": "Rename"
       },
-	  {
+      {
         "command": "megaenvironment.rename_constants",
         "title": "Change Constants Source Code Name",
-		"category": "Rename"
+        "category": "Rename"
       },
-	  {
+      {
         "command": "megaenvironment.rename_variables",
         "title": "Change Variables Source Code Name",
-		"category": "Rename"
+        "category": "Rename"
       }
     ],
-	"configuration": {
+    "configuration": {
       "title": "Mega Drive Environment",
       "properties": {
         "megaenvironment.mainFileName": {
@@ -88,20 +92,26 @@
           "default": "Variables.asm",
           "description": "The variables source code file name used in the project."
         },
-		"megaenvironment.fillValue": {
-		  "type": "string",
-		  "default": "FF",
-		  "description": "The hexadecimal value used to fill empty spaces in the ROM. AS defaults to FF which might cause conflicts.",
-		  "pattern": "^[0-9A-Fa-f]{1,2}$",
-  		  "patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
-		}
+        "megaenvironment.fillValue": {
+          "type": "string",
+          "default": "FF",
+          "description": "The hexadecimal value used to fill empty spaces in the ROM. AS defaults to FF which might cause conflicts.",
+          "pattern": "^[0-9A-Fa-f]{1,2}$",
+          "patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
+        }
       }
     },
     "languages": [
       {
         "id": "clcxce.motorola-68k-assembly",
-        "aliases": ["The Macroassembler AS", "as"],
-        "extensions": [".asm", ".lst"]
+        "aliases": [
+          "The Macroassembler AS",
+          "as"
+        ],
+        "extensions": [
+          ".asm",
+          ".lst"
+        ]
       }
     ]
   },
@@ -114,14 +124,18 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.96.0",
+    "@types/adm-zip": "^0.5.7",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
+    "@types/vscode": "^1.96.0",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
     "@typescript-eslint/parser": "^8.17.0",
-    "eslint": "^9.16.0",
-    "typescript": "^5.7.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.16.0",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
   }
 }

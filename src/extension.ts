@@ -1,25 +1,31 @@
 /*
 TODOS:
-- Maybe some asyncing;
+- Maybe some asyncing; (Done!)
 - Maybe some classes for encapsulation.
 */
 
 import { ExtensionContext, extensions, workspace, commands, window, Uri } from 'vscode';
 import { exec, execSync } from 'child_process';
-import { existsSync, readFileSync, readdirSync, readdir, mkdirSync, rename, unlinkSync, unlink } from 'fs';
+import { existsSync, readFileSync, readdirSync, readdir, mkdirSync, rename, unlink, createWriteStream } from 'fs';
+import { pipeline } from 'stream';
+import { promisify } from 'util';
 import { join } from 'path';
 import AdmZip from 'adm-zip';
 
-let main_name:string;
-let constants_name:string;
-let variables_name:string;
-let fill_value:string;
-let project_folder:string;
+let main_name: string;
+let constants_name: string;	
+let variables_name: string;
+let fill_value: string;
+let project_folder: string;
+let assembler_folder: string;
+let assembler_name = "asl";
+let compiler_name = "p2bin";
 const output_channel = window.createOutputChannel("The Macro Assembler AS");
 
 const extensionId = "clcxce.motorola-68k-assembly";
+const streamPipeline = promisify(pipeline);
 
-if (!extensions.getExtension(extensionId)) 
+if (!extensions.getExtension(extensionId))
 {
 	window.showWarningMessage(`The extension "${extensionId}" is not installed. Its installation is recommended for text highlighting.`);
 }
@@ -53,56 +59,15 @@ function executeCommandSync(command:string):boolean
 	}
 }
 
-function filesAndFoldersCheck():boolean
-{	// Various checks to make sure the environment is setup correctly
-	if (!workspace.workspaceFolders)
-	{
-		window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
-		return false;
-	}
-
-	project_folder = workspace.workspaceFolders[0].uri.fsPath; // Gets the full path to the currently opened folder
-
-	if (!existsSync(join(project_folder, main_name)))
-	{
-		window.showErrorMessage(`Main source code is missing. Name it to \"${main_name}\" or change it in the extension settings.`);
-		return false;
-	}
-
-	const build_tools_folder = join(project_folder, "build_tools");
-
-	if (!existsSync(build_tools_folder))
-	{
-		window.showErrorMessage("\"build_tools\" folder not present. You should include this folder with its files.");
-		return false;
-	}
-
-	if (!existsSync(join(build_tools_folder, "asl.exe"))) // *project folder*/build_tools/asl.exe
-	{
-		window.showErrorMessage("\"asl.exe\" assembler is missing. It should be included in \"build_tools\".");
-		return false;
-	}
-
-	if (!existsSync(join(build_tools_folder, "p2bin.exe"))) // *project folder*/build_tools/p2bin.exe
-	{
-		window.showErrorMessage("\"p2bin.exe\" compiler is missing. It should be included in \"build_tools\".");
-		return false;
-	}
-
-	return true;
-}
-
 function assembleROM()
 {	
-	process.chdir(join(project_folder, "build_tools"));
 	output_channel.clear();
 
-	if (!executeCommandSync("asl.exe ..\\" + main_name + " /xx /o rom.p /olist ..\\code.lst -ALU"))
+	if (!executeCommandSync(`${assembler_name} ${join(project_folder, main_name)} /xx /o rom.p /olist ${join(project_folder, "code.lst")} -ALU`))
 	{
 		return; // This is awful I know
 	}
 
-	process.chdir(project_folder);
 	const files = readdirSync('.'); // Reads all files and folders and put them into a string array
 
 	// Checks if there are any files that have the .gen extension, if so it renames it with .pre and a number
@@ -129,33 +94,31 @@ function assembleROM()
 			{
 				if (error)
 				{
-					window.showWarningMessage("Could not rename the previous ROM. To avoid conflicts, rename the older build to \"" + new_extension + "\" manually.");
+					window.showWarningMessage(`Could not rename the previous ROM. To avoid conflicts, rename the older build to "${new_extension}" manually.`);
 					return;
 				}
 				
-				window.showInformationMessage("Latest build already exists, renaming it to \"" + new_extension + "\".");
+				window.showInformationMessage(`Latest build already exists, renaming it to "${new_extension}".`);
 			});
 			
 			break;
 		}
 	}
 
-	// Change current working folder back to build_tools and execute the compiler from there
-	process.chdir(join(project_folder, "build_tools"));
-	executeCommandSync(`p2bin.exe rom.p -k -l $${fill_value}`);
+	executeCommandSync(`${compiler_name} rom.p -k -l $${fill_value}`);
 	const current_date = new Date();
 	const hours = `${current_date.getHours().toString().padStart(2, '0')}`;
 	const minutes = `${current_date.getMinutes().toString().padStart(2, '0')}`;
 	const seconds = `${current_date.getSeconds().toString().padStart(2, '0')}`;
 	
-	// Renames and moves the rom.bin file outside build_tools since p2bin doesn't have a switch to change the output file name for some reason
-	rename("rom.bin", `..\\${main_name} ${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${hours}.${minutes}.${seconds}.gen`, (error) => // I am aware that this line is extraordinarily long
+	// Renames and moves the rom.bin file outside assembler_folder since p2bin doesn't have a switch to change the output file name for some reason
+	rename("rom.bin", `${join(project_folder, main_name)} ${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${hours}.${minutes}.${seconds}.gen`, (error) => // I am aware that this line is extraordinarily long
 	{
 		if (error)
 		{
 			if (error?.code !== "ENOENT")
 			{
-				window.showWarningMessage("Could not rename your ROM, try to take it from \"build_tools\" if it exists. " + error);
+				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assembler_folder}" if it exists. ${error}`);
 			}
 			else
 			{
@@ -177,60 +140,51 @@ function findAndRunROM(system_variable:string)
 	}
 
 	project_folder = workspace.workspaceFolders[0].uri.fsPath; // Get the full path to the currently opened folder
-	process.chdir(project_folder); // Change current working folder to the root of the opened one
 
-	readdir('.', (error, files) => 
+	const files = readdirSync(project_folder);
+	const rom = files.find(file => file.endsWith(".gen"));
+
+	if (rom)
 	{
-		if (error)
+		exec(`"${system_variable}" "${join(project_folder, rom)}"`, (error) => 
 		{
-			window.showErrorMessage("Cannot open project folder for reading. " + error);
-			return;
-		}
-
-		for (const file of files) // For every file
-		{
-			if (file.endsWith(".gen"))
+			if (error)
 			{
-				exec(`"${system_variable}" "${join(project_folder, file)}"`, (error) =>
-				{
-					if (!error)
-					{
-						window.showInformationMessage(`Running "${file}" with BlastEm.`);
-					}
-					else
-					{
-						window.showErrorMessage("Cannot run the latest build. " + error);
-					}
-				});
-
+				window.showErrorMessage("Cannot run the latest build. " + error.message);
 				return;
 			}
-		}
 
+			window.showInformationMessage(`Running "${rom}" with BlastEm.`);
+		});
+	}
+	else
+	{
 		window.showErrorMessage("There are no ROMs to run. Build something first.");
-	});
+	}
 }
 
 function runTemporaryROM(system_variable:string)
 {
-	process.chdir(join(project_folder, "build_tools"));
 	output_channel.clear();
 
-	if (!executeCommandSync("asl.exe ..\\" + main_name + " /x /o rom.p /olist ..\\code.lst -ALU")) // Assembles a temporary ROM inside the build_tools folder
+	if (!executeCommandSync(`${assembler_name} ${join(project_folder, main_name)} /x /o rom.p /olist ${join(project_folder, "code.lst")} -ALU`)) // Assembles a temporary ROM inside the assembler folder
 	{
 		return; // My optimization ego won't like this
 	}
 	
-	executeCommandSync("p2bin.exe rom.p -k");
+	executeCommandSync(`${compiler_name} rom.p -k`);
 
-	exec(`"${system_variable}" "${join(project_folder, "build_tools", "rom.bin")}"`, (error) =>
+	exec(`"${system_variable}" rom.bin`, (error) =>
 	{
 		if (error)
 		{
 			window.showErrorMessage("Cannot run the build. " + error);
 		}
 
-		unlinkSync("rom.bin");
+		unlink("rom.bin", (error) =>
+		{
+			window.showErrorMessage("Could not delete the temporary ROM for cleanup. You may want to do this by yourself. " + error);
+		});
 	});
 
 	const current_date = new Date();
@@ -245,9 +199,7 @@ function cleanFiles()
 		return;
 	}
 
-	process.chdir(workspace.workspaceFolders[0].uri.fsPath);
-
-	readdirSync('.').forEach((item) => 
+	readdirSync(workspace.workspaceFolders[0].uri.fsPath).forEach((item) => 
 	{
 		if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".log") || item.endsWith(".lst"))
 		{
@@ -255,7 +207,7 @@ function cleanFiles()
 			{
 				if (error)
 				{
-					window.showWarningMessage(`Could not remove "${item}" for cleanup. ${error}`);
+					window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
 				}
 			});
 		}
@@ -264,7 +216,7 @@ function cleanFiles()
 
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
-export function activate(context:ExtensionContext)
+export async function activate(context:ExtensionContext)
 {
 	const config = workspace.getConfiguration("megaenvironment");
 	main_name = config.get<string>("mainFileName", "Sonic.asm");
@@ -272,47 +224,94 @@ export function activate(context:ExtensionContext)
 	variables_name = config.get<string>("variablesFileName", "Variables.asm");
 	fill_value = config.get<string>("fillValue", "FF");
 
-	const assemble = commands.registerCommand('megaenvironment.assemble', () => 
+	assembler_folder = join(context.globalStorageUri.fsPath, "as-assembler");
+
+	if (!existsSync(assembler_folder))
 	{
-		if (!filesAndFoldersCheck())
+		let zip_name: string;
+
+		switch (process.platform)
 		{
-			return; // Bad, can't do anything about this though
+			case 'win32':
+				zip_name = "windows-x86.zip";
+				assembler_name += ".exe";
+				compiler_name += ".exe";
+				break;
+			case 'darwin':
+				zip_name = "mac-arm64.zip";
+				break;
+			case 'linux':
+				window.showErrorMessage("Linux isn't supported yet. Sorry.");
+				return;
+			default:
+				window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
+				return;
 		}
 
+		const url = "https://github.com/Franklin0770/AS-releases/releases/download/v1.42b_288/" + zip_name;
+		const zip_path = join(assembler_folder, zip_name);
+
+		const zip = new AdmZip(assembler_folder);
+
+		const response = await fetch(url);
+
+		const file_stream = createWriteStream(assembler_folder);
+
+		mkdirSync(assembler_folder, { recursive: true });
+
+		if (!response.ok || !response.body)
+		{
+			window.showErrorMessage("Failed to download the latest AS compiler. " + response.statusText);
+			return;
+		}
+
+		await streamPipeline(response.body, file_stream);
+
+		zip.extractAllTo(zip_path, true);
+
+		unlink(zip_path, (error) => 
+		{
+			window.showErrorMessage("Could not delete the temporary assembler zipped folder. You may want to do this by yourself. " + error);
+		});
+
+	}
+
+	process.chdir(assembler_folder);
+
+	//
+	//	Commands
+	//
+
+	const assemble = commands.registerCommand('megaenvironment.assemble', () => 
+	{
 		assembleROM();
 	});
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', () =>
 	{
-		if (!filesAndFoldersCheck())
-		{
-			return; // Bad again, still can't do anything
-		}
-
 		cleanFiles();
 
-		process.chdir(join(project_folder, "build_tools"));
 		output_channel.clear();
 
-		if (!executeCommandSync("asl.exe ..\\" + main_name + " /xx /o rom.p /olist ..\\code.lst -ALU"))
+		if (!executeCommandSync(`${assembler_name} ${join(project_folder, main_name)} /xx /o rom.p /olist ${join(project_folder, "code.lst")} -ALU`))
 		{
 			return; // Don't flame me please
 		}
 
-		executeCommandSync(`p2bin.exe rom.p -k -l $${fill_value}`);
+		executeCommandSync(`${compiler_name} rom.p -k -l $${fill_value}`);
 		const current_date = new Date();
 		const hours = `${current_date.getHours().toString().padStart(2, '0')}`;
 		const minutes = `${current_date.getMinutes().toString().padStart(2, '0')}`;
 		const seconds = `${current_date.getSeconds().toString().padStart(2, '0')}`;
 	
-		// Renames and moves the rom.bin file outside build_tools since p2bin doesn't have a switch to change the output file name for some reason
+		// Renames and moves the rom.bin file outside assembler_folder since p2bin doesn't have a switch to change the output file name for some reason
 		rename("rom.bin", `..\\${main_name} ${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${hours}.${minutes}.${seconds}.gen`, (error) =>
 		{
 			if (error)
 			{
 				if (error?.code !== "ENOENT")
 				{
-					window.showWarningMessage("Could not rename your ROM, try to take it from \"build_tools\" if it exists. " + error);
+					window.showWarningMessage(`Could not rename your ROM, try to take it from "${assembler_folder}" if it exists. ${error}`);
 				}
 				else
 				{
@@ -327,6 +326,12 @@ export function activate(context:ExtensionContext)
 
 	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => 
 	{
+		if (process.platform !== 'win32')
+		{
+			window.showErrorMessage("This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.");
+			return;
+		}
+
 		const system_variable = process.env.BlastEm;
 
 		// Throws an error if the BlastEm variable is missing or not set up correctly
@@ -341,6 +346,12 @@ export function activate(context:ExtensionContext)
 
 	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => 
 	{
+		if (process.platform !== 'win32')
+		{
+			window.showErrorMessage("This command is not supported in your platform. Regen is only available for Windows, unfortunately.");
+			return;
+		}
+
 		const system_variable = process.env.Regen;
 
 		// Throws an error if the Regen variable is missing or not set up correctly
@@ -355,9 +366,10 @@ export function activate(context:ExtensionContext)
 
 	const assemble_and_run_BlastEm = commands.registerCommand("megaenvironment.assemble_run_blastem", () =>
 	{
-		if (!filesAndFoldersCheck())
+		if (process.platform !== 'win32')
 		{
-			return; // Hope I'll never have to do this in 68k assembly
+			window.showErrorMessage("This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.");
+			return;
 		}
 		
 		const system_variable = process.env.BlastEm;
@@ -373,12 +385,13 @@ export function activate(context:ExtensionContext)
 	});
 
 	const assemble_and_run_Regen = commands.registerCommand("megaenvironment.assemble_run_regen", () =>
-	{
-		if (!filesAndFoldersCheck())
+	{	
+		if (process.platform !== 'win32')
 		{
-			return; // Oh god here it goes again
+			window.showErrorMessage("This command is not supported in your platform. Regen is only available for Windows, unfortunately.");
+			return;
 		}
-		
+
 		const system_variable = process.env.Regen;
 
 		// Throws an error if the BlastEm variable is missing or not set up correctly
@@ -393,33 +406,10 @@ export function activate(context:ExtensionContext)
 
 	const open_EASy68k = commands.registerCommand("megaenvironment.open_easy68k", () =>
 	{
-		if (!workspace.workspaceFolders)
+		if (process.platform !== 'win32')
 		{
-			window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+			window.showErrorMessage("This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.");
 			return;
-		}
-
-		const build_tools_folder = join(workspace.workspaceFolders[0].uri.fsPath, "build_tools");
-
-		if (!existsSync(build_tools_folder))
-		{
-			window.showErrorMessage("\"build_tools\" folder not present. You should include this folder with its files.");
-			return;
-		}
-
-		process.chdir(build_tools_folder);
-
-		const editor = window.activeTextEditor;
-		let selected_text = "";
-
-		if (editor) 
-		{
-			selected_text = editor.document.getText(editor.selection);
-		}
-
-		if (selected_text === "")
-		{
-			window.showWarningMessage("You haven't selected any text field. To make sure you want to debug a portion of your code, select the text you want to analyze.");
 		}
 
 		const system_variable = process.env.EASy68k;
@@ -428,6 +418,24 @@ export function activate(context:ExtensionContext)
 		{
 			window.showErrorMessage("You didn't set up the \"EASy68k\" environment variable correctly. You must set this variable to the \"EDIT68K.exe\" executable. The current variable value is: " + system_variable);
 			return;
+		}
+
+		const editor = window.activeTextEditor;
+		let selected_text;
+
+		if (editor) 
+		{
+			selected_text = editor.document.getText(editor.selection);
+		}
+		else
+		{
+			window.showErrorMessage("You don't have an opened editor");
+			return;
+		}
+
+		if (selected_text === "")
+		{
+			window.showWarningMessage("You haven't selected any text field. To make sure you want to debug a portion of your code, select the text you want to analyze.");
 		}
 
 		let text:string;
@@ -465,7 +473,7 @@ export function activate(context:ExtensionContext)
 
 		try
 		{
-			workspace.fs.writeFile(Uri.file(join(build_tools_folder, "temp.txt")), new TextEncoder().encode(text));
+			workspace.fs.writeFile(Uri.file("temp.txt"), new TextEncoder().encode(text));
 		}
 		catch (error:any)
 		{
@@ -475,7 +483,7 @@ export function activate(context:ExtensionContext)
 
 		window.showInformationMessage("Debugging your current selection with EASy68k.");
 
-		exec(`"${system_variable}" "${join(build_tools_folder, "temp.txt")}"`, (error) =>
+		exec(`"${system_variable}" "temp.txt"`, (error) =>
 		{
 			if (error)
 			{
@@ -484,13 +492,13 @@ export function activate(context:ExtensionContext)
 
 			readdirSync('.').forEach((file) => 
 			{
-				if (file !== "asl.exe" && file !== "p2bin.exe")
+				if (file !== assembler_name && file !== compiler_name)
 				{
 					unlink(file, (error) =>
 					{
 						if (error)
 						{
-							window.showWarningMessage(`Could not remove "${file}" for cleanup. ${error}`);
+							window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error}`);
 						}
 					});
 				}
@@ -521,8 +529,6 @@ export function activate(context:ExtensionContext)
 			items.splice(items.indexOf("Backups"), 1); // Remove Backups folder
 		}
 
-		items.splice(items.indexOf("build_tools"), 1); // Remove build_tools folder
-
 		items.forEach((item) => 
 		{
 			zip.addLocalFile(item);
@@ -533,7 +539,7 @@ export function activate(context:ExtensionContext)
 				{
 					if (error)
 					{
-						window.showWarningMessage(`Could not remove "${item}" for cleanup. ${error}`);
+						window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
 					}
 				});
 			}
@@ -541,6 +547,7 @@ export function activate(context:ExtensionContext)
 
 		const current_date = new Date();
 		zip.writeZip(join("Backups", `Backup ${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${current_date.getHours().toString().padStart(2, '0')}.${current_date.getMinutes().toString().padStart(2, '0')}.${current_date.getSeconds().toString().padStart(2, '0')}.zip`)); // I am aware that this line is extraordinarily long
+		process.chdir(assembler_folder);
 		window.showInformationMessage("Files backed up successfully.");
 	});
 
