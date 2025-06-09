@@ -131,7 +131,7 @@ function assembleROM() {
 	const seconds = `${current_date.getSeconds().toString().padStart(2, '0')}`;
 	
 	// Renames and moves the rom.bin file outside assembler_folder since p2bin doesn't have a switch to change the output file name for some reason
-	rename("rom.bin", `${join(project_folder, main_name)}-${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${hours}.${minutes}.${seconds}.gen`, (error) => { // I am aware that this line is extraordinarily long
+	rename("rom.bin", `${join(project_folder, main_name)}-${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${hours}.${minutes}.${seconds}.gen`, (error) => {
 		if (error) {
 			if (error?.code !== "ENOENT") {
 				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assembler_folder}" if it exists. ${error}`);
@@ -314,20 +314,28 @@ export async function activate(context: ExtensionContext) {
 
 		process.chdir(project_folder);
 
+		if (!fileCheck()) {
+			return;
+		}
+
 		output_channel.clear();
 
-		if (!executeCommandSync(`"${assembler_path}" "${main_name}" -xx -o ${join(assembler_path, "rom.p")} -olist code.lst -ALU`)) {
+		console.log(`"${assembler_path}" "${main_name}" -xx -o "${join(assembler_folder, "rom.p")}" -olist code.lst -ALU`);
+
+		if (!executeCommandSync(`"${assembler_path}" "${main_name}" -xx -o "${join(assembler_folder, "rom.p")}" -olist code.lst -ALU`)) {
 			return; // Don't flame me please
 		}
 
-		executeCommandSync(`${compiler_name} rom.p -k -l`);
+		process.chdir(assembler_folder);
+
+		executeCommandSync(`"${compiler_name}" rom.p -k`);
 		const current_date = new Date();
 		const hours = `${current_date.getHours().toString().padStart(2, '0')}`;
 		const minutes = `${current_date.getMinutes().toString().padStart(2, '0')}`;
 		const seconds = `${current_date.getSeconds().toString().padStart(2, '0')}`;
 	
 		// Renames and moves the rom.bin file outside assembler_folder since p2bin doesn't have a switch to change the output file name for some reason
-		rename(join(assembler_folder, "rom.bin"), `${main_name} ${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${hours}.${minutes}.${seconds}.gen`, (error) => {
+		rename("rom.bin", `${join(project_folder, main_name)}-${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${hours}.${minutes}.${seconds}.gen`, (error) => {
 			if (error) {
 				if (error?.code !== "ENOENT") {
 					window.showWarningMessage(`Could not rename your ROM, try to take it from "${assembler_folder}" if it exists. ${error}`);
@@ -536,7 +544,7 @@ export async function activate(context: ExtensionContext) {
 		});
 
 		const current_date = new Date();
-		zip.writeZip(join("Backups", `Backup ${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${current_date.getHours().toString().padStart(2, '0')}.${current_date.getMinutes().toString().padStart(2, '0')}.${current_date.getSeconds().toString().padStart(2, '0')}.zip`)); // I am aware that this line is extraordinarily long
+		zip.writeZip(join("Backups", `Backup-${current_date.getFullYear()}_${(current_date.getMonth() + 1).toString().padStart(2, '0')}_${current_date.getDate().toString().padStart(2, '0')} ${current_date.getHours().toString().padStart(2, '0')}.${current_date.getMinutes().toString().padStart(2, '0')}.${current_date.getSeconds().toString().padStart(2, '0')}.zip`)); // I am aware that this line is extraordinarily long
 		process.chdir(assembler_folder);
 		window.showInformationMessage("Files backed up successfully.");
 	});
