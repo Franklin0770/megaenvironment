@@ -3,7 +3,7 @@
   "displayName": "Mega Drive Environment",
   "publisher": "Brotherhood0",
   "description": "Provides integration with The Macro Assembler AS, among other features.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.96.0"
   },
@@ -85,12 +85,12 @@
         "megaenvironment.constantsFileName": {
           "type": "string",
           "default": "Constants.asm",
-          "description": "The constants source code file name used in the project."
+          "description": "The constants source code file name used in the project. Leave it blank if you aren't using it."
         },
         "megaenvironment.variablesFileName": {
           "type": "string",
           "default": "Variables.asm",
-          "description": "The variables source code file name used in the project."
+          "description": "The variables source code file name used in the project. Leave it blank if you aren't using it."
         },
         "megaenvironment.fillValue": {
           "type": "string",

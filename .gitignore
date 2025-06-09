@@ -1,4 +1,22 @@
-megaenvironment-0.0.1.vsix
-README.md
-CHANGELOG.md
-vsc-extension-quickstart.md
+# Node modules (dependencies installed by npm/yarn/pnpm)
+node_modules/
+
+# Build output (for compiled extensions, e.g., TypeScript)
+out/
+dist/
+lib/
+
+# VS Code extension packaging output
+*.vsix
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# TypeScript specific (if used)
+*.tsbuildinfo
