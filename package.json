@@ -13,62 +13,60 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {
+	  {
         "command": "megaenvironment.assemble",
         "title": "Assemble",
         "category": "Build"
       },
-      {
+	  {
         "command": "megaenvironment.clean_assemble",
         "title": "Clean & Assemble",
         "category": "Build"
       },
-      {
+	  {
         "command": "megaenvironment.run_blastem",
         "title": "Run Latest ROM with BlastEm",
         "category": "Execution"
       },
-      {
+	  {
         "command": "megaenvironment.run_regen",
         "title": "Run Latest ROM with Regen",
         "category": "Execution"
       },
-      {
+	  {
         "command": "megaenvironment.assemble_run_blastem",
         "title": "Assemble & Run with BlastEm",
         "category": "Test"
       },
-      {
+	  {
         "command": "megaenvironment.assemble_run_regen",
         "title": "Assemble & Run with Regen",
         "category": "Test"
-      },
-      {
+      }, {
         "command": "megaenvironment.backup",
         "title": "Backup Files And Clean Folder",
         "category": "Cleaning"
-      },
-      {
+      }, {
         "command": "megaenvironment.cleanup",
         "title": "Clean Folder",
         "category": "Cleaning"
       },
-      {
+	  {
         "command": "megaenvironment.open_easy68k",
         "title": "Open Current Selection In EASy68k",
         "category": "Debug"
       },
-      {
+	  {
         "command": "megaenvironment.rename_main",
         "title": "Change Main Source Code Name",
         "category": "Rename"
       },
-      {
+	  {
         "command": "megaenvironment.rename_constants",
         "title": "Change Constants Source Code Name",
         "category": "Rename"
       },
-      {
+	  {
         "command": "megaenvironment.rename_variables",
         "title": "Change Variables Source Code Name",
         "category": "Rename"
@@ -77,32 +75,98 @@
     "configuration": {
       "title": "Mega Drive Environment",
       "properties": {
-        "megaenvironment.mainFileName": {
+
+		"megaenvironment.buildControl.outputRomName": {
+		  "type": "string",
+		  "default": "",
+		  "description": "The output ROM file name. Leave it blank if you want this to have the same name as the main source code file."
+		},
+		"megaenvironment.buildControl.includeRomDate": {
+		  "type": "boolean",
+		  "default": true,
+		  "description": "Whenever the output ROM file name should include date and time after the user's name."
+		},
+		"megaenvironment.buildControl.enablePreviousBuilds": {
+		  "type": "boolean",
+		  "default": true,
+		  "description": "Whenever the latest version should get marked as a previous ROM to avoid getting replaced. The latest build has the highest number."
+		},
+		"megaenvironment.buildControl.previousRomsAmount": {
+		  "type": "integer",
+		  "default": 10,
+		  "description": "The maximum amount of .pre ROMs before it starts replacing the latest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
+		  "minimum": 0
+		},
+
+        "megaenvironment.sourceCodeControl.mainFileName": {
           "type": "string",
           "default": "Sonic.asm",
           "description": "The main source code file name used in the project."
         },
-        "megaenvironment.constantsFileName": {
+        "megaenvironment.sourceCodeControl.constantsFileName": {
           "type": "string",
           "default": "Constants.asm",
-          "description": "The constants source code file name used in the project. Leave it blank if you aren't using it."
+          "description": "The source code file name of the constants used in the project. Used when EASy68k opens up."
         },
-        "megaenvironment.variablesFileName": {
+        "megaenvironment.sourceCodeControl.variablesFileName": {
           "type": "string",
           "default": "Variables.asm",
-          "description": "The variables source code file name used in the project. Leave it blank if you aren't using it."
+          "description": "The source code file name of the variables used in the project. Used when EASy68k opens up."
         },
-        "megaenvironment.fillValue": {
+		"megaenvironment.sourceCodeControl.generateCodeListing": {
+		  "type": "boolean",
+		  "default": true,
+		  "description": "Check this if you want a listing file to be generated each time a build is assembled. Useful for debugging."
+		},
+		"megaenvironment.sourceCodeControl.listingFileName": {
+		  "type": "string",
+		  "default": "",
+		  "description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file."
+		},
+
+		"megaenvironment.backupOptions.includeBackupDate": {
+		  "type": "boolean",
+		  "default": true,
+		  "description": "Whenever the output backup file name should include date and time after the user's name."
+		},
+		"megaenvironment.backupOptions.backupFileName": {
+		  "type": "string",
+		  "default": "",
+		  "description": "The name of the backup files. Default name is \"Backup\"."
+		},
+
+        "megaenvironment.miscellaneous.fillValue": {
           "type": "string",
-          "default": "FF",
-          "description": "The hexadecimal value used to fill empty spaces in the ROM. AS defaults to FF which might cause conflicts.",
+          "default": "00",
+          "description": "The hexadecimal value used to fill empty spaces in the ROM.",
           "pattern": "^[0-9A-Fa-f]{1,2}$",
           "patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
-        }
+        },
+		"megaenvironment.miscellaneous.errorLevel": {
+		  "type": "integer",
+		  "default": 2,
+		  "description": "The detail level of error messages. The higher the value, the more information about a possible error will be printed.",
+		  "minimum": 0,
+		  "maximum": 2
+		},
+		"megaenvironment.miscellaneous.suppressWarnings": {
+			"type": "boolean",
+			"default": false,
+			"description": "Whenever the terminal should suppress the assembler warnings."
+		},
+		"megaenvironment.miscellaneous.quietOperation": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Whenever the terminal should print only the errors. By default, the terminal prints the output each time a build is assembled, but it only pops up when an error occurs."
+		},
+		"megaenvironment.miscellaneous.verboseOperation": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Whenever the terminal should always show the output every time a build is assembled. By default, the terminal only pops up when an error occurs."
+		}
       }
     },
-    "languages": [
-      {
+    "languages": [ {
         "id": "clcxce.motorola-68k-assembly",
         "aliases": [
           "The Macroassembler AS",
