@@ -30,7 +30,7 @@ npm i --save-dev @types/adm-zip
 I'm aware this extension isn't made for ROM hacking (especially after trying out Sonic disassemblies). The assembler throws errors related to addresses, values that overflow and macro definitions (maybe it's time to build without the -ffast-math C flag).
 ## Some screenshots (so you get the idea)
 ![Settings1](https://github.com/Franklin0770/megaenvironment/blob/6f170a3113cdcf4e039e24733e5d6bba18471a66/papers/Settings%201.png)
-![Settings2](https://github.com/Franklin0770/megaenvironment/blob/6f170a3113cdcf4e039e24733e5d6bba18471a66/papers/Settings%202.png)
+![Settings2](https://github.com/Franklin0770/megaenvironment/blob/1bfb0b5f63f4f5ebdb4827a75a474070b098f609/papers/Settings%202.png)
 ![Assembly1](https://github.com/Franklin0770/megaenvironment/blob/6f170a3113cdcf4e039e24733e5d6bba18471a66/papers/Assembly%201.png)
 ![Assembly2](https://github.com/Franklin0770/megaenvironment/blob/6f170a3113cdcf4e039e24733e5d6bba18471a66/papers/Assembly%202.png)
 ## The Credits Section
