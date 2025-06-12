@@ -4,13 +4,13 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 
 ## What it can do
 You can:
-- Assemble files and produce a ROM output in various ways;
+- Assemble files and compile a ROM  in various ways;
 - Some basic versioning, useful for producing multiple builds and be able to distinguish between them;
 - Shortcuts to manage and organise your project folder;
-- Speaking of versioning and file managament, you can also backup your project quickly;
+- Speaking of versioning and file management, you can also backup your project quickly;
 - Run ROMs with mostly Windows emulators (you need to set a system variable for this!);
 - Utilise nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
-- Avoid to include build tools or such, the extension downloads the necessary files to compile.
+- Avoid headaches by including build tools or such, the extension automatically downloads the necessary files to compile.
 
 ![Commands](https://github.com/Franklin0770/megaenvironment/blob/7c263f7abbba2ad60a2f4aee0b7401921f504891/papers/Commands.png)
 
