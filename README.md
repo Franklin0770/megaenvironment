@@ -1,71 +1,39 @@
-# megaenvironment README
+# What does this thing do?
+It's a Visual Studio Code extension developed to integrate a command-like UI with [The Macro Assembler AS](http://john.ccac.rwth-aachen.de:8000/as/).  
+The purpose of this extension is primarily for Sega Mega Drive homebrew development.  
 
-This is the README for your extension "megaenvironment". After writing up a brief description, we recommend including the following sections.
+## What it can do
+You can:
+- Assemble files and produce a ROM output in various ways;
+- Some basic versioning, useful for producing multiple builds and be able to distinguish between them;
+- Shortcuts to manage and organise your project folder;
+- Speaking of versioning and file managament, you can also backup your project quickly;
+- Run ROMs with mostly Windows emulators (you need to set a system variable for this!);
+- Utilise nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
+- Avoid to include build tools or such, the extension downloads the necessary files to compile.
 
-## Features
+![Commands](https://github.com/Franklin0770/megaenvironment/blob/7c263f7abbba2ad60a2f4aee0b7401921f504891/papers/Commands.png)
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+## What you need to install this
+First of all, make sure you have [Node.js](https://nodejs.org/) installed. [Git](https://git-scm.com) is recommended if you want to clone this repository.  
 
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+Then, after installing Node, you must install [Adm-Zip](https://www.npmjs.com/package/adm-zip), a file zipper required for the extension to make backups:
+```
+npm install adm-zip
+```
+Since Node needs this package's node module, you'll want to issue this command as well:
+```
+cd megaenvironment
+npm i --save-dev @types/adm-zip
+```
+## What doesn't work (for now)
+I'm aware this extension isn't made for ROM hacking (especially after trying out Sonic disassemblies). The assembler throws errors related to addresses, values that overflow and macro definitions (maybe it's time to build without the -ffast-math C flag).
+## Some screenshots (so you get the idea)
+![Settings1](https://github.com/Franklin0770/megaenvironment/blob/7c263f7abbba2ad60a2f4aee0b7401921f504891/papers/Settings%201.png)
+![Settings2](https://github.com/Franklin0770/megaenvironment/blob/1bfb0b5f63f4f5ebdb4827a75a474070b098f609/papers/Settings%202.png)
+![Assembly1](https://github.com/Franklin0770/megaenvironment/blob/7c263f7abbba2ad60a2f4aee0b7401921f504891/papers/Assembly%201.png)
+![Assembly2](https://github.com/Franklin0770/megaenvironment/blob/7c263f7abbba2ad60a2f4aee0b7401921f504891/papers/Assembly%202.png)
+## The Credits Section
+The assembler and compiler: http://john.ccac.rwth-aachen.de:8000/as/  
+How I learnt to make this extension: https://code.visualstudio.com/api/get-started/your-first-extension  
+This is were the files are downloaded from: https://github.com/Franklin0770/AS-releases.git
