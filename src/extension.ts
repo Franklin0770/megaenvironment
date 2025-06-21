@@ -6,11 +6,12 @@ TODOS:
 
 import { ExtensionContext, extensions, workspace, commands, window, Uri } from 'vscode';
 import { exec, execSync } from 'child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rename, unlink, createWriteStream, chmodSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, rename, unlink, createWriteStream, chmodSync, unlinkSync } from 'fs';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { join } from 'path';
 import AdmZip from 'adm-zip';
+import { arch } from 'os';
 
 interface ExtensionSettings {
     romName: string;
@@ -115,11 +116,11 @@ function executeAssemblyCommand(): boolean {
 
 		switch (error.status) {
 			case 2:
-				window.showErrorMessage("Build failed. A programming error was thrown by the assembler. Check the terminal for more details."); // This happens in case the assembler gets an error
+				window.showErrorMessage("Build failed. An error was thrown by the assembler. Check the terminal for more details.");
 				break;
 
 			case 3:
-				window.showErrorMessage("Build failed. A user error was thrown by the assembler. Check the terminal for more details.");
+				window.showErrorMessage("Build failed. A fatal error was thrown by the assembler. Check the terminal for more details.");
 				break;
 
 			default:
@@ -356,59 +357,70 @@ export async function activate(context: ExtensionContext) {
 	assemblerPath = join(assemblerFolder, "asl");
 	compilerName = join(assemblerFolder, "p2bin");
 
-	if (!existsSync(assemblerFolder)) {
-		let zipName: string;
+	let zipName: string;
+	const proc = process;
 
-		switch (process.platform) {
-			case 'win32':
-				zipName = "windows-x86.zip";
-				assemblerPath += ".exe";
-				compilerName += ".exe";
-				break;
-			case 'darwin':
+	switch (proc.platform) {
+		case 'win32':
+			zipName = "windows-x86.zip";
+			assemblerPath += ".exe";
+			compilerName += ".exe";
+			break;
+		case 'darwin':
+			if (proc.arch === 'x64') {
+				zipName = "mac-x86_64.zip";
+			} else {
 				zipName = "mac-arm64.zip";
-				break;
-			case 'linux':
-				zipName = "linux-x86_64";
-				return;
-			default:
-				window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
-				return;
-		}
-
-		window.showInformationMessage("Downloading the latest tools...");
-
-		mkdirSync(assemblerFolder, { recursive: true });
-
-		process.chdir(assemblerFolder);
-
-		const zipPath = join('.', zipName);
-
-		const response = await fetch("https://github.com/Franklin0770/AS-releases/releases/download/latest/" + zipName);
-
-		const fileStream = createWriteStream(zipPath);
-
-		if (!response.ok || !response.body) {
-			window.showErrorMessage("Failed to download the latest AS compiler. " + response.statusText);
-			return;
-		}
-
-		await streamPipeline(response.body, fileStream);
-
-		const zip = new AdmZip(zipPath);
-
-		for (const entry of zip.getEntries()) {
-			const path = join('.', entry.entryName);
-			// Remove the first folder from the path
-			writeFileSync(path, entry.getData());
-
-			if (process.platform !== 'win32') {
-				chmodSync(path, 0o755); // Get permissions (rwx) for Unix-based systems
 			}
-		}
-
-		unlinkSync(zipPath);
+			break;
+		case 'linux':
+			if (proc.arch === 'x64') {
+				zipName = "linux-x86_64.zip";
+			} else {
+				zipName = "linux-arm64.zip";
+			}
+			return;
+		default:
+			window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
+			return;
 	}
+
+	window.showInformationMessage("Downloading the latest tools...");
+
+	if (existsSync(assemblerFolder)) {
+		rmSync(assemblerFolder, { recursive: true, force: true });
+	}
+
+	mkdirSync(assemblerFolder, { recursive: true });
+
+	process.chdir(assemblerFolder);
+
+	const zipPath = join('.', zipName);
+
+	const response = await fetch("https://github.com/Franklin0770/AS-releases/releases/download/latest/" + zipName);
+
+	const fileStream = createWriteStream(zipPath);
+
+	if (!response.ok || !response.body) {
+		window.showErrorMessage("Failed to download the latest AS compiler. " + response.statusText);
+		return;
+	}
+
+	await streamPipeline(response.body, fileStream);
+
+	const zip = new AdmZip(zipPath);
+
+	for (const entry of zip.getEntries()) {
+		const path = join('.', entry.entryName);
+		// Remove the first folder from the path
+		writeFileSync(path, entry.getData());
+
+		if (process.platform !== 'win32') {
+			chmodSync(path, 0o755); // Get permissions (rwx) for Unix-based systems
+		}
+	}
+
+	unlinkSync(zipPath);
 
 	//
 	//	Commands

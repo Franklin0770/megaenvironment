@@ -84,10 +84,10 @@ function executeAssemblyCommand() {
         outputChannel.show();
         switch (error.status) {
             case 2:
-                vscode_1.window.showErrorMessage("Build failed. A programming error was thrown by the assembler. Check the terminal for more details."); // This happens in case the assembler gets an error
+                vscode_1.window.showErrorMessage("Build failed. An error was thrown by the assembler. Check the terminal for more details.");
                 break;
             case 3:
-                vscode_1.window.showErrorMessage("Build failed. A user error was thrown by the assembler. Check the terminal for more details.");
+                vscode_1.window.showErrorMessage("Build failed. A fatal error was thrown by the assembler. Check the terminal for more details.");
                 break;
             default:
                 vscode_1.window.showErrorMessage("The assembler has thrown an unknown error. Check the terminal for more details.");
@@ -276,46 +276,58 @@ async function activate(context) {
     assemblerFolder = context.globalStorageUri.fsPath;
     assemblerPath = (0, path_1.join)(assemblerFolder, "asl");
     compilerName = (0, path_1.join)(assemblerFolder, "p2bin");
-    if (!(0, fs_1.existsSync)(assemblerFolder)) {
-        let zipName;
-        switch (process.platform) {
-            case 'win32':
-                zipName = "windows-x86.zip";
-                assemblerPath += ".exe";
-                compilerName += ".exe";
-                break;
-            case 'darwin':
-                zipName = "mac-arm64.zip";
-                break;
-            case 'linux':
-                zipName = "linux-x86_64";
-                return;
-            default:
-                vscode_1.window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
-                return;
-        }
-        vscode_1.window.showInformationMessage("Downloading the latest tools...");
-        (0, fs_1.mkdirSync)(assemblerFolder, { recursive: true });
-        process.chdir(assemblerFolder);
-        const zipPath = (0, path_1.join)('.', zipName);
-        const response = await fetch("https://github.com/Franklin0770/AS-releases/releases/download/latest/" + zipName);
-        const fileStream = (0, fs_1.createWriteStream)(zipPath);
-        if (!response.ok || !response.body) {
-            vscode_1.window.showErrorMessage("Failed to download the latest AS compiler. " + response.statusText);
-            return;
-        }
-        await streamPipeline(response.body, fileStream);
-        const zip = new adm_zip_1.default(zipPath);
-        for (const entry of zip.getEntries()) {
-            const path = (0, path_1.join)('.', entry.entryName);
-            // Remove the first folder from the path
-            (0, fs_1.writeFileSync)(path, entry.getData());
-            if (process.platform !== 'win32') {
-                (0, fs_1.chmodSync)(path, 0o755); // Get permissions (rwx) for Unix-based systems
+    let zipName;
+    const proc = process;
+    switch (proc.platform) {
+        case 'win32':
+            zipName = "windows-x86.zip";
+            assemblerPath += ".exe";
+            compilerName += ".exe";
+            break;
+        case 'darwin':
+            if (proc.arch === 'x64') {
+                zipName = "mac-x86_64.zip";
             }
-        }
-        (0, fs_1.unlinkSync)(zipPath);
+            else {
+                zipName = "mac-arm64.zip";
+            }
+            break;
+        case 'linux':
+            if (proc.arch === 'x64') {
+                zipName = "linux-x86_64.zip";
+            }
+            else {
+                zipName = "linux-arm64.zip";
+            }
+            return;
+        default:
+            vscode_1.window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
+            return;
     }
+    vscode_1.window.showInformationMessage("Downloading the latest tools...");
+    if ((0, fs_1.existsSync)(assemblerFolder)) {
+        (0, fs_1.rmSync)(assemblerFolder, { recursive: true, force: true });
+    }
+    (0, fs_1.mkdirSync)(assemblerFolder, { recursive: true });
+    process.chdir(assemblerFolder);
+    const zipPath = (0, path_1.join)('.', zipName);
+    const response = await fetch("https://github.com/Franklin0770/AS-releases/releases/download/latest/" + zipName);
+    const fileStream = (0, fs_1.createWriteStream)(zipPath);
+    if (!response.ok || !response.body) {
+        vscode_1.window.showErrorMessage("Failed to download the latest AS compiler. " + response.statusText);
+        return;
+    }
+    await streamPipeline(response.body, fileStream);
+    const zip = new adm_zip_1.default(zipPath);
+    for (const entry of zip.getEntries()) {
+        const path = (0, path_1.join)('.', entry.entryName);
+        // Remove the first folder from the path
+        (0, fs_1.writeFileSync)(path, entry.getData());
+        if (process.platform !== 'win32') {
+            (0, fs_1.chmodSync)(path, 0o755); // Get permissions (rwx) for Unix-based systems
+        }
+    }
+    (0, fs_1.unlinkSync)(zipPath);
     //
     //	Commands
     //
