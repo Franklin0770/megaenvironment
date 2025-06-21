@@ -51,7 +51,7 @@ if (!vscode_1.extensions.getExtension(extensionId)) {
 function executeAssemblyCommand() {
     if (!(0, fs_1.existsSync)(extensionSettings.mainName)) {
         vscode_1.window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`);
-        return false;
+        return -1;
     }
     outputChannel.clear();
     let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${(0, path_1.join)(assemblerFolder, "rom.p")}" -A`;
@@ -68,6 +68,9 @@ function executeAssemblyCommand() {
     if (extensionSettings.lowercaseHex) {
         command += 'h';
     }
+    if (extensionSettings.suppressWarnings) {
+        command += 'w';
+    }
     if (extensionSettings.quietOperation) {
         command += 'q';
     }
@@ -81,21 +84,22 @@ function executeAssemblyCommand() {
         }
         command += " -E " + name;
     }
-    if (extensionSettings.suppressWarnings) {
-        command += ' -w';
-    }
-    else {
-        command += ' 2>&1'; // Also display stderr, where the warnings usually go
-    }
     try {
-        const output = (0, child_process_1.execSync)(command, { encoding: 'ascii' });
+        const output = (0, child_process_1.spawnSync)(command, { encoding: 'ascii', shell: true });
         if (!extensionSettings.quietOperation) {
-            outputChannel.append(output);
+            outputChannel.append(output.stdout);
         }
         if (extensionSettings.verboseOperation) {
             outputChannel.show();
         }
-        return true;
+        if (output.stderr === "" || extensionSettings.suppressWarnings) {
+            return 0;
+        }
+        else {
+            outputChannel.appendLine("\n==================== ASSEMBLER WARNING ====================\n");
+            outputChannel.append(output.stderr);
+            return 1;
+        }
     }
     catch (error) {
         if (!extensionSettings.quietOperation) {
@@ -119,7 +123,7 @@ function executeAssemblyCommand() {
                 vscode_1.window.showErrorMessage("The assembler has thrown an unknown error. Check the terminal for more details.");
                 break;
         }
-        return false;
+        return -1;
     }
 }
 // Executes a program synchronously, returns true if successful, false if an error occurred
@@ -153,8 +157,15 @@ function assembleROM() {
     }
     const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
     process.chdir(projectFolder);
-    if (!executeAssemblyCommand()) {
-        return; // Hate this
+    let warnings = false;
+    switch (executeAssemblyCommand()) {
+        case 1:
+            warnings = true;
+            break;
+        case -1:
+            return;
+        default:
+            break;
     }
     const files = (0, fs_1.readdirSync)('.'); // Reads all files and folders and put them into a string array
     // Checks if there are any files that have the .gen extension. If so, it gets renamed with .pre and a number
@@ -201,9 +212,9 @@ function assembleROM() {
     if (!executeCompileCommand()) {
         return;
     }
-    renameRom(projectFolder);
+    renameRom(projectFolder, warnings);
 }
-function renameRom(projectFolder) {
+function renameRom(projectFolder, warnings) {
     const currentDate = new Date();
     const hours = currentDate.getHours().toString().padStart(2, '0');
     const minutes = currentDate.getMinutes().toString().padStart(2, '0');
@@ -230,7 +241,12 @@ function renameRom(projectFolder) {
             }
         }
     });
-    vscode_1.window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
+    if (!warnings) {
+        vscode_1.window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
+    }
+    else {
+        vscode_1.window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`);
+    }
 }
 function findAndRunROM(systemVariable) {
     if (!vscode_1.workspace.workspaceFolders) {
@@ -368,13 +384,20 @@ async function activate(context) {
         const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath; // Get the full path to the currently opened folder
         process.chdir(projectFolder);
         cleanProjectFolder();
-        if (!executeAssemblyCommand()) {
-            return;
+        let warnings = false;
+        switch (executeAssemblyCommand()) {
+            case 1:
+                warnings = true;
+                break;
+            case -1:
+                return;
+            default:
+                break;
         }
         if (!executeCompileCommand()) {
             return;
         }
-        renameRom(projectFolder);
+        renameRom(projectFolder, warnings);
     });
     const run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.run_blastem', () => {
         if (process.platform !== 'win32') {

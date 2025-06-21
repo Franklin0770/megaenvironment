@@ -126,7 +126,7 @@
 		"megaenvironment.sourceCodeControl.generateErrorListing": {
           "type": "boolean",
           "default": false,
-          "description": "Check this if you want every warning and error to be redirected in a text file."
+          "description": "Check this if you want every warning and error to be redirected in a text file. This will also suppress warnings automatically."
         },
         "megaenvironment.sourceCodeControl.errorFileName": {
           "type": "string",

@@ -5,7 +5,7 @@ TODOS:
 */
 
 import { ExtensionContext, extensions, workspace, commands, window, Uri } from 'vscode';
-import { exec, execSync } from 'child_process';
+import { exec, execSync, spawnSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, rename, unlink, createWriteStream, chmodSync, unlinkSync } from 'fs';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
@@ -72,10 +72,10 @@ if (!extensions.getExtension(extensionId)) {
 	window.showWarningMessage(`The extension "${extensionId}" is not installed. Its installation is recommended for text highlighting.`);
 }
 
-function executeAssemblyCommand(): boolean {
+function executeAssemblyCommand(): number {
 	if (!existsSync(extensionSettings.mainName)) {
 		window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`);
-		return false;
+		return -1;
 	}
 
 	outputChannel.clear();
@@ -100,6 +100,10 @@ function executeAssemblyCommand(): boolean {
 		command += 'h';
 	}
 
+	if (extensionSettings.suppressWarnings) {
+		command += 'w';
+	}
+
 	if (extensionSettings.quietOperation) {
 		command += 'q';
 	}
@@ -116,24 +120,24 @@ function executeAssemblyCommand(): boolean {
 		command += " -E " + name;
 	}
 
-	if (extensionSettings.suppressWarnings) {
-		command += ' -w';
-	} else {
-		command += ' 2>&1'; // Also display stderr, where the warnings usually go
-	}
-
 	try {
-		const output = execSync(command, { encoding: 'ascii' });
+		const output = spawnSync(command, { encoding: 'ascii', shell: true });
 
 		if (!extensionSettings.quietOperation) {
-			outputChannel.append(output);
+			outputChannel.append(output.stdout);
 		}
 
 		if (extensionSettings.verboseOperation) {
 			outputChannel.show();
 		}
 
-		return true;
+		if (output.stderr === "" || extensionSettings.suppressWarnings) {
+			return 0;
+		} else {
+			outputChannel.appendLine("\n==================== ASSEMBLER WARNING ====================\n");
+			outputChannel.append(output.stderr);
+			return 1;
+		}
 	}
 	catch (error: any) {
 		if (!extensionSettings.quietOperation) {
@@ -163,7 +167,7 @@ function executeAssemblyCommand(): boolean {
 				break;
 		}
 
-		return false;
+		return -1;
 	}
 }
 
@@ -210,8 +214,16 @@ function assembleROM() {
 
 	process.chdir(projectFolder);
 
-	if (!executeAssemblyCommand()) {
-		return; // Hate this
+	let warnings = false;
+
+	switch (executeAssemblyCommand()) {
+		case 1:
+			warnings = true;
+			break;
+		case -1:
+			return;
+		default:
+			break;
 	}
 
 	const files = readdirSync('.'); // Reads all files and folders and put them into a string array
@@ -266,10 +278,10 @@ function assembleROM() {
 		return;
 	}
 
-	renameRom(projectFolder);
+	renameRom(projectFolder, warnings);
 }
 
-function renameRom(projectFolder: string) {
+function renameRom(projectFolder: string, warnings: boolean) {
 	const currentDate = new Date();
 	const hours = currentDate.getHours().toString().padStart(2, '0');
 	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
@@ -299,7 +311,11 @@ function renameRom(projectFolder: string) {
 		}
 	});
 
-	window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
+	if (!warnings) {
+		window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
+	} else {
+		window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`);
+	}
 }
 
 function findAndRunROM(systemVariable: string) {
@@ -476,15 +492,23 @@ export async function activate(context: ExtensionContext) {
 
 		cleanProjectFolder();
 
-		if (!executeAssemblyCommand()) {
+		let warnings = false;
+
+		switch (executeAssemblyCommand()) {
+		case 1:
+			warnings = true;
+			break;
+		case -1:
 			return;
+		default:
+			break;
 		}
 
 		if (!executeCompileCommand()) {
 			return;
 		}
 
-		renameRom(projectFolder);
+		renameRom(projectFolder, warnings);
 	});
 
 	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => {
