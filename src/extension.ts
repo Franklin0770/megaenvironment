@@ -11,7 +11,6 @@ import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { join } from 'path';
 import AdmZip from 'adm-zip';
-import { arch } from 'os';
 
 interface ExtensionSettings {
     romName: string;
@@ -23,10 +22,15 @@ interface ExtensionSettings {
     variablesName: string;
     listingFile: boolean;
     listingName: string;
+	errorFile: boolean;
+	errorName: string;
+	caseSensitive: boolean;
     backupName: string;
     backupDate: boolean;
     fillValue: string;
     errorLevel: number;
+	errorNumber: boolean,
+	lowercaseHex: boolean,
     suppressWarnings: boolean;
     quietOperation: boolean;
     verboseOperation: boolean;
@@ -42,10 +46,15 @@ let extensionSettings: ExtensionSettings = {
     variablesName: "",
     listingFile: false,
     listingName: "",
+	errorFile: false,
+	errorName: "",
+	caseSensitive: true,
     backupName: "",
     backupDate: true,
     fillValue: "00",
     errorLevel: 0,
+	errorNumber: false,
+	lowercaseHex: false,
     suppressWarnings: false,
     quietOperation: false,
     verboseOperation: false
@@ -71,18 +80,24 @@ function executeAssemblyCommand(): boolean {
 
 	outputChannel.clear();
 
-	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, "rom.p")}" -AU`;
+	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, "rom.p")}" -A`;
 
 	if (extensionSettings.listingFile) {
 		command += 'L';
 	}
 
-	for (let i = extensionSettings.errorLevel; i > 0; i--) {
-		command += 'x';
+	if (extensionSettings.caseSensitive) {
+		command += 'U';
 	}
 
-	if (extensionSettings.suppressWarnings) {
-		command += 'w';
+	command += 'x'.repeat(extensionSettings.errorLevel);
+
+	if (extensionSettings.errorNumber) {
+		command += 'n';
+	}
+
+	if (extensionSettings.lowercaseHex) {
+		command += 'h';
 	}
 
 	if (extensionSettings.quietOperation) {
@@ -91,6 +106,20 @@ function executeAssemblyCommand(): boolean {
 
 	if (extensionSettings.listingName !== "") {
 		command += " -olist " + extensionSettings.listingName + ".lst";
+	}
+
+	if (extensionSettings.errorFile) {
+		let name = "";
+		if (extensionSettings.errorName !== "") {
+			name = extensionSettings.errorName + ".log";
+		}
+		command += " -E " + name;
+	}
+
+	if (extensionSettings.suppressWarnings) {
+		command += ' -w';
+	} else {
+		command += ' 2>&1'; // Also display stderr, where the warnings usually go
 	}
 
 	try {
@@ -110,17 +139,23 @@ function executeAssemblyCommand(): boolean {
 		if (!extensionSettings.quietOperation) {
 			outputChannel.append(error.stdout + '\n');
 		}
-		outputChannel.appendLine("==================== ASSEMBLER ERROR ====================\n");
-		outputChannel.append(error.stderr);
-		outputChannel.show();
+
+		let errorLocation = "log file";
+
+		if (!extensionSettings.errorFile) {
+			outputChannel.appendLine("==================== ASSEMBLER ERROR ====================\n");
+			outputChannel.append(error.stderr);
+			outputChannel.show();
+			errorLocation = "terminal";
+		}
 
 		switch (error.status) {
 			case 2:
-				window.showErrorMessage("Build failed. An error was thrown by the assembler. Check the terminal for more details.");
+				window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
 				break;
 
 			case 3:
-				window.showErrorMessage("Build failed. A fatal error was thrown by the assembler. Check the terminal for more details.");
+				window.showErrorMessage(`Build failed. A fatal was thrown by the assembler. Check the ${errorLocation} for more details.`);
 				break;
 
 			default:
@@ -234,7 +269,7 @@ function assembleROM() {
 	renameRom(projectFolder);
 }
 
-function renameRom(projectFolder:string) {
+function renameRom(projectFolder: string) {
 	const currentDate = new Date();
 	const hours = currentDate.getHours().toString().padStart(2, '0');
 	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
@@ -258,8 +293,7 @@ function renameRom(projectFolder:string) {
 		if (error) {
 			if (error?.code !== "ENOENT") {
 				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error}`);
-			}
-			else {
+			} else {
 				window.showErrorMessage("Cannot rename your ROM, there might be a problem with the compiler. " + error);
 			}
 		}
@@ -334,7 +368,7 @@ function cleanProjectFolder() {
 	let items = 0;
 
 	readdirSync('.').forEach((item) => {
-		if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst")) {
+		if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
 			unlinkSync(item);
 			items++;
 		}
@@ -633,7 +667,7 @@ export async function activate(context: ExtensionContext) {
 		items.forEach((item) => {
 			zip.addLocalFile(item);
 
-			if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst")) {
+			if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
 				unlink(item, (error) => {
 					if (error) {
 						window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
@@ -671,22 +705,27 @@ export async function activate(context: ExtensionContext) {
 }
 
 const settingDescriptors = [
-    { key: 'buildControl.outputRomName',			target: 'romName' },
-    { key: 'buildControl.includeRomDate',			target: 'romDate' },
-    { key: 'buildControl.enablePreviousBuilds',		target: 'prevRoms' },
-    { key: 'buildControl.previousRomsAmount',		target: 'prevAmount' },
-    { key: 'sourceCodeControl.mainFileName',   		target: 'mainName' },
-    { key: 'sourceCodeControl.constantsFileName',	target: 'constantsName' },
-    { key: 'sourceCodeControl.variablesFileName',	target: 'variablesName' },
-    { key: 'sourceCodeControl.generateCodeListing',	target: 'listingFile' },
-    { key: 'sourceCodeControl.listingFileName',		target: 'listingName' },
-    { key: 'backupOptions.backupFileName',			target: 'backupName' },
-    { key: 'backupOptions.includeBackupDate',		target: 'backupDate' },
-    { key: 'miscellaneous.fillValue',				target: 'fillValue' },
-    { key: 'miscellaneous.errorLevel',				target: 'errorLevel' },
-    { key: 'miscellaneous.suppressWarnings',		target: 'suppressWarnings' },
-    { key: 'miscellaneous.quietOperation',			target: 'quietOperation' },
-    { key: 'miscellaneous.verboseOperation',		target: 'verboseOperation' }
+    { key: 'buildControl.outputRomName',				target: 'romName' },
+    { key: 'buildControl.includeRomDate',				target: 'romDate' },
+    { key: 'buildControl.enablePreviousBuilds',			target: 'prevRoms' },
+    { key: 'buildControl.previousRomsAmount',			target: 'prevAmount' },
+    { key: 'sourceCodeControl.mainFileName',   			target: 'mainName' },
+    { key: 'sourceCodeControl.constantsFileName',		target: 'constantsName' },
+    { key: 'sourceCodeControl.variablesFileName',		target: 'variablesName' },
+    { key: 'sourceCodeControl.generateCodeListing',		target: 'listingFile' },
+    { key: 'sourceCodeControl.listingFileName',			target: 'listingName' },
+	{ key: 'sourceCodeControl.generateErrorListing',	target: 'errorFile' },
+	{ key: 'sourceCodeControl.errorFileName',			target: 'errorName' },
+	{ key: 'sourceCodeControl.caseSensitiveMode',		target: 'caseSensitive' },
+    { key: 'backupOptions.backupFileName',				target: 'backupName' },
+    { key: 'backupOptions.includeBackupDate',			target: 'backupDate' },
+    { key: 'miscellaneous.fillValue',					target: 'fillValue' },
+    { key: 'miscellaneous.errorLevel',					target: 'errorLevel' },
+	{ key: 'miscellaneous.displayErrorNumber',			target: 'errorNumber'},
+	{ key: 'miscellaneous.lowercaseHexadecimal',		target: 'lowercaseHex'},
+    { key: 'miscellaneous.suppressWarnings',			target: 'suppressWarnings' },
+    { key: 'miscellaneous.quietOperation',				target: 'quietOperation' },
+    { key: 'miscellaneous.verboseOperation',			target: 'verboseOperation' }
 ];
 
 workspace.onDidChangeConfiguration((event) => {

@@ -85,12 +85,12 @@
         "megaenvironment.buildControl.includeRomDate": {
           "type": "boolean",
           "default": true,
-          "description": "Whenever the output ROM file name should include date and time after the user's name."
+          "description": "Whether the output ROM file name should include date and time after the user's name."
         },
         "megaenvironment.buildControl.enablePreviousBuilds": {
           "type": "boolean",
           "default": true,
-          "description": "Whenever the latest version should get marked as a previous ROM to avoid getting replaced. The latest build has the highest number."
+          "description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced. The latest build has the highest number."
         },
         "megaenvironment.buildControl.previousRomsAmount": {
           "type": "integer",
@@ -101,17 +101,17 @@
         "megaenvironment.sourceCodeControl.mainFileName": {
           "type": "string",
           "default": "Sonic.asm",
-          "description": "The main source code file name used in the project."
+          "description": "The main source code file name used in the project, where the code gets executed."
         },
         "megaenvironment.sourceCodeControl.constantsFileName": {
           "type": "string",
           "default": "Constants.asm",
-          "description": "The source code file name of the constants used in the project. Used when EASy68k opens up."
+          "description": "The source code file name of the constants used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
         },
         "megaenvironment.sourceCodeControl.variablesFileName": {
           "type": "string",
           "default": "Variables.asm",
-          "description": "The source code file name of the variables used in the project. Used when EASy68k opens up."
+          "description": "The source code file name of the variables used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
         },
         "megaenvironment.sourceCodeControl.generateCodeListing": {
           "type": "boolean",
@@ -123,10 +123,25 @@
           "default": "",
           "description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file."
         },
+		"megaenvironment.sourceCodeControl.generateErrorListing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Check this if you want every warning and error to be redirected in a text file."
+        },
+        "megaenvironment.sourceCodeControl.errorFileName": {
+          "type": "string",
+          "default": "",
+          "description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file."
+        },
+		"megaenvironment.sourceCodeControl.caseSensitiveMode": {
+		  "type": "boolean",
+		  "default": true,
+		  "description": "Check this to make any symbol case sensitive in your code."
+		},
         "megaenvironment.backupOptions.includeBackupDate": {
           "type": "boolean",
           "default": true,
-          "description": "Whenever the output backup file name should include date and time after the user's name."
+          "description": "Whether the output backup file name should include date and time after the user's name."
         },
         "megaenvironment.backupOptions.backupFileName": {
           "type": "string",
@@ -136,31 +151,41 @@
         "megaenvironment.miscellaneous.fillValue": {
           "type": "string",
           "default": "00",
-          "description": "The hexadecimal value used to fill empty spaces in the ROM.",
+          "description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since they tend to skip these areas.",
           "pattern": "^[0-9A-Fa-f]{1,2}$",
           "patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
         },
         "megaenvironment.miscellaneous.errorLevel": {
           "type": "integer",
-          "default": 2,
-          "description": "The detail level of error messages. The higher the value, the more information about a possible error will be printed.",
+          "default": 1,
+          "description": "The detail level of warning, error and fatal messages. The higher the value, the more information about a possible error will be printed.",
           "minimum": 0,
           "maximum": 2
         },
+		"megaenvironment.miscellaneous.displayErrorNumber": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the terminal should display errors along with their number defined by the assembler."
+        },
+		"megaenvironment.miscellaneous.lowercaseHexadecimal": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Whether any hexadecimal value in the various outputs should be lowercase. Primarily for personal preference (and what a taste!)."
+		},
         "megaenvironment.miscellaneous.suppressWarnings": {
           "type": "boolean",
           "default": false,
-          "description": "Whenever the terminal should suppress the assembler warnings."
+          "description": "Whether the terminal should suppress the assembler warnings."
         },
         "megaenvironment.miscellaneous.quietOperation": {
           "type": "boolean",
           "default": false,
-          "description": "Whenever the terminal should print only the errors. By default, the terminal prints the output each time a build is assembled, but it only pops up when an error occurs."
+          "description": "Whether the terminal should print only the errors. By default, the terminal prints the output each time a build is assembled, but it only pops up when an error occurs."
         },
         "megaenvironment.miscellaneous.verboseOperation": {
           "type": "boolean",
           "default": false,
-          "description": "Whenever the terminal should always show the output every time a build is assembled. By default, the terminal only pops up when an error occurs."
+          "description": "Whether the terminal should always show the output every time a build is assembled. By default, the terminal only pops up when an error occurs."
         }
       }
     },

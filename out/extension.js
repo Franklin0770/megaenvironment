@@ -26,10 +26,15 @@ let extensionSettings = {
     variablesName: "",
     listingFile: false,
     listingName: "",
+    errorFile: false,
+    errorName: "",
+    caseSensitive: true,
     backupName: "",
     backupDate: true,
     fillValue: "00",
     errorLevel: 0,
+    errorNumber: false,
+    lowercaseHex: false,
     suppressWarnings: false,
     quietOperation: false,
     verboseOperation: false
@@ -49,21 +54,38 @@ function executeAssemblyCommand() {
         return false;
     }
     outputChannel.clear();
-    let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${(0, path_1.join)(assemblerFolder, "rom.p")}" -AU`;
+    let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${(0, path_1.join)(assemblerFolder, "rom.p")}" -A`;
     if (extensionSettings.listingFile) {
         command += 'L';
     }
-    for (let i = extensionSettings.errorLevel; i > 0; i--) {
-        command += 'x';
+    if (extensionSettings.caseSensitive) {
+        command += 'U';
     }
-    if (extensionSettings.suppressWarnings) {
-        command += 'w';
+    command += 'x'.repeat(extensionSettings.errorLevel);
+    if (extensionSettings.errorNumber) {
+        command += 'n';
+    }
+    if (extensionSettings.lowercaseHex) {
+        command += 'h';
     }
     if (extensionSettings.quietOperation) {
         command += 'q';
     }
     if (extensionSettings.listingName !== "") {
         command += " -olist " + extensionSettings.listingName + ".lst";
+    }
+    if (extensionSettings.errorFile) {
+        let name = "";
+        if (extensionSettings.errorName !== "") {
+            name = extensionSettings.errorName + ".log";
+        }
+        command += " -E " + name;
+    }
+    if (extensionSettings.suppressWarnings) {
+        command += ' -w';
+    }
+    else {
+        command += ' 2>&1'; // Also display stderr, where the warnings usually go
     }
     try {
         const output = (0, child_process_1.execSync)(command, { encoding: 'ascii' });
@@ -79,15 +101,19 @@ function executeAssemblyCommand() {
         if (!extensionSettings.quietOperation) {
             outputChannel.append(error.stdout + '\n');
         }
-        outputChannel.appendLine("==================== ASSEMBLER ERROR ====================\n");
-        outputChannel.append(error.stderr);
-        outputChannel.show();
+        let errorLocation = "log file";
+        if (!extensionSettings.errorFile) {
+            outputChannel.appendLine("==================== ASSEMBLER ERROR ====================\n");
+            outputChannel.append(error.stderr);
+            outputChannel.show();
+            errorLocation = "terminal";
+        }
         switch (error.status) {
             case 2:
-                vscode_1.window.showErrorMessage("Build failed. An error was thrown by the assembler. Check the terminal for more details.");
+                vscode_1.window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
                 break;
             case 3:
-                vscode_1.window.showErrorMessage("Build failed. A fatal error was thrown by the assembler. Check the terminal for more details.");
+                vscode_1.window.showErrorMessage(`Build failed. A fatal was thrown by the assembler. Check the ${errorLocation} for more details.`);
                 break;
             default:
                 vscode_1.window.showErrorMessage("The assembler has thrown an unknown error. Check the terminal for more details.");
@@ -258,7 +284,7 @@ function runTemporaryROM(systemVariable) {
 function cleanProjectFolder() {
     let items = 0;
     (0, fs_1.readdirSync)('.').forEach((item) => {
-        if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst")) {
+        if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
             (0, fs_1.unlinkSync)(item);
             items++;
         }
@@ -495,7 +521,7 @@ async function activate(context) {
         let files = 0;
         items.forEach((item) => {
             zip.addLocalFile(item);
-            if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst")) {
+            if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
                 (0, fs_1.unlink)(item, (error) => {
                     if (error) {
                         vscode_1.window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
@@ -532,10 +558,15 @@ const settingDescriptors = [
     { key: 'sourceCodeControl.variablesFileName', target: 'variablesName' },
     { key: 'sourceCodeControl.generateCodeListing', target: 'listingFile' },
     { key: 'sourceCodeControl.listingFileName', target: 'listingName' },
+    { key: 'sourceCodeControl.generateErrorListing', target: 'errorFile' },
+    { key: 'sourceCodeControl.errorFileName', target: 'errorName' },
+    { key: 'sourceCodeControl.caseSensitiveMode', target: 'caseSensitive' },
     { key: 'backupOptions.backupFileName', target: 'backupName' },
     { key: 'backupOptions.includeBackupDate', target: 'backupDate' },
     { key: 'miscellaneous.fillValue', target: 'fillValue' },
     { key: 'miscellaneous.errorLevel', target: 'errorLevel' },
+    { key: 'miscellaneous.displayErrorNumber', target: 'errorNumber' },
+    { key: 'miscellaneous.lowercaseHexadecimal', target: 'lowercaseHex' },
     { key: 'miscellaneous.suppressWarnings', target: 'suppressWarnings' },
     { key: 'miscellaneous.quietOperation', target: 'quietOperation' },
     { key: 'miscellaneous.verboseOperation', target: 'verboseOperation' }
