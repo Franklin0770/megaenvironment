@@ -17,6 +17,8 @@ const util_1 = require("util");
 const path_1 = require("path");
 const adm_zip_1 = __importDefault(require("adm-zip"));
 let extensionSettings = {
+    defaultCpu: "68000",
+    superiorWarnings: false,
     romName: "",
     romDate: true,
     prevRoms: true,
@@ -28,12 +30,19 @@ let extensionSettings = {
     listingName: "",
     errorFile: false,
     errorName: "",
+    debugFile: "None",
+    sectionListing: false,
+    macroListing: false,
+    sourceListing: false,
+    cleaningExtensions: [".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i"],
+    workingFolders: ['.'],
     caseSensitive: true,
     backupName: "",
     backupDate: true,
     fillValue: "00",
     errorLevel: 0,
     errorNumber: false,
+    AsErrors: false,
     lowercaseHex: false,
     suppressWarnings: false,
     quietOperation: false,
@@ -74,18 +83,47 @@ function executeAssemblyCommand() {
     if (extensionSettings.quietOperation) {
         command += 'q';
     }
+    if (extensionSettings.sectionListing) {
+        command += 's';
+    }
+    if (extensionSettings.macroListing) {
+        command += 'M';
+    }
+    if (extensionSettings.sourceListing) {
+        command += 'P';
+    }
+    if (!extensionSettings.superiorWarnings) {
+        command += ' -supmode';
+    }
+    if (!extensionSettings.AsErrors) {
+        command += ' -gnuerrors';
+    }
     if (extensionSettings.listingName !== "") {
-        command += " -olist " + extensionSettings.listingName + ".lst";
+        command += ' -olist ' + extensionSettings.listingName + ".lst";
     }
     if (extensionSettings.errorFile) {
-        let name = "";
         if (extensionSettings.errorName !== "") {
-            name = extensionSettings.errorName + ".log";
+            command += ' -E ' + extensionSettings.errorName + ".log";
         }
-        command += " -E " + name;
+        else {
+            command += ' -E';
+        }
     }
-    try {
-        const output = (0, child_process_1.spawnSync)(command, { encoding: 'ascii', shell: true });
+    if (extensionSettings.debugFile !== 'None') {
+        command += ' -g ' + extensionSettings.debugFile;
+    }
+    if (extensionSettings.defaultCpu !== '') {
+        command += " -cpu " + extensionSettings.defaultCpu;
+    }
+    if (extensionSettings.workingFolders.length > 0) {
+        command += ' -i ';
+        for (let directory of extensionSettings.workingFolders) {
+            command += `"${directory}";`;
+        }
+    }
+    console.log(command);
+    const output = (0, child_process_1.spawnSync)(command, { encoding: 'ascii', shell: true });
+    if (output.status === 0) {
         if (!extensionSettings.quietOperation) {
             outputChannel.append(output.stdout);
         }
@@ -96,23 +134,24 @@ function executeAssemblyCommand() {
             return 0;
         }
         else {
-            outputChannel.appendLine("\n==================== ASSEMBLER WARNING ====================\n");
-            outputChannel.append(output.stderr);
+            outputChannel.appendLine("\n==================== ASSEMBLER WARNINGS ====================\n");
+            outputChannel.appendLine(output.stderr);
+            outputChannel.appendLine("============================================================");
             return 1;
         }
     }
-    catch (error) {
+    else {
         if (!extensionSettings.quietOperation) {
-            outputChannel.append(error.stdout + '\n');
+            outputChannel.append(output.stdout + '\n');
         }
         let errorLocation = "log file";
         if (!extensionSettings.errorFile) {
             outputChannel.appendLine("==================== ASSEMBLER ERROR ====================\n");
-            outputChannel.append(error.stderr);
+            outputChannel.append(output.stderr);
             outputChannel.show();
             errorLocation = "terminal";
         }
-        switch (error.status) {
+        switch (output.status) {
             case 2:
                 vscode_1.window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
                 break;
@@ -120,7 +159,7 @@ function executeAssemblyCommand() {
                 vscode_1.window.showErrorMessage(`Build failed. A fatal was thrown by the assembler. Check the ${errorLocation} for more details.`);
                 break;
             default:
-                vscode_1.window.showErrorMessage("The assembler has thrown an unknown error. Check the terminal for more details.");
+                vscode_1.window.showErrorMessage(`The assembler has thrown an unknown error. Check the ${errorLocation} for more details.`);
                 break;
         }
         return -1;
@@ -300,7 +339,7 @@ function runTemporaryROM(systemVariable) {
 function cleanProjectFolder() {
     let items = 0;
     (0, fs_1.readdirSync)('.').forEach((item) => {
-        if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
+        if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
             (0, fs_1.unlinkSync)(item);
             items++;
         }
@@ -544,7 +583,7 @@ async function activate(context) {
         let files = 0;
         items.forEach((item) => {
             zip.addLocalFile(item);
-            if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
+            if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
                 (0, fs_1.unlink)(item, (error) => {
                     if (error) {
                         vscode_1.window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
@@ -572,6 +611,8 @@ async function activate(context) {
     context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, assemble_and_run_BlastEm, assemble_and_run_Regen, backup, cleanup, open_EASy68k);
 }
 const settingDescriptors = [
+    { key: 'codeOptions.defaultCPU', target: 'defaultCpu' },
+    { key: 'codeOptions.superiorModeWarnings', target: 'superiorWarnings' },
     { key: 'buildControl.outputRomName', target: 'romName' },
     { key: 'buildControl.includeRomDate', target: 'romDate' },
     { key: 'buildControl.enablePreviousBuilds', target: 'prevRoms' },
@@ -583,12 +624,19 @@ const settingDescriptors = [
     { key: 'sourceCodeControl.listingFileName', target: 'listingName' },
     { key: 'sourceCodeControl.generateErrorListing', target: 'errorFile' },
     { key: 'sourceCodeControl.errorFileName', target: 'errorName' },
+    { key: 'sourceCodeControl.generateDebugFile', target: 'debugFile' },
+    { key: 'sourceCodeControl.generateSectionListing', target: 'sectionListing' },
+    { key: 'sourceCodeControl.generateMacroListing', target: 'macroListing' },
+    { key: 'sourceCodeControl.generateSourceListing', target: 'sourceListing' },
+    { key: 'sourceCodeControl.cleaningExtensionSelector', target: 'cleaningExtensions' },
+    { key: 'sourceCodeControl.currentWorkingFolders', target: 'workingFolders' },
     { key: 'sourceCodeControl.caseSensitiveMode', target: 'caseSensitive' },
     { key: 'backupOptions.backupFileName', target: 'backupName' },
     { key: 'backupOptions.includeBackupDate', target: 'backupDate' },
     { key: 'miscellaneous.fillValue', target: 'fillValue' },
     { key: 'miscellaneous.errorLevel', target: 'errorLevel' },
     { key: 'miscellaneous.displayErrorNumber', target: 'errorNumber' },
+    { key: 'miscellaneous.AS-StyledErrors', target: 'AsErrors' },
     { key: 'miscellaneous.lowercaseHexadecimal', target: 'lowercaseHex' },
     { key: 'miscellaneous.suppressWarnings', target: 'suppressWarnings' },
     { key: 'miscellaneous.quietOperation', target: 'quietOperation' },

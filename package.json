@@ -77,6 +77,16 @@
     "configuration": {
       "title": "Mega Drive Environment",
       "properties": {
+		"megaenvironment.codeOptions.defaultCPU": {
+		  "type": "string",
+		  "default": "68000",
+		  "description": "The default CPU the assembler should use when it isn't specified in the code. The Mega Drive uses the Motorola 68000 as the main processor."
+		},
+		"megaenvironment.codeOptions.superiorModeWarnings": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Setting this means the assembler will issue warnings when a 68k privileged instruction takes place in your code, if not otherwise stated using \"supmode\"."
+		},
         "megaenvironment.buildControl.outputRomName": {
           "type": "string",
           "default": "",
@@ -133,6 +143,61 @@
           "default": "",
           "description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file."
         },
+		"megaenvironment.sourceCodeControl.generateDebugFile": {
+		  "type": "string",
+		  "enum": [ "None", "MAP", "NoICE", "Atmel" ],
+		  "enumDescriptions": [
+			"Choose not to generate any debug files.",
+			"AS-specific MAP format. The information format is comprised of a symbol table and a table describing the assignment of source lines to machine addresses.",
+			"NoICE-compatible command file.",
+			"Atmel format used by the AVR tools."
+		  ],
+		  "default": "None",
+		  "description": "Check this to instruct AS to print a debug file containing the information for the program. The extension depends on the format you're choosing."
+		},
+		"megaenvironment.sourceCodeControl.generateSectionListing": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Check this if you want a listing file representing all sections to be issued. Nesting is Pascal-like indentations."
+		},
+		"megaenvironment.sourceCodeControl.generateMacroListing": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Check this if you want a listing file representing all macros that don't use \"NOEXPORT\" to be issued. File name is the same as the main source code, with extension \".mac\"."
+		},
+		"megaenvironment.sourceCodeControl.generateSourceListing": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Check this if you want a listing file representing the source text processed by the macro processor and conditional assembly. The file extension is \".i\"."
+		},
+		"megaenvironment.sourceCodeControl.cleaningExtensionSelector": {
+		  "type": "array",
+		  "items": {
+		    "type": "string",
+		    "enum": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
+			"enumDescriptions": [
+				"Latest ROMs.",
+				"Any previous ROM.",
+				"Code listing files.",
+				"Error listing files.",
+				"MAP formatted debug files.",
+				"NoICE formatted debug files.",
+				"Atmel proprietary debug files.",
+				"Macros not using \"NOEXPORT\" listing files.",
+				"Source listing files."
+			]
+		  },
+		  "default": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
+		  "description": "Choose which files get deleted when running any cleaning commands."
+		},
+		"megaenvironment.sourceCodeControl.currentWorkingFolders": {
+		  "type": "array",
+		  "default": [ "." ],
+		  "items": {
+		    "type": "string"
+		  },
+		  "description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance)."
+		},
 		"megaenvironment.sourceCodeControl.caseSensitiveMode": {
 		  "type": "boolean",
 		  "default": true,
@@ -151,7 +216,7 @@
         "megaenvironment.miscellaneous.fillValue": {
           "type": "string",
           "default": "00",
-          "description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since they tend to skip these areas.",
+          "description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since they tend to skip writing to these areas.",
           "pattern": "^[0-9A-Fa-f]{1,2}$",
           "patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
         },
@@ -167,6 +232,11 @@
           "default": false,
           "description": "Whether the terminal should display errors along with their number defined by the assembler."
         },
+		"megaenvironment.miscellaneous.AS-StyledErrors": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Whether the terminal should display errors using the original AS syntax."
+		},
 		"megaenvironment.miscellaneous.lowercaseHexadecimal": {
 		  "type": "boolean",
 		  "default": false,

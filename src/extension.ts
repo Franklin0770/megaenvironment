@@ -13,6 +13,8 @@ import { join } from 'path';
 import AdmZip from 'adm-zip';
 
 interface ExtensionSettings {
+	defaultCpu: string;
+	superiorWarnings: boolean;
     romName: string;
     romDate: boolean;
     prevRoms: boolean;
@@ -24,19 +26,28 @@ interface ExtensionSettings {
     listingName: string;
 	errorFile: boolean;
 	errorName: string;
+	debugFile: string;
+	sectionListing: boolean;
+	macroListing: boolean;
+	sourceListing: boolean;
+	cleaningExtensions: Array<string>;
+	workingFolders: Array<string>;
 	caseSensitive: boolean;
     backupName: string;
     backupDate: boolean;
     fillValue: string;
     errorLevel: number;
-	errorNumber: boolean,
-	lowercaseHex: boolean,
+	errorNumber: boolean;
+	AsErrors: boolean;
+	lowercaseHex: boolean;
     suppressWarnings: boolean;
     quietOperation: boolean;
     verboseOperation: boolean;
 }
 
 let extensionSettings: ExtensionSettings = {
+	defaultCpu: "68000",
+	superiorWarnings: false,
     romName: "",
     romDate: true,
     prevRoms: true,
@@ -48,12 +59,19 @@ let extensionSettings: ExtensionSettings = {
     listingName: "",
 	errorFile: false,
 	errorName: "",
+	debugFile: "None",
+	sectionListing: false,
+	macroListing: false,
+	sourceListing: false,
+	cleaningExtensions: [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
+	workingFolders: [ '.' ],
 	caseSensitive: true,
     backupName: "",
     backupDate: true,
     fillValue: "00",
     errorLevel: 0,
 	errorNumber: false,
+	AsErrors: false,
 	lowercaseHex: false,
     suppressWarnings: false,
     quietOperation: false,
@@ -108,21 +126,58 @@ function executeAssemblyCommand(): number {
 		command += 'q';
 	}
 
+	if (extensionSettings.sectionListing) {
+		command += 's';
+	}
+
+	if (extensionSettings.macroListing) {
+		command += 'M';
+	}
+
+	if (extensionSettings.sourceListing) {
+		command += 'P';
+	}
+
+	if (!extensionSettings.superiorWarnings) {
+		command += ' -supmode';
+	}
+
+	if (!extensionSettings.AsErrors) {
+		command += ' -gnuerrors';
+	}
+
 	if (extensionSettings.listingName !== "") {
-		command += " -olist " + extensionSettings.listingName + ".lst";
+		command += ' -olist ' + extensionSettings.listingName + ".lst";
 	}
 
 	if (extensionSettings.errorFile) {
-		let name = "";
 		if (extensionSettings.errorName !== "") {
-			name = extensionSettings.errorName + ".log";
+			command += ' -E ' + extensionSettings.errorName + ".log";
+		} else {
+			command += ' -E';
 		}
-		command += " -E " + name;
 	}
 
-	try {
-		const output = spawnSync(command, { encoding: 'ascii', shell: true });
+	if (extensionSettings.debugFile !== 'None') {
+		command += ' -g ' + extensionSettings.debugFile;
+	}
 
+	if (extensionSettings.defaultCpu !== '') {
+		command += " -cpu " + extensionSettings.defaultCpu;
+	}
+
+	if (extensionSettings.workingFolders.length > 0) {
+		command += ' -i ';
+		for (let directory of extensionSettings.workingFolders) {
+			command += `"${directory}";`;
+		}
+	}
+
+	console.log(command);
+	
+	const output = spawnSync(command, { encoding: 'ascii', shell: true });
+
+	if (output.status === 0) {
 		if (!extensionSettings.quietOperation) {
 			outputChannel.append(output.stdout);
 		}
@@ -134,26 +189,26 @@ function executeAssemblyCommand(): number {
 		if (output.stderr === "" || extensionSettings.suppressWarnings) {
 			return 0;
 		} else {
-			outputChannel.appendLine("\n==================== ASSEMBLER WARNING ====================\n");
-			outputChannel.append(output.stderr);
+			outputChannel.appendLine("\n==================== ASSEMBLER WARNINGS ====================\n");
+			outputChannel.appendLine(output.stderr);
+			outputChannel.appendLine("============================================================");
 			return 1;
 		}
-	}
-	catch (error: any) {
+	} else {
 		if (!extensionSettings.quietOperation) {
-			outputChannel.append(error.stdout + '\n');
+			outputChannel.append(output.stdout + '\n');
 		}
 
 		let errorLocation = "log file";
 
 		if (!extensionSettings.errorFile) {
 			outputChannel.appendLine("==================== ASSEMBLER ERROR ====================\n");
-			outputChannel.append(error.stderr);
+			outputChannel.append(output.stderr);
 			outputChannel.show();
 			errorLocation = "terminal";
 		}
 
-		switch (error.status) {
+		switch (output.status) {
 			case 2:
 				window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
 				break;
@@ -163,7 +218,7 @@ function executeAssemblyCommand(): number {
 				break;
 
 			default:
-				window.showErrorMessage("The assembler has thrown an unknown error. Check the terminal for more details.");
+				window.showErrorMessage(`The assembler has thrown an unknown error. Check the ${errorLocation} for more details.`);
 				break;
 		}
 
@@ -384,7 +439,7 @@ function cleanProjectFolder() {
 	let items = 0;
 
 	readdirSync('.').forEach((item) => {
-		if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
+		if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
 			unlinkSync(item);
 			items++;
 		}
@@ -691,7 +746,7 @@ export async function activate(context: ExtensionContext) {
 		items.forEach((item) => {
 			zip.addLocalFile(item);
 
-			if (item.endsWith(".gen") || item.includes(".pre") || item.endsWith(".lst") || item.endsWith(".log")) {
+			if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
 				unlink(item, (error) => {
 					if (error) {
 						window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
@@ -729,27 +784,36 @@ export async function activate(context: ExtensionContext) {
 }
 
 const settingDescriptors = [
-    { key: 'buildControl.outputRomName',				target: 'romName' },
-    { key: 'buildControl.includeRomDate',				target: 'romDate' },
-    { key: 'buildControl.enablePreviousBuilds',			target: 'prevRoms' },
-    { key: 'buildControl.previousRomsAmount',			target: 'prevAmount' },
-    { key: 'sourceCodeControl.mainFileName',   			target: 'mainName' },
-    { key: 'sourceCodeControl.constantsFileName',		target: 'constantsName' },
-    { key: 'sourceCodeControl.variablesFileName',		target: 'variablesName' },
-    { key: 'sourceCodeControl.generateCodeListing',		target: 'listingFile' },
-    { key: 'sourceCodeControl.listingFileName',			target: 'listingName' },
-	{ key: 'sourceCodeControl.generateErrorListing',	target: 'errorFile' },
-	{ key: 'sourceCodeControl.errorFileName',			target: 'errorName' },
-	{ key: 'sourceCodeControl.caseSensitiveMode',		target: 'caseSensitive' },
-    { key: 'backupOptions.backupFileName',				target: 'backupName' },
-    { key: 'backupOptions.includeBackupDate',			target: 'backupDate' },
-    { key: 'miscellaneous.fillValue',					target: 'fillValue' },
-    { key: 'miscellaneous.errorLevel',					target: 'errorLevel' },
-	{ key: 'miscellaneous.displayErrorNumber',			target: 'errorNumber'},
-	{ key: 'miscellaneous.lowercaseHexadecimal',		target: 'lowercaseHex'},
-    { key: 'miscellaneous.suppressWarnings',			target: 'suppressWarnings' },
-    { key: 'miscellaneous.quietOperation',				target: 'quietOperation' },
-    { key: 'miscellaneous.verboseOperation',			target: 'verboseOperation' }
+	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu' },
+	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings'},
+    { key: 'buildControl.outputRomName',					target: 'romName' },
+    { key: 'buildControl.includeRomDate',					target: 'romDate' },
+    { key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
+    { key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
+    { key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
+    { key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
+    { key: 'sourceCodeControl.variablesFileName',			target: 'variablesName' },
+    { key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile' },
+    { key: 'sourceCodeControl.listingFileName',				target: 'listingName' },
+	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile' },
+	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName' },
+	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile' },
+	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing' },
+	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing' },
+	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
+	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions'},
+	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
+	{ key: 'sourceCodeControl.caseSensitiveMode',			target: 'caseSensitive' },
+    { key: 'backupOptions.backupFileName',					target: 'backupName' },
+    { key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
+    { key: 'miscellaneous.fillValue',						target: 'fillValue' },
+    { key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
+	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
+	{ key: 'miscellaneous.AS-StyledErrors',					target: 'AsErrors' },
+	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
+    { key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
+    { key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
+    { key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' }
 ];
 
 workspace.onDidChangeConfiguration((event) => {

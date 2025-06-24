@@ -1,5 +1,5 @@
 # What does this thing do?
-It's a Visual Studio Code extension developed to integrate a command-like UI with [The Macro Assembler AS](http://john.ccac.rwth-aachen.de:8000/as/).  
+It's a Visual Studio Code extension developed to integrate a command-like UI with [The Macroassembler AS](http://john.ccac.rwth-aachen.de:8000/as/).  
 The purpose of this extension is primarily for Sega Mega Drive homebrew development.  
 
 ## What it can do
@@ -17,7 +17,7 @@ You can:
 ## What you need to install this
 First of all, make sure you have [Node.js](https://nodejs.org/) installed. [Git](https://git-scm.com) is recommended if you want to clone this repository.  
 
-Then, after installing Node, you must install [Adm-Zip](https://www.npmjs.com/package/adm-zip), a file zipper required for the extension to make backups:
+Then, after installing Node, you must install [Adm-Zip](https://www.npmjs.com/package/adm-zip), a file zipper required for this extension to make backups:
 ```
 npm install adm-zip
 ```
