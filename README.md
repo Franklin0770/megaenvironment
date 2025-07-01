@@ -3,7 +3,7 @@ It's a Visual Studio Code extension developed to integrate a command-like UI wit
 The purpose of this extension is primarily for Sega Mega Drive homebrew development.  
 
 ## What it can do
-You can:
+#### You can:
 - Assemble files and produce a ROM output in various ways;
 - Some basic versioning, useful for producing multiple builds and be able to distinguish between them;
 - Shortcuts to manage and organise your project folder;
@@ -11,8 +11,8 @@ You can:
 - Run ROMs with mostly Windows emulators (you need to set a system variable for this!);
 - Utilise nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
 - Avoid to include build tools or such, the extension downloads the necessary files to compile;
-- 68k and Z80 code highlighting, with three supported VS themes (Dark, Abyss and Sonic Disassembly);
-- Basic autocompletion, indentation and other integrated VS Code features.
+- Highlight 68k and Z80 code, with three supported VS themes (Dark, Abyss and Sonic Disassembly);
+- Enjoy basic autocompletion, indentation and other integrated VS Code features.
 
 ![Commands](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Commands.png)
 
