@@ -1,0 +1,53 @@
+{
+	"$schema": "vscode://schemas/color-theme",
+	"name": "MegaEnvironment Sonic Disassembly",
+	"colors": {
+		"foreground": "#000000",
+		"editor.background": "#FFFFFF",
+	},
+	"tokenColors": [
+		{
+			"scope": "comment.m68k-sdisasm",
+			"settings": {
+				"foreground": "#008000"
+			}
+		},
+		{
+			"scope": "number.m68k-sdisasm",
+			"settings": {
+				"foreground": "#804000"
+			}
+		},
+		{
+			"scope": "operator.m68k-sdisasm",
+			"settings": {
+				"foreground": "#FF0000"
+			}
+		},
+		{
+			"scope": "keyword1.m68k-sdisasm",
+			"settings": {
+				"foreground": "#0000FF"
+			}
+		},
+		{
+			"scope": "keyword2.m68k-sdisasm",
+			"settings": {
+				"foreground": "#8000FF",
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"scope": "keyword3.m68k-sdisasm",
+			"settings": {
+				"foreground": "#004080"
+			}
+		},
+		{
+			"scope": "delimiter.m68k-sdisasm",
+			"settings": {
+				"foreground": "#808080"
+			}
+		}
+	]
+}

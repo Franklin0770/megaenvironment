@@ -1,0 +1,66 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Sonic Disassembly - Motorola 68000",
+	"scopeName": "source.m68k-sdisasm",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#operators"
+		},
+		{
+			"include": "#keywords1"
+		},
+		{
+			"include": "#keywords2"
+		},
+		{
+			"include": "#keywords3"
+		},
+		{
+			"include": "#delimiters"
+		}
+	],
+	"repository": {
+		"comments": {
+			"name": "comment.m68k-sdisasm",
+			"match": "(?:\\;.*$)"
+		},
+		"numbers": {
+			"name": "number.m68k-sdisasm",
+			"match": "(?<!\\w)[ \\t]*(?:-?(?:\\d+|\\$[0-9a-fA-F]+|%[01]+|@[0-7]+))(?!\\w)"
+		},
+		"operators": {
+			"name": "operator.m68k-sdisasm",
+			"match": "(?::=|==|!=|<=|>=|<>|<<|>>|\\|\\||&&|!!|><|[-+*\\/#^~|&=<>!\\.\\(\\)\\[\\]{}:,])"
+		},
+		"keywords1": {
+			"name": "keyword1.m68k-sdisasm",
+			"match": "\\b(?i:abcd|add[aiqx]?|and[i]?|as[lr]|bchg|bclr|bset|btst|chk|clr|cmp[aim]?|div[su]|[e]?or[i]?|exg|ext|illegal|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|neg[x]?|nop|not|pea|reset|ro[x]?[lr]|rt[ers]|sbcd|S(?:t|f|hi|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|stop|sub[aiqx]?|swap|tas|trap[v]?|tst|unlk|b|w|l|s)\\b"
+		},
+		"keywords2": {
+			"name": "keyword2.m68k-sdisasm",
+			"match": "\\b(?i:[da][0-7]|[usi]?sp|ccr|pc|sr|bcc|bhs|bge|bls|bpl|bcs|blo|bgt|blt|beq|bhi|bmi|bvc|ble|bne|bvs|bra|bsr|dbra|dbcc|dbge|dbls|dbpl|dbcs|dbgt|dblt|dbt|dbeq|dbhi|dbmi|dbvc|dbf|dble|dbne|dbvs|jmp|jsr)\\b"
+		},
+		"keywords3": {
+			"name": "keyword3.m68k-sdisasm",
+			"match": "\\b(?i:set|equ|sfr|label|reg|charset|codepage|enum|nextenum|enumconf|pushv|popv|r?org|cpu|supmode|fpu|pmmu|fullpmmu|padding|segment|phase|dephase|save|restore|assume|expect|endexpect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm|struct|endstruct|if|elseif|endif|switch|case|elsecase|endcase|page|pagesize|newpage|macexp_dft|macexp_ovr|listing|prtinit|prtexit|title|radix|outradix|public|global|forward|shared|include|binclude|message|warning|error|fatal|read|intsyntax|relaxed|compmode|end)\\b"
+		},
+		"delimiters": {
+			"patterns": [{
+				"name": "delimiter.m68k-sdisasm",
+				"begin": "\"",
+				"end": "\""
+			},
+			{
+				"name": "delimiter.m68k-sdisasm",
+				"begin": "'",
+				"end": "'"
+			}]
+		}
+	}
+}

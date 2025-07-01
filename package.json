@@ -57,21 +57,6 @@
         "command": "megaenvironment.open_easy68k",
         "title": "Open Current Selection In EASy68k",
         "category": "Debug"
-      },
-      {
-        "command": "megaenvironment.rename_main",
-        "title": "Change Main Source Code Name",
-        "category": "Rename"
-      },
-      {
-        "command": "megaenvironment.rename_constants",
-        "title": "Change Constants Source Code Name",
-        "category": "Rename"
-      },
-      {
-        "command": "megaenvironment.rename_variables",
-        "title": "Change Variables Source Code Name",
-        "category": "Rename"
       }
     ],
     "configuration": {
@@ -259,19 +244,43 @@
         }
       }
     },
-    "languages": [
-      {
-        "id": "clcxce.motorola-68k-assembly",
-        "aliases": [
-          "The Macroassembler AS",
-          "as"
-        ],
-        "extensions": [
-          ".asm",
-          ".lst"
-        ]
-      }
-    ]
+	"languages": [
+	  {
+		"id": "m68k-as",
+		"aliases": [ "Macroassembler AS - Motorola 68000" ],
+		"extensions": [ ".68k", ".asm", ".s" ],
+		"configuration": "./configs/m68k-as.config.json"
+	  },
+	  {
+		"id": "m68k-sdisasm",
+		"aliases": [ "Sonic Disassembly - Motorola 68000" ],
+		"extensions": [ ".asm" ]
+	  }
+	],
+	"grammars": [
+	  {
+	    "language": "m68k-as",
+		"scopeName": "source.m68k-as",
+		"path": "./syntaxes/m68k-as.tmLanguage.json"
+	  },
+	  {
+		"language": "m68k-sdisasm",
+		"scopeName": "source.m68k-sdisasm",
+		"path": "./syntaxes/m68k-sdisasm.tmLanguage.json"
+	  }
+	],
+	"themes": [
+	  {
+	    "label": "MegaEnvironment Dark",
+		"uiTheme": "vs-dark",
+		"path": "./themes/m68k-as.tmTheme.json"
+	  },
+	  {
+		"label": "MegaEnvironment Sonic Disassembly",
+		"uiTheme": "vs",
+		"path": "./themes/m68k-sdisasm.tmTheme.json"
+	  }
+	]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

@@ -1,0 +1,122 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "The Macroassembler AS - Motorola 68000",
+	"scopeName": "source.m68k-as",
+	"foldingStartMarker": "^\\s*(?i:macro|if|ifn?def|ifn?symexist|ifn?used|ifn?exist|ifn?b|rept|irpc?|while|function|struct|switch)\\b",
+	"foldingStopMarker": "^\\s*(?i:endm|endif|endstruct|endcase)\\b",
+	"patterns": [
+		{
+			"include": "#instruction"
+		},
+		{
+			"include": "#sizes"
+		},
+		{
+			"include": "#variables"
+		},
+		{
+			"include": "#constants"
+		},
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#labels"
+		},
+		{
+			"include": "#operators"
+		},
+		{
+			"include": "#functions"
+		},
+		{
+			"include": "#symbols"
+		},
+		{
+			"include": "#pseudo-instructions"
+		}
+	],
+	"repository": {
+		"instruction": {
+			"name": "instruction.mnemonic.m68k-as",
+			"match": "\\b(?i:abcd|add[aiqx]?|and[i]?|as[lr]|bcc|bcs|beq|bne|bpl|bmi|bvs|bvc|bhi|bls|bge|blt|bgt|ble|bchg|bclr|bra|bset|bsr|btst|chk|clr|cmp[aim]?|db(?:t|f|hi|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|div[su]|[e]?or[i]?|exg|ext|illegal|jmp|jsr|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|neg[x]?|nop|not|pea|reset|ro[x]?[lr]|rt[ers]|sbcd|S(?:t|f|hi|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|stop|sub[aiqx]?|swap|tas|trap[v]?|tst|unlk)\\b"
+		},
+		"sizes": {
+			"name": "instruction.size.m68k-as",
+			"match": "(?i:\\.[bwls])"
+		},
+		"variables": {
+			"name": "variable.register.m68k-as",
+			"match": "\\b(?i:[da][0-7]|[usi]?sp|ccr|pc|sr)\\b"
+		},
+		"constants": {
+			"patterns": [
+				{
+					"name": "constant.immediate.m68k-as",
+					"match": "(?:(?<=^)|(?<=\\s))#-?(?:\\d+|\\$[0-9a-fA-F]+|%[01]+|@[0-7]+)(?!\\w)"
+				},
+				{
+					"name": "constant.numeric.m68k-as",
+					"match": "(?<!\\w)(?:-?(?:\\d+|\\$[0-9a-fA-F]+|%[01]+|@[0-7]+))(?!\\w)"
+				},
+				{
+					"name": "constant.label.m68k-as",
+					"match": "(?:#-?\\w+)"
+				}
+			]
+		},
+		"comments": {
+			"name": "directive.comment.m68k-as",
+			"match": "(?:\\;.*$)"
+		},
+		"strings": {
+			"patterns": [{
+				"name": "directive.string.m68k-as",
+				"begin": "\"",
+				"end": "\""
+			},
+			{
+				"name": "directive.string.m68k-as",
+				"begin": "'",
+				"end": "'"
+			}]
+		},
+		"labels": {
+			"patterns": [{
+				"name": "directive.label.global.m68k-as",
+				"match": "(?:^[\\w]+:?)|(?:^\\s[\\w]+:)"
+			},
+			{
+				"name": "directive.label.local.m68k-as",
+				"match": "(?:^\\.[\\w\\.]+:?)|(?:^\\s\\.[\\w\\.]+:)"
+			},
+			{
+				"name": "directive.label.temporary.m68k-as",
+				"match": "(?:^\\$\\$[\\w\\.]+:?)|(?:^\\s\\$\\$[\\w\\.]+:?)"
+			},
+			{
+				"name": "directive.label.nameless.m68k-as",
+				"match": "(?:^[\\+\\-])"
+			}]
+		},
+		"operators": {
+			"name": "directive.operator.m68k-as",
+			"match": "(?::=|==|!=|<=|>=|<>|<<|>>|\\|\\||&&|!!|><|[-+*\\/#^~|&=<>!])"
+		},
+		"functions": {
+			"name": "directive.function.m68k-as",
+			"match": "\\b(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bitcnt|firstbit|lastbit|bitpos|sgn|abs|toupper|tolower|upstring|lowstring|strlen|substr|charfromstr|strstr|val|exprtype|fsize)\\b"
+		},
+		"symbols": {
+			"name": "directive.symbol.m68k-as",
+			"match": "(?<!\\w)(?i:true|false|constpi|floatmax|version|architecture|date|time|momcpu|momfile|momline|mompass|momsection|momcpuname|(?:[\\*\\.\\$] ))(?!\\w)"
+		},
+		"pseudo-instructions": {
+			"name": "directive.pseudo.m68k-as",
+			"match": "\\b(?i:set|equ|sfr|label|reg|charset|codepage|enum|nextenum|enumconf|pushv|popv|r?org|cpu|supmode|fpu|pmmu|fullpmmu|padding|segment|phase|dephase|save|restore|assume|expect|endexpect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm|struct|endstruct|if|else|ifn?def|ifn?symexist|ifn?used|ifn?exist|ifn?b|elseif|endif|switch|case|elsecase|endcase|page|pagesize|newpage|macexp_dft|macexp_ovr|listing|prtinit|prtexit|title|radix|outradix|public|global|forward|shared|include|binclude|message|warning|error|fatal|read|intsyntax|relaxed|compmode|end)\\b"
+		}
+	}
+}

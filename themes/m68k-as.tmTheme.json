@@ -1,0 +1,105 @@
+{
+	"$schema": "vscode://schemas/color-theme",
+	"name": "MegaEnvironment Dark",
+	"tokenColors": [
+		{
+			"scope": "instruction.mnemonic.m68k-as",
+			"settings": {
+				"foreground": "#0060FF"
+			}
+		},
+		{
+			"scope": "instruction.size.m68k-as",
+			"settings": {
+				"foreground": "#0080FF"
+			}
+		},
+		{
+			"scope": "variable.register.m68k-as",
+			"settings": {
+				"foreground": "#BB2EFC",
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"scope": "constant.immediate.m68k-as",
+			"settings": {
+				"foreground": "#FF9100"
+			}
+		},
+		{
+			"scope": "constant.numeric.m68k-as",
+			"settings": {
+				"foreground": "#FFB000"
+			}
+		},
+		{
+			"scope": "constant.label.m68k-as",
+			"settings": {
+				"foreground": "#FFE000",
+			}
+		},
+		{
+			"scope": "directive.comment.m68k-as",
+			"settings": {
+				"foreground": "#9A9A9A",
+				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "directive.string.m68k-as",
+			"settings": {
+				"foreground": "#00B712"
+			}
+		},
+		{
+			"scope": "directive.label.global.m68k-as",
+			"settings": {
+				"foreground": "#FFD000"
+			}
+		},
+		{
+			"scope": "directive.label.local.m68k-as",
+			"settings": {
+				"foreground": "#DFC000"
+			}
+		},
+		{
+			"scope": "directive.label.temporary.m68k-as",
+			"settings": {
+				"foreground": "#BFB000"
+			}
+		},
+		{
+			"scope": "directive.label.nameless.m68k-as",
+			"settings": {
+				"foreground": "#FF6040"
+			}
+		},
+		{
+			"scope": "directive.operator.m68k-as",
+			"settings": {
+				"foreground": "#FF0000"
+			}
+		},
+		{
+			"scope": "directive.function.m68k-as",
+			"settings": {
+				"foreground": "#00C0FF"
+			}
+		},
+		{
+			"scope": "directive.symbol.m68k-as",
+			"settings": {
+				"foreground": "#6d76cb",
+				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "directive.pseudo.m68k-as",
+			"settings": {
+				"foreground": "#9268B3"
+			}
+		}
+	]
+}

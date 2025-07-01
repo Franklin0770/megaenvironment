@@ -1,0 +1,62 @@
+{
+	"comments": {
+		"lineComment": ";"
+	},
+	"brackets": [
+		["(",")"]
+	],
+  	"autoClosingPairs": [
+		{ "open": "(", "close": ")", "notIn": [ "comment" ] },
+		{ "open": "\"", "close": "\"", "notIn": [ "comment" ] },
+		{ "open": "'", "close": "'", "notIn": [ "comment" ] },
+		{ "open": "\\{", "close": "}", "notIn": [ "comment" ] }
+	],
+	"surroundingPairs": [
+		["(", ")"],
+		["'", "'"],
+		["\"", "\""],
+		["\\{", "}"]
+	],
+	"onEnterRules": [
+		{
+			"beforeText": "^\\s*(?i:rept|irpc?)\\b.*$",
+			"action": { "indent": "indentOutdent", "appendText": "endm" }
+		},
+		{
+			"beforeText": "^\\s*\\w+:?\\s*(?i:macro)\\b.*$",
+			"action": { "indent": "indentOutdent", "appendText": "\tendm" }
+		},
+		{
+			"beforeText": "^\\s*(?i:if|ifn?def|ifn?symexist|ifn?used|ifn?exist|ifn?b)\\b.*$",
+			"action": { "indent": "indentOutdent", "appendText": "endif" }
+		},
+		{
+			"beforeText": "^\\s*(?i:struct)\\b.*$",
+			"action": { "indent": "indentOutdent", "appendText": "endstruct" }
+		},
+		{
+			"beforeText": "^\\s*(?i:switch)\\b.*$",
+			"action": { "indent": "indentOutdent", "appendText": "endcase" }
+		},
+		{
+			"beforeText": "^\\s*(?i:case)\\b.*$",
+			"action": { "indent": "indent" }
+		},
+		{
+			"beforeText": "^\\s*(?i:elsecase)\\b.*$",
+			"action": { "indent": "indent" }
+		},
+		{
+			"beforeText": "^\\s*(?i:section)\\b.*$",
+			"action": { "indent": "indentOutdent", "appendText": "endsection" }
+    	},
+		{
+			"beforeText": "^\\s*(?i:expect)\\b.*$",
+			"action": { "indent": "indentOutdent", "appendText": "endexpect" }
+		},
+		{
+			"beforeText": "^\\s*(?i:phase)\\b",
+			"action": { "indent": "indentOutdent", "appendText": "dephase" }
+    	}
+	]
+}
