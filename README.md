@@ -10,7 +10,9 @@ You can:
 - Speaking of versioning and file management, you can also backup your project quickly;
 - Run ROMs with mostly Windows emulators (you need to set a system variable for this!);
 - Utilise nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
-- Avoid to include build tools or such, the extension downloads the necessary files to compile.
+- Avoid to include build tools or such, the extension downloads the necessary files to compile;
+- 68k and Z80 code highlighting, with three supported VS themes (Dark, Abyss and Sonic Disassembly);
+- Basic autocompletion, indentation and other integrated VS Code features.
 
 ![Commands](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Commands.png)
 
@@ -26,8 +28,6 @@ Since Node needs this package's node module, you'll want to issue this command a
 cd megaenvironment
 npm i --save-dev @types/adm-zip
 ```
-## What doesn't work (for now)
-I'm aware this extension isn't made for ROM hacking (especially after trying out Sonic disassemblies). The assembler throws errors related to addresses, values that overflow and macro definitions (maybe it's time to build without the -ffast-math C flag).
 ## Some screenshots (so you get the idea)
 ![Settings1](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Settings%201.png)
 ![Settings2](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Settings%202.png)
