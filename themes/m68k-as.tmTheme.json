@@ -5,69 +5,63 @@
 		{
 			"scope": "instruction.mnemonic.m68k-as",
 			"settings": {
-				"foreground": "#0060FF"
+				"foreground": "#578dcb"
 			}
 		},
 		{
 			"scope": "instruction.size.m68k-as",
 			"settings": {
-				"foreground": "#0080FF"
+				"foreground": "#457fdd"
 			}
 		},
 		{
 			"scope": "variable.register.m68k-as",
 			"settings": {
-				"foreground": "#BB2EFC",
+				"foreground": "#6b68d3",
 				"fontStyle": "bold"
 			}
 		},
 		{
 			"scope": "constant.immediate.m68k-as",
 			"settings": {
-				"foreground": "#FF9100"
+				"foreground": "#e0981c"
 			}
 		},
 		{
 			"scope": "constant.numeric.m68k-as",
 			"settings": {
-				"foreground": "#FFB000"
-			}
-		},
-		{
-			"scope": "constant.label.m68k-as",
-			"settings": {
-				"foreground": "#FFE000",
+				"foreground": "#d3a345"
 			}
 		},
 		{
 			"scope": "directive.comment.m68k-as",
 			"settings": {
-				"foreground": "#9A9A9A",
+				"foreground": "#ffffff70",
 				"fontStyle": "italic"
 			}
 		},
 		{
 			"scope": "directive.string.m68k-as",
 			"settings": {
-				"foreground": "#00B712"
+				"foreground": "#1fa03c"
 			}
 		},
 		{
 			"scope": "directive.label.global.m68k-as",
 			"settings": {
-				"foreground": "#FFD000"
+				"foreground": "#d4cf37"
 			}
 		},
 		{
 			"scope": "directive.label.local.m68k-as",
 			"settings": {
-				"foreground": "#DFC000"
+				"foreground": "#c8c44f"
 			}
 		},
 		{
 			"scope": "directive.label.temporary.m68k-as",
 			"settings": {
-				"foreground": "#BFB000"
+				"foreground": "#c4c174"
 			}
 		},
 		{
@@ -79,19 +73,19 @@
 		{
 			"scope": "directive.operator.m68k-as",
 			"settings": {
-				"foreground": "#FF0000"
+				"foreground": "#cb3567"
 			}
 		},
 		{
 			"scope": "directive.function.m68k-as",
 			"settings": {
-				"foreground": "#00C0FF"
+				"foreground": "#6fbdce"
 			}
 		},
 		{
 			"scope": "directive.symbol.m68k-as",
 			"settings": {
-				"foreground": "#6d76cb",
+				"foreground": "#c15bc1",
 				"fontStyle": "italic"
 			}
 		},

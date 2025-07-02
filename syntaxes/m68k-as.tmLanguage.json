@@ -6,7 +6,7 @@
 	"foldingStopMarker": "^\\s*(?i:endm|endif|endstruct|endcase)\\b",
 	"patterns": [
 		{
-			"include": "#instruction"
+			"include": "#instructions"
 		},
 		{
 			"include": "#sizes"
@@ -40,9 +40,9 @@
 		}
 	],
 	"repository": {
-		"instruction": {
+		"instructions": {
 			"name": "instruction.mnemonic.m68k-as",
-			"match": "\\b(?i:abcd|add[aiqx]?|and[i]?|as[lr]|bcc|bcs|beq|bne|bpl|bmi|bvs|bvc|bhi|bls|bge|blt|bgt|ble|bchg|bclr|bra|bset|bsr|btst|chk|clr|cmp[aim]?|db(?:t|f|hi|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|div[su]|[e]?or[i]?|exg|ext|illegal|jmp|jsr|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|neg[x]?|nop|not|pea|reset|ro[x]?[lr]|rt[ers]|sbcd|S(?:t|f|hi|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|stop|sub[aiqx]?|swap|tas|trap[v]?|tst|unlk)\\b"
+			"match": "\\b(?i:abcd|add[aiqx]?|and[i]?|as[lr]|bcc|bcs|beq|bne|bpl|bmi|bvs|bvc|bhi|bhs|bls|blo|bge|blt|bgt|ble|bchg|bclr|bra|bset|bsr|btst|chk|clr|cmp[aim]?|db(?:t|f|hi|hs|lo|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|div[su]|[e]?or[i]?|exg|ext|illegal|jmp|jsr|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|neg[x]?|nop|not|pea|reset|ro[x]?[lr]|rt[ers]|sbcd|S(?:t|f|hi|hs|lo|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|stop|sub[aiqx]?|swap|tas|trap[v]?|tst|unlk)\\b"
 		},
 		"sizes": {
 			"name": "instruction.size.m68k-as",
@@ -50,21 +50,17 @@
 		},
 		"variables": {
 			"name": "variable.register.m68k-as",
-			"match": "\\b(?i:[da][0-7]|[usi]?sp|ccr|pc|sr)\\b"
+			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr)\\b"
 		},
 		"constants": {
 			"patterns": [
 				{
 					"name": "constant.immediate.m68k-as",
-					"match": "(?:(?<=^)|(?<=\\s))#-?(?:\\d+|\\$[0-9a-fA-F]+|%[01]+|@[0-7]+)(?!\\w)"
+					"match": "(?<=\\s|^)#(?=\\w|\\$|%|@)"
 				},
 				{
 					"name": "constant.numeric.m68k-as",
 					"match": "(?<!\\w)(?:-?(?:\\d+|\\$[0-9a-fA-F]+|%[01]+|@[0-7]+))(?!\\w)"
-				},
-				{
-					"name": "constant.label.m68k-as",
-					"match": "(?:#-?\\w+)"
 				}
 			]
 		},

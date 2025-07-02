@@ -17,29 +17,29 @@ const util_1 = require("util");
 const path_1 = require("path");
 const adm_zip_1 = __importDefault(require("adm-zip"));
 let extensionSettings = {
-    defaultCpu: "68000",
+    defaultCpu: '68000',
     superiorWarnings: false,
-    romName: "",
+    romName: '',
     romDate: true,
     prevRoms: true,
     prevAmount: 10,
-    mainName: "",
-    constantsName: "",
-    variablesName: "",
+    mainName: '',
+    constantsName: '',
+    variablesName: '',
     listingFile: false,
-    listingName: "",
+    listingName: '',
     errorFile: false,
-    errorName: "",
-    debugFile: "None",
+    errorName: '',
+    debugFile: 'None',
     sectionListing: false,
     macroListing: false,
     sourceListing: false,
-    cleaningExtensions: [".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i"],
+    cleaningExtensions: ['.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i'],
     workingFolders: ['.'],
     caseSensitive: true,
-    backupName: "",
+    backupName: '',
     backupDate: true,
-    fillValue: "00",
+    fillValue: '00',
     errorLevel: 0,
     errorNumber: false,
     AsErrors: false,
@@ -51,8 +51,8 @@ let extensionSettings = {
 let assemblerFolder;
 let assemblerPath;
 let compilerName;
-const outputChannel = vscode_1.window.createOutputChannel("The Macroassembler AS");
-const extensionId = "clcxce.motorola-68k-assembly";
+const outputChannel = vscode_1.window.createOutputChannel('The Macroassembler AS');
+const extensionId = 'clcxce.motorola-68k-assembly';
 const streamPipeline = (0, util_1.promisify)(stream_1.pipeline);
 if (!vscode_1.extensions.getExtension(extensionId)) {
     vscode_1.window.showWarningMessage(`The extension "${extensionId}" is not installed. Its installation is recommended for text highlighting.`);
@@ -98,12 +98,12 @@ function executeAssemblyCommand() {
     if (!extensionSettings.AsErrors) {
         command += ' -gnuerrors';
     }
-    if (extensionSettings.listingName !== "") {
-        command += ' -olist ' + extensionSettings.listingName + ".lst";
+    if (extensionSettings.listingName !== '') {
+        command += ' -olist ' + extensionSettings.listingName + '.lst';
     }
     if (extensionSettings.errorFile) {
-        if (extensionSettings.errorName !== "") {
-            command += ' -E ' + extensionSettings.errorName + ".log";
+        if (extensionSettings.errorName !== '') {
+            command += ' -E ' + extensionSettings.errorName + '.log';
         }
         else {
             command += ' -E';
@@ -113,7 +113,7 @@ function executeAssemblyCommand() {
         command += ' -g ' + extensionSettings.debugFile;
     }
     if (extensionSettings.defaultCpu !== '') {
-        command += " -cpu " + extensionSettings.defaultCpu;
+        command += ' -cpu ' + extensionSettings.defaultCpu;
     }
     if (extensionSettings.workingFolders.length > 0) {
         command += ' -i ';
@@ -121,7 +121,6 @@ function executeAssemblyCommand() {
             command += `"${directory}";`;
         }
     }
-    console.log(command);
     const output = (0, child_process_1.spawnSync)(command, { encoding: 'ascii', shell: true });
     if (output.status === 0) {
         if (!extensionSettings.quietOperation) {
@@ -130,13 +129,13 @@ function executeAssemblyCommand() {
         if (extensionSettings.verboseOperation) {
             outputChannel.show();
         }
-        if (output.stderr === "" || extensionSettings.suppressWarnings) {
+        if (output.stderr === '' || extensionSettings.suppressWarnings) {
             return 0;
         }
         else {
-            outputChannel.appendLine("\n==================== ASSEMBLER WARNINGS ====================\n");
+            outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
             outputChannel.appendLine(output.stderr);
-            outputChannel.appendLine("============================================================");
+            outputChannel.appendLine('============================================================');
             return 1;
         }
     }
@@ -144,12 +143,12 @@ function executeAssemblyCommand() {
         if (!extensionSettings.quietOperation) {
             outputChannel.append(output.stdout + '\n');
         }
-        let errorLocation = "log file";
+        let errorLocation = 'log file';
         if (!extensionSettings.errorFile) {
-            outputChannel.appendLine("==================== ASSEMBLER ERROR ====================\n");
+            outputChannel.appendLine('==================== ASSEMBLER ERROR ====================\n');
             outputChannel.append(output.stderr);
             outputChannel.show();
-            errorLocation = "terminal";
+            errorLocation = 'terminal';
         }
         switch (output.status) {
             case 2:
@@ -183,15 +182,15 @@ function executeCompileCommand() {
         if (!extensionSettings.quietOperation) {
             outputChannel.append(error.stdout + '\n');
         }
-        outputChannel.appendLine("==================== COMPILER ERROR ====================\n");
+        outputChannel.appendLine('==================== COMPILER ERROR ====================\n');
         outputChannel.append(error.stderr);
-        vscode_1.window.showErrorMessage("The compiler has thrown an unknown error. Check the terminal for more details.");
+        vscode_1.window.showErrorMessage('The compiler has thrown an unknown error. Check the terminal for more details.');
         return false;
     }
 }
 function assembleROM() {
     if (!vscode_1.workspace.workspaceFolders) {
-        vscode_1.window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+        vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
         return;
     }
     const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
@@ -209,7 +208,7 @@ function assembleROM() {
     const files = (0, fs_1.readdirSync)('.'); // Reads all files and folders and put them into a string array
     // Checks if there are any files that have the .gen extension. If so, it gets renamed with .pre and a number
     for (const checkName of files) {
-        if (!checkName.endsWith(".gen")) {
+        if (!checkName.endsWith('.gen')) {
             continue;
         } // Indentantions are less clean
         if (!extensionSettings.prevRoms) {
@@ -259,7 +258,7 @@ function renameRom(projectFolder, warnings) {
     const minutes = currentDate.getMinutes().toString().padStart(2, '0');
     const seconds = currentDate.getSeconds().toString().padStart(2, '0');
     let fileName;
-    if (extensionSettings.romName === "") {
+    if (extensionSettings.romName === '') {
         const lastDot = extensionSettings.mainName.lastIndexOf('.');
         fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
     }
@@ -270,13 +269,13 @@ function renameRom(projectFolder, warnings) {
         fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${hours}.${minutes}.${seconds}`;
     }
     // Renames and moves the rom.bin file outside assemblerFolder since p2bin doesn't have a switch to change the output file name for some reason
-    (0, fs_1.rename)("rom.bin", `${(0, path_1.join)(projectFolder, fileName)}.gen`, (error) => {
+    (0, fs_1.rename)('rom.bin', `${(0, path_1.join)(projectFolder, fileName)}.gen`, (error) => {
         if (error) {
-            if (error?.code !== "ENOENT") {
+            if (error?.code !== 'ENOENT') {
                 vscode_1.window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error}`);
             }
             else {
-                vscode_1.window.showErrorMessage("Cannot rename your ROM, there might be a problem with the compiler. " + error);
+                vscode_1.window.showErrorMessage('Cannot rename your ROM, there might be a problem with the compiler. ' + error);
             }
         }
     });
@@ -289,28 +288,27 @@ function renameRom(projectFolder, warnings) {
 }
 function findAndRunROM(systemVariable) {
     if (!vscode_1.workspace.workspaceFolders) {
-        vscode_1.window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+        vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
         return;
     }
     process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
-    const files = (0, fs_1.readdirSync)('.');
-    const rom = files.find(file => file.endsWith(".gen"));
+    const rom = (0, fs_1.readdirSync)('.').find(file => file.endsWith('.gen'));
     if (rom) {
         (0, child_process_1.exec)(`"${systemVariable}" "${rom}"`, (error) => {
             if (error) {
-                vscode_1.window.showErrorMessage("Cannot run the latest build. " + error.message);
+                vscode_1.window.showErrorMessage('Cannot run the latest build. ' + error.message);
                 return;
             }
             vscode_1.window.showInformationMessage(`Running "${rom}" with BlastEm.`);
         });
     }
     else {
-        vscode_1.window.showErrorMessage("There are no ROMs to run. Build something first.");
+        vscode_1.window.showErrorMessage('There are no ROMs to run. Build something first.');
     }
 }
 function runTemporaryROM(systemVariable) {
     if (!vscode_1.workspace.workspaceFolders) {
-        vscode_1.window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+        vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
         return;
     }
     process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
@@ -327,10 +325,10 @@ function runTemporaryROM(systemVariable) {
     }
     (0, child_process_1.exec)(`"${systemVariable}" ${(0, path_1.join)(assemblerFolder, "rom.bin")}`, (error) => {
         if (error) {
-            vscode_1.window.showErrorMessage("Cannot run the build. " + error);
+            vscode_1.window.showErrorMessage('Cannot run the build. ' + error);
         }
-        (0, fs_1.unlink)((0, path_1.join)(assemblerFolder, "rom.p"), (error) => {
-            vscode_1.window.showErrorMessage("Could not delete the temporary ROM for cleanup. You may want to do this by yourself. " + error);
+        (0, fs_1.unlink)((0, path_1.join)(assemblerFolder, 'rom.p'), (error) => {
+            vscode_1.window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error);
         });
     });
     const currentDate = new Date();
@@ -355,47 +353,47 @@ async function activate(context) {
         extensionSettings[setting.target] = value;
     }
     assemblerFolder = context.globalStorageUri.fsPath;
-    assemblerPath = (0, path_1.join)(assemblerFolder, "asl");
-    compilerName = (0, path_1.join)(assemblerFolder, "p2bin");
+    assemblerPath = (0, path_1.join)(assemblerFolder, 'asl');
+    compilerName = (0, path_1.join)(assemblerFolder, 'p2bin');
     let zipName;
     const proc = process;
     switch (proc.platform) {
         case 'win32':
-            zipName = "windows-x86.zip";
-            assemblerPath += ".exe";
-            compilerName += ".exe";
+            zipName = 'windows-x86.zip';
+            assemblerPath += '.exe';
+            compilerName += '.exe';
             break;
         case 'darwin':
             if (proc.arch === 'x64') {
-                zipName = "mac-x86_64.zip";
+                zipName = 'mac-x86_64.zip';
             }
             else {
-                zipName = "mac-arm64.zip";
+                zipName = 'mac-arm64.zip';
             }
             break;
         case 'linux':
             if (proc.arch === 'x64') {
-                zipName = "linux-x86_64.zip";
+                zipName = 'linux-x86_64.zip';
             }
             else {
-                zipName = "linux-arm64.zip";
+                zipName = 'linux-arm64.zip';
             }
-            return;
+            break;
         default:
             vscode_1.window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
             return;
     }
-    vscode_1.window.showInformationMessage("Downloading the latest tools...");
+    vscode_1.window.showInformationMessage('Downloading the latest tools...');
     if ((0, fs_1.existsSync)(assemblerFolder)) {
         (0, fs_1.rmSync)(assemblerFolder, { recursive: true, force: true });
     }
     (0, fs_1.mkdirSync)(assemblerFolder, { recursive: true });
     process.chdir(assemblerFolder);
     const zipPath = (0, path_1.join)('.', zipName);
-    const response = await fetch("https://github.com/Franklin0770/AS-releases/releases/download/latest/" + zipName);
+    const response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/latest/' + zipName);
     const fileStream = (0, fs_1.createWriteStream)(zipPath);
     if (!response.ok || !response.body) {
-        vscode_1.window.showErrorMessage("Failed to download the latest AS compiler. " + response.statusText);
+        vscode_1.window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
         return;
     }
     await streamPipeline(response.body, fileStream);
@@ -417,7 +415,7 @@ async function activate(context) {
     });
     const clean_and_assemble = vscode_1.commands.registerCommand('megaenvironment.clean_assemble', () => {
         if (!vscode_1.workspace.workspaceFolders) {
-            vscode_1.window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+            vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
         const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath; // Get the full path to the currently opened folder
@@ -440,69 +438,69 @@ async function activate(context) {
     });
     const run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.run_blastem', () => {
         if (process.platform !== 'win32') {
-            vscode_1.window.showErrorMessage("This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.");
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.');
             return;
         }
         const systemVariable = process.env.BlastEm;
         // Throws an error if the BlastEm variable is missing or not set up correctly
-        if (systemVariable === undefined || !systemVariable.endsWith("blastem.exe")) {
-            vscode_1.window.showErrorMessage("You haven't set up the \"BlastEm\" environment variable correctly. You must set this variable to the \"blastem.exe\" executable. The current variable value is: " + systemVariable);
+        if (systemVariable === undefined || !systemVariable.endsWith('blastem.exe')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "BlastEm" environment variable correctly. You must set this variable to the "blastem.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
         findAndRunROM(systemVariable);
     });
     const run_Regen = vscode_1.commands.registerCommand('megaenvironment.run_regen', () => {
         if (process.platform !== 'win32') {
-            vscode_1.window.showErrorMessage("This command is not supported in your platform. Regen is only available for Windows, unfortunately.");
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows, unfortunately.');
             return;
         }
         const systemVariable = process.env.Regen;
         // Throws an error if the Regen variable is missing or not set up correctly
-        if (systemVariable === undefined || !systemVariable.endsWith("Regen.exe")) {
-            vscode_1.window.showErrorMessage("You haven't set up the \"Regen\" environment variable correctly. You must set this variable to the \"Regen.exe\" executable. The current variable value is: " + systemVariable);
+        if (systemVariable === undefined || !systemVariable.endsWith('Regen.exe')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "Regen" environment variable correctly. You must set this variable to the "Regen.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
         findAndRunROM(systemVariable);
     });
-    const assemble_and_run_BlastEm = vscode_1.commands.registerCommand("megaenvironment.assemble_run_blastem", () => {
+    const assemble_and_run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.assemble_run_blastem', () => {
         if (process.platform !== 'win32') {
-            vscode_1.window.showErrorMessage("This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.");
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.');
             return;
         }
         const systemVariable = process.env.BlastEm;
         // Throws an error if the BlastEm variable is missing or not set up correctly
-        if (systemVariable === undefined || !systemVariable.endsWith("blastem.exe")) {
-            vscode_1.window.showErrorMessage("You haven't set up the \"BlastEm\" environment variable correctly. You must set this variable to the \"blastem.exe\" executable. The current variable value is: " + systemVariable);
+        if (systemVariable === undefined || !systemVariable.endsWith('blastem.exe')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "BlastEm" environment variable correctly. You must set this variable to the "blastem.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
         runTemporaryROM(systemVariable);
     });
-    const assemble_and_run_Regen = vscode_1.commands.registerCommand("megaenvironment.assemble_run_regen", () => {
+    const assemble_and_run_Regen = vscode_1.commands.registerCommand('megaenvironment.assemble_run_regen', () => {
         if (process.platform !== 'win32') {
-            vscode_1.window.showErrorMessage("This command is not supported in your platform. Regen is only available for Windows, unfortunately.");
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows, unfortunately.');
             return;
         }
         const systemVariable = process.env.Regen;
         // Throws an error if the BlastEm variable is missing or not set up correctly
-        if (systemVariable === undefined || !systemVariable.endsWith("Regen.exe")) {
-            vscode_1.window.showErrorMessage("You haven't set up the \"Regen\" environment variable correctly. You must set this variable to the \"Regen.exe\" executable. The current variable value is: " + systemVariable);
+        if (systemVariable === undefined || !systemVariable.endsWith('Regen.exe')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "Regen" environment variable correctly. You must set this variable to the "Regen.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
         runTemporaryROM(systemVariable);
     });
-    const open_EASy68k = vscode_1.commands.registerCommand("megaenvironment.open_easy68k", () => {
+    const open_EASy68k = vscode_1.commands.registerCommand('megaenvironment.open_easy68k', () => {
         if (process.platform !== 'win32') {
-            vscode_1.window.showErrorMessage("This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.");
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.');
             return;
         }
         if (!vscode_1.workspace.workspaceFolders) {
-            vscode_1.window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+            vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
         const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
         const systemVariable = process.env.EASy68k;
-        if (systemVariable === undefined || !systemVariable.endsWith("EDIT68K.exe")) {
-            vscode_1.window.showErrorMessage("You haven't set up the \"EASy68k\" environment variable correctly. You must set this variable to the \"EDIT68K.exe\" executable. The current variable value is: " + systemVariable);
+        if (systemVariable === undefined || !systemVariable.endsWith('EDIT68K.exe')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "EASy68k" environment variable correctly. You must set this variable to the "EDIT68K.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
         process.chdir(assemblerFolder);
@@ -519,8 +517,8 @@ async function activate(context) {
             vscode_1.window.showWarningMessage("You haven't selected any text field. To make sure you want to debug a portion of your code, select the text you want to analyze.");
         }
         let text;
-        const constantsLocation = (0, path_1.join)("..", extensionSettings.constantsName);
-        const variablesLocation = (0, path_1.join)("..", extensionSettings.variablesName);
+        const constantsLocation = (0, path_1.join)('..', extensionSettings.constantsName);
+        const variablesLocation = (0, path_1.join)('..', extensionSettings.variablesName);
         let constantsExists = false;
         let variablesExists = false;
         if ((0, fs_1.existsSync)(constantsLocation)) {
@@ -542,16 +540,16 @@ async function activate(context) {
             text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
         }
         try {
-            vscode_1.workspace.fs.writeFile(vscode_1.Uri.file("temp.txt"), new TextEncoder().encode(text));
+            vscode_1.workspace.fs.writeFile(vscode_1.Uri.file('temp.txt'), new TextEncoder().encode(text));
         }
         catch (error) {
-            vscode_1.window.showErrorMessage("Unable to create file for testing. " + error);
+            vscode_1.window.showErrorMessage('Unable to create file for testing. ' + error);
             return;
         }
-        vscode_1.window.showInformationMessage("Debugging your current selection with EASy68k.");
+        vscode_1.window.showInformationMessage('Debugging your current selection with EASy68k.');
         (0, child_process_1.exec)(`"${systemVariable}" "temp.txt"`, (error) => {
             if (error) {
-                vscode_1.window.showErrorMessage("Cannot run EASy68k for testing. " + error);
+                vscode_1.window.showErrorMessage('Cannot run EASy68k for testing. ' + error);
             }
             (0, fs_1.readdirSync)(assemblerFolder).forEach((file) => {
                 if (file !== assemblerPath && file !== compilerName) {
@@ -565,20 +563,20 @@ async function activate(context) {
             process.chdir(projectFolder);
         });
     });
-    const backup = vscode_1.commands.registerCommand("megaenvironment.backup", () => {
+    const backup = vscode_1.commands.registerCommand('megaenvironment.backup', () => {
         if (!vscode_1.workspace.workspaceFolders) {
-            vscode_1.window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+            vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
         process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath); // Change current working folder to the project one
         const zip = new adm_zip_1.default(); // Create zip archive reference
         const items = (0, fs_1.readdirSync)('.'); // Read all content in the project folder
-        if (!(0, fs_1.existsSync)("Backups")) {
-            vscode_1.window.showInformationMessage("No \"Backups\" folder found. Fixing.");
-            (0, fs_1.mkdirSync)("Backups");
+        if (!(0, fs_1.existsSync)('Backups')) {
+            vscode_1.window.showInformationMessage('No "Backups" folder found. Fixing.');
+            (0, fs_1.mkdirSync)('Backups');
         }
         else {
-            items.splice(items.indexOf("Backups"), 1); // Remove Backups folder
+            items.splice(items.indexOf('Backups'), 1); // Remove Backups folder
         }
         let files = 0;
         items.forEach((item) => {
@@ -593,16 +591,16 @@ async function activate(context) {
             files++;
         });
         const currentDate = new Date();
-        let fileName = extensionSettings.backupName === "" ? "Backup" : extensionSettings.backupName;
+        let fileName = extensionSettings.backupName === '' ? 'Backup' : extensionSettings.backupName;
         if (extensionSettings.backupDate) {
             fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${currentDate.getHours().toString().padStart(2, '0')}.${currentDate.getMinutes().toString().padStart(2, '0')}.${currentDate.getSeconds().toString().padStart(2, '0')}`; // I am aware that this line is extraordinarily long
         }
-        zip.writeZip((0, path_1.join)("Backups", `${fileName}.zip`));
+        zip.writeZip((0, path_1.join)('Backups', `${fileName}.zip`));
         vscode_1.window.showInformationMessage(`${files} files were backed up successfully.`);
     });
-    const cleanup = vscode_1.commands.registerCommand("megaenvironment.cleanup", () => {
+    const cleanup = vscode_1.commands.registerCommand('megaenvironment.cleanup', () => {
         if (!vscode_1.workspace.workspaceFolders) {
-            vscode_1.window.showErrorMessage("You have no opened projects. Please, open a folder containing the correct structure.");
+            vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
         process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
@@ -644,7 +642,7 @@ const settingDescriptors = [
 ];
 vscode_1.workspace.onDidChangeConfiguration((event) => {
     if (event.affectsConfiguration('megaenvironment')) {
-        const config = vscode_1.workspace.getConfiguration('megaenvironment'); // "megaenvironment" with the double quotes doesn't work, what?
+        const config = vscode_1.workspace.getConfiguration('megaenvironment');
         for (const setting of settingDescriptors) {
             if (event.affectsConfiguration(`megaenvironment.${setting.key}`)) {
                 const value = config.get(setting.key);
