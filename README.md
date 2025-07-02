@@ -5,9 +5,9 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 ## What it can do
 #### You can:
 - Assemble files and produce a ROM output in various ways;
-- Some basic versioning, useful for producing multiple builds and be able to distinguish between them;
-- Shortcuts to manage and organise your project folder;
-- Speaking of versioning and file management, you can also backup your project quickly;
+- Make use of some basic versioning, useful for producing multiple builds and be able to distinguish between them;
+- Gain speedy productivity from shortcuts to manage and organise your project folder;
+- Backup your project quickly, too;
 - Run ROMs with mostly Windows emulators (you need to set a system variable for this!);
 - Utilise nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
 - Avoid to include build tools or such, the extension downloads the necessary files to compile;
@@ -16,9 +16,10 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 
 ![Commands](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Commands.png)
 
-## What you need to install this
-First of all, make sure you have [Node.js](https://nodejs.org/) installed. [Git](https://git-scm.com) is recommended if you want to clone this repository.  
+## What you need to setup this (in case you want to modify it)
+You can check [this tutorial](https://code.visualstudio.com/api) out if you don't know much about VS extensions.
 
+First of all, make sure you have [Node.js](https://nodejs.org/) installed. [Git](https://git-scm.com) is recommended if you want to clone this repository.  
 Then, after installing Node, you must install [Adm-Zip](https://www.npmjs.com/package/adm-zip), a file zipper required for this extension to make backups:
 ```
 npm install adm-zip
