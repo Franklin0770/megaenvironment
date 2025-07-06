@@ -9,9 +9,22 @@
 			}
 		},
 		{
+			"scope": "instruction.jump.m68k-as",
+			"settings": {
+				"foreground": "#578dcb",
+				"fontStyle": "bold"
+			}
+		},
+		{
 			"scope": "instruction.size.m68k-as",
 			"settings": {
 				"foreground": "#457fdd"
+			}
+		},
+		{
+			"scope": "instruction.autoincrement.m68k-as",
+			"settings": {
+				"foreground": "#DDDDDD"
 			}
 		},
 		{
@@ -24,13 +37,13 @@
 		{
 			"scope": "constant.immediate.m68k-as",
 			"settings": {
-				"foreground": "#e0981c"
+				"foreground": "#eca01c"
 			}
 		},
 		{
 			"scope": "constant.numeric.m68k-as",
 			"settings": {
-				"foreground": "#d3a345"
+				"foreground": "#ca9f48"
 			}
 		},
 		{
@@ -55,13 +68,13 @@
 		{
 			"scope": "directive.label.local.m68k-as",
 			"settings": {
-				"foreground": "#c8c44f"
+				"foreground": "#cac762"
 			}
 		},
 		{
 			"scope": "directive.label.temporary.m68k-as",
 			"settings": {
-				"foreground": "#c4c174"
+				"foreground": "#c0be82"
 			}
 		},
 		{
@@ -71,9 +84,15 @@
 			}
 		},
 		{
+			"scope": "directive.label.jump.m68k-as",
+			"settings": {
+				"foreground": "#b3ca88"
+			}
+		},
+		{
 			"scope": "directive.operator.m68k-as",
 			"settings": {
-				"foreground": "#cb3567"
+				"foreground": "#ce557e"
 			}
 		},
 		{
@@ -87,6 +106,12 @@
 			"settings": {
 				"foreground": "#c15bc1",
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "directive.token.m68k-as",
+			"settings": {
+				"foreground": "#c15bc1"
 			}
 		},
 		{

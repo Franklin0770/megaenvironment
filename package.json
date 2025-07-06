@@ -249,7 +249,7 @@
 		"id": "m68k-as",
 		"aliases": [ "Macroassembler AS - Motorola 68000" ],
 		"extensions": [ ".68k", ".asm", ".s" ],
-		"configuration": "./configs/m68k-as.config.json"
+		"configuration": "./configs/m68k-language-configuration.json"
 	  },
 	  {
 		"id": "m68k-sdisasm",
