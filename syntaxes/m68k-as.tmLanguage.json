@@ -116,7 +116,7 @@
 		},
 		"pseudo-instructions": {
 			"name": "directive.pseudo.m68k-as",
-			"match": "\\b(?i:set|equ|label|charset|codepage|pushv|popv|r?org|cpu|supmode|padding|segment|(?:de)?phase|save|restore|assume|(?:end)?expect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm?|(?:end)?struct|(?:eend)if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|page(?:size)?|newpage|macexp_(?:dft|ovr)|listing|title|(?:out)?radix|public|global|forward|shared|b?include|message|warning|error|fatal|read|intsyntax|relaxed|compmode)\\b"
+			"match": "\\b(?i:set|equ|label|charset|codepage|pushv|popv|r?org|cpu|supmode|padding|segment|(?:de)?phase|save|restore|assume|(?:end)?expect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm?|(?:end)?struct|(?:end)if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|page(?:size)?|newpage|macexp_(?:dft|ovr)|listing|title|(?:out)?radix|public|global|forward|shared|b?include|message|warning|error|fatal|read|intsyntax|relaxed|compmode)\\b"
 		},
 		"instruction-label-structure": {
 			"name": "instruction.label.m68k-as",

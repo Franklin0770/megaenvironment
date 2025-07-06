@@ -4,7 +4,7 @@ TODOS:
 - Maybe some classes for encapsulation.
 */
 
-import { ExtensionContext, extensions, workspace, commands, window, Uri } from 'vscode';
+import { ExtensionContext, workspace, commands, window } from 'vscode';
 import { exec, execSync, spawnSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, rename, unlink, createWriteStream, chmodSync, unlinkSync } from 'fs';
 import { pipeline } from 'stream';
@@ -83,12 +83,7 @@ let assemblerPath: string;
 let compilerName: string;
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
-const extensionId = 'clcxce.motorola-68k-assembly';
 const streamPipeline = promisify(pipeline);
-
-if (!extensions.getExtension(extensionId)) {
-	window.showWarningMessage(`The extension "${extensionId}" is not installed. Its installation is recommended for text highlighting.`);
-}
 
 function executeAssemblyCommand(): number {
 	if (!existsSync(extensionSettings.mainName)) {
@@ -270,13 +265,13 @@ function assembleROM() {
 	let warnings = false;
 
 	switch (executeAssemblyCommand()) {
-		case 1:
-			warnings = true;
-			break;
-		case -1:
-			return;
-		default:
-			break;
+	case 0:
+		break;
+	case 1:
+		warnings = true;
+		break;
+	default:
+		break;
 	}
 
 	const files = readdirSync('.'); // Reads all files and folders and put them into a string array
@@ -357,9 +352,9 @@ function renameRom(projectFolder: string, warnings: boolean) {
 	rename('rom.bin', `${join(projectFolder, fileName)}.gen`, (error) => {
 		if (error) {
 			if (error?.code !== 'ENOENT') {
-				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error}`);
+				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error.message}`);
 			} else {
-				window.showErrorMessage('Cannot rename your ROM, there might be a problem with the compiler. ' + error);
+				window.showErrorMessage('Cannot rename your ROM, there might be a problem with the compiler. ' + error.message);
 			}
 		}
 	});
@@ -371,31 +366,37 @@ function renameRom(projectFolder: string, warnings: boolean) {
 	}
 }
 
-function findAndRunROM(systemVariable: string) {
+function findAndRunROM(systemVariable: string, emulator: string) {
 	if (!workspace.workspaceFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 		return;
 	}
 
-	process.chdir(workspace.workspaceFolders[0].uri.fsPath);
+	const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
+
+	process.chdir(projectFolder);
 
 	const rom = readdirSync('.').find(file => file.endsWith('.gen'));
 
 	if (rom) {
-		exec(`"${systemVariable}" "${rom}"`, (error) => {
+		const command = `"${systemVariable}" "${join(projectFolder, rom)}"`;
+		const result = exec(command, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run the latest build. ' + error.message);
 				return;
 			}
-
-			window.showInformationMessage(`Running "${rom}" with BlastEm.`);
 		});
+
+		if (result.exitCode !== 0) { return; }
+
+		window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
+
 	} else {
 		window.showErrorMessage('There are no ROMs to run. Build something first.');
 	}
 }
 
-function runTemporaryROM(systemVariable: string) {
+function runTemporaryROM(systemVariable: string, emulator: string) {
 	if (!workspace.workspaceFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 		return;
@@ -403,33 +404,44 @@ function runTemporaryROM(systemVariable: string) {
 
 	process.chdir(workspace.workspaceFolders[0].uri.fsPath);
 
-	if (!existsSync(extensionSettings.mainName)) {
-		window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}."`);
-		return false;
-	}
+	let warnings = false;
 
-	outputChannel.clear();
-
-	if (!executeAssemblyCommand()) {
-		return;
+	switch (executeAssemblyCommand()) {
+	case 0:
+		break;
+	case 1:
+		warnings = true;
+		break;
+	default:
+		break;
 	}
 	
 	if (!executeCompileCommand()) {
 		return;
 	}
 
-	exec(`"${systemVariable}" ${join(assemblerFolder, "rom.bin")}`, (error) => {
+	const result = exec(`"${systemVariable}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
 		if (error) {
-			window.showErrorMessage('Cannot run the build. ' + error);
+			window.showErrorMessage('Cannot run the build. ' + error.message);
+			return;
 		}
 
-		unlink(join(assemblerFolder, 'rom.p'), (error) => {
-			window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error);
+		unlink(join(assemblerFolder, 'rom.bin'), (error) => {
+			if (error) {
+				window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
+				return;
+			}
 		});
 	});
+	
+	if (result.exitCode !== 0) { return; }
 
 	const currentDate = new Date();
-	window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with BlastEm. (Hurray!)`);
+	if (!warnings) {
+		window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
+	} else {
+		window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`);
+	}
 }
 
 function cleanProjectFolder() {
@@ -547,11 +559,11 @@ export async function activate(context: ExtensionContext) {
 		let warnings = false;
 
 		switch (executeAssemblyCommand()) {
+		case 0:
+			break;
 		case 1:
 			warnings = true;
 			break;
-		case -1:
-			return;
 		default:
 			break;
 		}
@@ -577,7 +589,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		findAndRunROM(systemVariable);
+		findAndRunROM(systemVariable, 'BlastEm');
 	});
 
 	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => {
@@ -594,7 +606,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		findAndRunROM(systemVariable);
+		findAndRunROM(systemVariable, 'Regen');
 	});
 
 	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => {
@@ -611,7 +623,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 		
-		runTemporaryROM(systemVariable);
+		runTemporaryROM(systemVariable, 'BlastEm');
 	});
 
 	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', () => {
@@ -628,7 +640,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 		
-		runTemporaryROM(systemVariable);
+		runTemporaryROM(systemVariable, 'Regen');
 	});
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', () => {
@@ -654,7 +666,7 @@ export async function activate(context: ExtensionContext) {
 		process.chdir(assemblerFolder);
 
 		const editor = window.activeTextEditor;
-		let selectedText;
+		let selectedText: string;
 
 		if (editor) {
 			selectedText = editor.document.getText(editor.selection);
@@ -663,54 +675,65 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		if (selectedText === "") {
+		if (selectedText === '') {
 			window.showWarningMessage("You haven't selected any text field. To make sure you want to debug a portion of your code, select the text you want to analyze.");
 		}
 
 		let text: string;
-		const constantsLocation = join('..', extensionSettings.constantsName);
-		const variablesLocation = join('..', extensionSettings.variablesName);
-		let constantsExists = false;
-		let variablesExists = false;
 
-		if (existsSync(constantsLocation)) {
-			constantsExists = true;
+		let constantsExists = false;
+		let constantsLocation = '';
+		const constantsName = extensionSettings.constantsName;
+
+		if (constantsName !== '') {
+			constantsLocation = join(projectFolder, constantsName);
+			if (existsSync(constantsLocation)) {
+				constantsExists = true;
+			}
 		}
 
-		if (existsSync(variablesLocation)) {
-			variablesExists = true;
+		let variablesExists = false;
+		let variablesLocation = '';
+		const variablesName = extensionSettings.variablesName;
+
+		if (variablesName !== '') {
+			join(projectFolder, variablesName);
+			if (existsSync(variablesLocation)) {
+				variablesExists = true;
+			}
 		}
 
 		if (constantsExists && variablesExists) {
-			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${readFileSync(variablesLocation)}\n\n; Constants\n\n${readFileSync(constantsLocation)}\n\n\tend\tstart`;
+			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${readFileSync(variablesLocation, 'utf-8')}\n\n; Constants\n\n${readFileSync(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
 		} else if (constantsExists) {
-			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${readFileSync(constantsLocation)}\n\n\torg\t$FF0000\n\n\tend\tstart`;
+			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${readFileSync(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
 		} else if (variablesExists) {
-			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${readFileSync(variablesLocation)}\n\n\tend\tstart`;
+			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${readFileSync(variablesLocation, 'utf-8')}\n\n\tend\tstart`;
 		} else {
 			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
 		}
 
 		try {
-			workspace.fs.writeFile(Uri.file('temp.txt'), new TextEncoder().encode(text));
+			writeFileSync(
+				'temp.txt',
+				new TextEncoder().encode(text)
+			);
 		}
 		catch (error: any) {
-			window.showErrorMessage('Unable to create file for testing. ' + error);
+			window.showErrorMessage('Unable to create file for testing. ' + error.message);
 			return;
 		}
 
-		window.showInformationMessage('Debugging your current selection with EASy68k.');
-
-		exec(`"${systemVariable}" "temp.txt"`, (error) => {
+		const result = exec(`"${systemVariable}" "temp.txt"`, (error) => {
 			if (error) {
-				window.showErrorMessage('Cannot run EASy68k for testing. ' + error);
+				window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
 			}
 
 			readdirSync(assemblerFolder).forEach((file) => {
 				if (file !== assemblerPath && file !== compilerName) {
 					unlink(file, (error) => {
 						if (error) {
-							window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error}`);
+							window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error.message}`);
 						}
 					});
 				}
@@ -718,6 +741,10 @@ export async function activate(context: ExtensionContext) {
 
 			process.chdir(projectFolder);
 		});
+
+		if (result.exitCode !== 0) { return; }
+
+		window.showInformationMessage('Debugging your current selection with EASy68k.');
 	});
 
 	const backup = commands.registerCommand('megaenvironment.backup', () => {
@@ -746,7 +773,7 @@ export async function activate(context: ExtensionContext) {
 			if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
 				unlink(item, (error) => {
 					if (error) {
-						window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
+						window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error.message}`);
 					}
 				});
 			}

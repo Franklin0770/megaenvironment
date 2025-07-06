@@ -43,7 +43,7 @@
 		{
 			"scope": "constant.numeric.m68k-as",
 			"settings": {
-				"foreground": "#ca9f48"
+				"foreground": "#c29844"
 			}
 		},
 		{
@@ -62,13 +62,13 @@
 		{
 			"scope": "directive.label.global.m68k-as",
 			"settings": {
-				"foreground": "#d4cf37"
+				"foreground": "#d6d143"
 			}
 		},
 		{
 			"scope": "directive.label.local.m68k-as",
 			"settings": {
-				"foreground": "#cac762"
+				"foreground": "#ccc969"
 			}
 		},
 		{

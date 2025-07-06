@@ -52,11 +52,7 @@ let assemblerFolder;
 let assemblerPath;
 let compilerName;
 const outputChannel = vscode_1.window.createOutputChannel('The Macroassembler AS');
-const extensionId = 'clcxce.motorola-68k-assembly';
 const streamPipeline = (0, util_1.promisify)(stream_1.pipeline);
-if (!vscode_1.extensions.getExtension(extensionId)) {
-    vscode_1.window.showWarningMessage(`The extension "${extensionId}" is not installed. Its installation is recommended for text highlighting.`);
-}
 function executeAssemblyCommand() {
     if (!(0, fs_1.existsSync)(extensionSettings.mainName)) {
         vscode_1.window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`);
@@ -197,11 +193,11 @@ function assembleROM() {
     process.chdir(projectFolder);
     let warnings = false;
     switch (executeAssemblyCommand()) {
+        case 0:
+            break;
         case 1:
             warnings = true;
             break;
-        case -1:
-            return;
         default:
             break;
     }
@@ -272,10 +268,10 @@ function renameRom(projectFolder, warnings) {
     (0, fs_1.rename)('rom.bin', `${(0, path_1.join)(projectFolder, fileName)}.gen`, (error) => {
         if (error) {
             if (error?.code !== 'ENOENT') {
-                vscode_1.window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error}`);
+                vscode_1.window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error.message}`);
             }
             else {
-                vscode_1.window.showErrorMessage('Cannot rename your ROM, there might be a problem with the compiler. ' + error);
+                vscode_1.window.showErrorMessage('Cannot rename your ROM, there might be a problem with the compiler. ' + error.message);
             }
         }
     });
@@ -286,53 +282,72 @@ function renameRom(projectFolder, warnings) {
         vscode_1.window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`);
     }
 }
-function findAndRunROM(systemVariable) {
+function findAndRunROM(systemVariable, emulator) {
     if (!vscode_1.workspace.workspaceFolders) {
         vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
         return;
     }
-    process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
+    const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
+    process.chdir(projectFolder);
     const rom = (0, fs_1.readdirSync)('.').find(file => file.endsWith('.gen'));
     if (rom) {
-        (0, child_process_1.exec)(`"${systemVariable}" "${rom}"`, (error) => {
+        const command = `"${systemVariable}" "${(0, path_1.join)(projectFolder, rom)}"`;
+        const result = (0, child_process_1.exec)(command, (error) => {
             if (error) {
                 vscode_1.window.showErrorMessage('Cannot run the latest build. ' + error.message);
                 return;
             }
-            vscode_1.window.showInformationMessage(`Running "${rom}" with BlastEm.`);
         });
+        if (result.exitCode !== 0) {
+            return;
+        }
+        vscode_1.window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
     }
     else {
         vscode_1.window.showErrorMessage('There are no ROMs to run. Build something first.');
     }
 }
-function runTemporaryROM(systemVariable) {
+function runTemporaryROM(systemVariable, emulator) {
     if (!vscode_1.workspace.workspaceFolders) {
         vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
         return;
     }
     process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
-    if (!(0, fs_1.existsSync)(extensionSettings.mainName)) {
-        vscode_1.window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}."`);
-        return false;
-    }
-    outputChannel.clear();
-    if (!executeAssemblyCommand()) {
-        return;
+    let warnings = false;
+    switch (executeAssemblyCommand()) {
+        case 0:
+            break;
+        case 1:
+            warnings = true;
+            break;
+        default:
+            break;
     }
     if (!executeCompileCommand()) {
         return;
     }
-    (0, child_process_1.exec)(`"${systemVariable}" ${(0, path_1.join)(assemblerFolder, "rom.bin")}`, (error) => {
+    const result = (0, child_process_1.exec)(`"${systemVariable}" "${(0, path_1.join)(assemblerFolder, "rom.bin")}"`, (error) => {
         if (error) {
-            vscode_1.window.showErrorMessage('Cannot run the build. ' + error);
+            vscode_1.window.showErrorMessage('Cannot run the build. ' + error.message);
+            return;
         }
-        (0, fs_1.unlink)((0, path_1.join)(assemblerFolder, 'rom.p'), (error) => {
-            vscode_1.window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error);
+        (0, fs_1.unlink)((0, path_1.join)(assemblerFolder, 'rom.bin'), (error) => {
+            if (error) {
+                vscode_1.window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
+                return;
+            }
         });
     });
+    if (result.exitCode !== 0) {
+        return;
+    }
     const currentDate = new Date();
-    vscode_1.window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with BlastEm. (Hurray!)`);
+    if (!warnings) {
+        vscode_1.window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
+    }
+    else {
+        vscode_1.window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`);
+    }
 }
 function cleanProjectFolder() {
     let items = 0;
@@ -423,11 +438,11 @@ async function activate(context) {
         cleanProjectFolder();
         let warnings = false;
         switch (executeAssemblyCommand()) {
+            case 0:
+                break;
             case 1:
                 warnings = true;
                 break;
-            case -1:
-                return;
             default:
                 break;
         }
@@ -447,7 +462,7 @@ async function activate(context) {
             vscode_1.window.showErrorMessage('You haven\'t set up the "BlastEm" environment variable correctly. You must set this variable to the "blastem.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
-        findAndRunROM(systemVariable);
+        findAndRunROM(systemVariable, 'BlastEm');
     });
     const run_Regen = vscode_1.commands.registerCommand('megaenvironment.run_regen', () => {
         if (process.platform !== 'win32') {
@@ -460,7 +475,7 @@ async function activate(context) {
             vscode_1.window.showErrorMessage('You haven\'t set up the "Regen" environment variable correctly. You must set this variable to the "Regen.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
-        findAndRunROM(systemVariable);
+        findAndRunROM(systemVariable, 'Regen');
     });
     const assemble_and_run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.assemble_run_blastem', () => {
         if (process.platform !== 'win32') {
@@ -473,7 +488,7 @@ async function activate(context) {
             vscode_1.window.showErrorMessage('You haven\'t set up the "BlastEm" environment variable correctly. You must set this variable to the "blastem.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
-        runTemporaryROM(systemVariable);
+        runTemporaryROM(systemVariable, 'BlastEm');
     });
     const assemble_and_run_Regen = vscode_1.commands.registerCommand('megaenvironment.assemble_run_regen', () => {
         if (process.platform !== 'win32') {
@@ -486,7 +501,7 @@ async function activate(context) {
             vscode_1.window.showErrorMessage('You haven\'t set up the "Regen" environment variable correctly. You must set this variable to the "Regen.exe" executable. The current variable value is: ' + systemVariable);
             return;
         }
-        runTemporaryROM(systemVariable);
+        runTemporaryROM(systemVariable, 'Regen');
     });
     const open_EASy68k = vscode_1.commands.registerCommand('megaenvironment.open_easy68k', () => {
         if (process.platform !== 'win32') {
@@ -513,55 +528,66 @@ async function activate(context) {
             vscode_1.window.showErrorMessage("You don't have an opened editor.");
             return;
         }
-        if (selectedText === "") {
+        if (selectedText === '') {
             vscode_1.window.showWarningMessage("You haven't selected any text field. To make sure you want to debug a portion of your code, select the text you want to analyze.");
         }
         let text;
-        const constantsLocation = (0, path_1.join)('..', extensionSettings.constantsName);
-        const variablesLocation = (0, path_1.join)('..', extensionSettings.variablesName);
         let constantsExists = false;
-        let variablesExists = false;
-        if ((0, fs_1.existsSync)(constantsLocation)) {
-            constantsExists = true;
+        let constantsLocation = '';
+        const constantsName = extensionSettings.constantsName;
+        if (constantsName !== '') {
+            constantsLocation = (0, path_1.join)(projectFolder, constantsName);
+            if ((0, fs_1.existsSync)(constantsLocation)) {
+                constantsExists = true;
+            }
         }
-        if ((0, fs_1.existsSync)(variablesLocation)) {
-            variablesExists = true;
+        let variablesExists = false;
+        let variablesLocation = '';
+        const variablesName = extensionSettings.variablesName;
+        if (variablesName !== '') {
+            (0, path_1.join)(projectFolder, variablesName);
+            if ((0, fs_1.existsSync)(variablesLocation)) {
+                variablesExists = true;
+            }
         }
         if (constantsExists && variablesExists) {
-            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${(0, fs_1.readFileSync)(variablesLocation)}\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation)}\n\n\tend\tstart`;
+            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${(0, fs_1.readFileSync)(variablesLocation, 'utf-8')}\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
         }
         else if (constantsExists) {
-            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation)}\n\n\torg\t$FF0000\n\n\tend\tstart`;
+            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
         }
         else if (variablesExists) {
-            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${(0, fs_1.readFileSync)(variablesLocation)}\n\n\tend\tstart`;
+            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${(0, fs_1.readFileSync)(variablesLocation, 'utf-8')}\n\n\tend\tstart`;
         }
         else {
             text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
         }
         try {
-            vscode_1.workspace.fs.writeFile(vscode_1.Uri.file('temp.txt'), new TextEncoder().encode(text));
+            (0, fs_1.writeFileSync)('temp.txt', new TextEncoder().encode(text));
         }
         catch (error) {
-            vscode_1.window.showErrorMessage('Unable to create file for testing. ' + error);
+            vscode_1.window.showErrorMessage('Unable to create file for testing. ' + error.message);
             return;
         }
-        vscode_1.window.showInformationMessage('Debugging your current selection with EASy68k.');
-        (0, child_process_1.exec)(`"${systemVariable}" "temp.txt"`, (error) => {
+        const result = (0, child_process_1.exec)(`"${systemVariable}" "temp.txt"`, (error) => {
             if (error) {
-                vscode_1.window.showErrorMessage('Cannot run EASy68k for testing. ' + error);
+                vscode_1.window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
             }
             (0, fs_1.readdirSync)(assemblerFolder).forEach((file) => {
                 if (file !== assemblerPath && file !== compilerName) {
                     (0, fs_1.unlink)(file, (error) => {
                         if (error) {
-                            vscode_1.window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error}`);
+                            vscode_1.window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error.message}`);
                         }
                     });
                 }
             });
             process.chdir(projectFolder);
         });
+        if (result.exitCode !== 0) {
+            return;
+        }
+        vscode_1.window.showInformationMessage('Debugging your current selection with EASy68k.');
     });
     const backup = vscode_1.commands.registerCommand('megaenvironment.backup', () => {
         if (!vscode_1.workspace.workspaceFolders) {
@@ -584,7 +610,7 @@ async function activate(context) {
             if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
                 (0, fs_1.unlink)(item, (error) => {
                     if (error) {
-                        vscode_1.window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error}`);
+                        vscode_1.window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error.message}`);
                     }
                 });
             }
