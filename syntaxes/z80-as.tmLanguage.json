@@ -1,20 +1,18 @@
 {
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "The Macroassembler AS - Motorola 68000",
-	"scopeName": "source.m68k-as",
+	"name": "The Macroassembler AS - Zilog Z80",
+	"scopeName": "source.z80-as",
 	"foldingStartMarker": "^\\s*(?i:macro|if|ifn?(?:def|symexist|used|exist|b)|rept|irpc?|while|function|struct|switch)\\b",
 	"foldingStopMarker": "^\\s*(?i:end(?:if|struct|case|m))\\b",
 	"patterns": [
+		{ "include": "#symbols" },
 		{ "include": "#instruction-label-structure" },
 		{ "include": "#instructions" },
-		{ "include": "#sizes" },
-		{ "include": "#autoincrements" },
 		{ "include": "#variables" },
 		{ "include": "#constants" },
 		{ "include": "#comments" },
 		{ "include": "#strings" },
 		{ "include": "#labels" },
-		{ "include": "#symbols" },
 		{ "include": "#operators" },
 		{ "include": "#functions" },
 		{ "include": "#pseudo-instructions" }
@@ -24,37 +22,21 @@
 			"patterns": [
 				{
 					"name": "instruction.mnemonic.as",
-					"match": "\\b(?i:[as]bcd|add[aiqx]?|andi?|as[lr]|b(?:chg|clr|set|tst)|chk|clr|cmp[aim]?|(?:db|s)(?:t|f|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|div[su]|[e]?or[i]?|exg|ext|illegal|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|negx?|nop|not|pea|reset|rox?[lr]|rt[ser]|stop|sub[aiqx]?|swap|tas|trapv?|tst|unlk)\\b"
+					"match": "\\b(?i:ld|push|pop|exx?|ld[id]r?|cp[id]r?|add|sub|sbc|and|x?or|cp|inc|dec|daa|cpl|neg|[cs]cf|nop|halt|[ed]i|im|r[lr]c?a|lrc?|rrc?|s[lr]a|srl|rld|rrd|bit|set|res|djnz|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
 				},
 				{
 					"name": "instruction.jump.as",
-					"match": "\\b(?i:b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser])\\b"
+					"match": "\\b(?i:j[pr]|call|ret[in]?|rst)\\b"
 				}
 			]
-		},
-		"sizes": {
-			"name": "instruction.size.as",
-			"match": "(?i:\\.[bwls])(?!\\w)"
-		},
-		"autoincrements": {
-			"name": "instruction.autoincrement.as",
-			"match": "(?i:(?<=\\(a[0-7]\\))\\+|\\-(?=\\(a[0-7]\\)))"
 		},
 		"variables": {
 			"name": "variable.register.as",
-			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr)\\b"
+			"match": "\\b(?i:af|bc|de|hl|ix|iy|sp|pc|a|b|c|d|e|h|l|r|i)\\b|(?<=f)'(?!\\w)"
 		},
 		"constants": {
-			"patterns": [
-				{
-					"name": "constant.immediate.as",
-					"match": "(?<=\\s+)#(?=[\\w|$%@(])"
-				},
-				{
-					"name": "constant.numeric.as",
-					"match": "(?<![\\w\\)])(?:-?\\d{1,10}|\\$[0-9a-fA-F]{1,8}|%[01]{1,32}|@[0-7]{1,11})(?!\\w)"
-				}
-			]
+			"name": "constant.numeric.as",
+			"match": "(?<![\\w\\)])(?:-?\\d{1,10}|[0-9a-fA-F]{1,8}h|%[01]{1,32}b|@[0-7]{1,11}[oq])(?!\\w)"
 		},
 		"comments": {
 			"name": "directive.comment.as",
@@ -69,8 +51,8 @@
 				},
 				{
 					"name": "directive.string.as",
-					"begin": "'",
-					"end": "'"
+					"begin": "(?<!\\w)'",
+  					"end": "'(?!\\w)"
 				}
 			]
 		},
@@ -104,7 +86,7 @@
 		},
 		"symbols": {
 			"name": "directive.symbol.as",
-			"match": "(?<!\\w)(?:TRUE|FALSE|CONSTPI|FLOATMAX|VERSION|ARCHITECTURE|DATE|TIME|MOM(?:CPU(?:NAME)?|FILE|LINE|PASS|SECTION)|[\\.\\$])(?![\\w\\$])"	
+			"match": "(?<!\\w)(?:TRUE|FALSE|CONSTPI|FLOATMAX|VERSION|ARCHITECTURE|DATE|TIME|MOM(?:CPU(?:NAME)?|FILE|LINE|PASS|SECTION)|[\\.\\$])(?![\\w\\$])"
 		},
 		"pseudo-instructions": {
 			"name": "directive.pseudo.as",
@@ -112,11 +94,10 @@
 		},
 		"instruction-label-structure": {
 			"name": "instruction.label.as",
-			"match": "(?i:\\b(b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr))(\\.[swl])?)\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+			"match": "\\b(?i:(j[pr]|call))\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
 			"captures": { 
 				"1": { "name": "instruction.jump.as"},
-				"2": { "name": "instruction.size.as" },
-				"3": { "name": "directive.label.jump.as" }
+				"2": { "name": "directive.label.jump.as" }
 			}
 		}
 	}

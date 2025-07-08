@@ -3,27 +3,13 @@
 	"name": "Sonic Disassembly - Motorola 68000",
 	"scopeName": "source.m68k-sdisasm",
 	"patterns": [
-		{
-			"include": "#comments"
-		},
-		{
-			"include": "#numbers"
-		},
-		{
-			"include": "#operators"
-		},
-		{
-			"include": "#keywords1"
-		},
-		{
-			"include": "#keywords2"
-		},
-		{
-			"include": "#keywords3"
-		},
-		{
-			"include": "#delimiters"
-		}
+		{ "include": "#comments" },
+		{ "include": "#numbers" },
+		{ "include": "#operators" },
+		{ "include": "#keywords1" },
+		{ "include": "#keywords2" },
+		{ "include": "#keywords3" },
+		{ "include": "#delimiters" }
 	],
 	"repository": {
 		"comments": {

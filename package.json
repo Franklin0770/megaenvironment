@@ -198,6 +198,11 @@
           "default": "",
           "description": "The name of the backup files. Default name is \"Backup\"."
         },
+		"megaenvironment.miscellaneous.compactGlobalSymbols": {
+		  "type": "boolean",
+		  "default": true,
+		  "description": "Stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time."
+		},
         "megaenvironment.miscellaneous.fillValue": {
           "type": "string",
           "default": "00",
@@ -230,17 +235,17 @@
         "megaenvironment.miscellaneous.suppressWarnings": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the terminal should suppress the assembler warnings."
+          "description": "Whether the IDE and the terminal should suppress the assembler warnings."
         },
         "megaenvironment.miscellaneous.quietOperation": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the terminal should print only the errors. By default, the terminal prints the output each time a build is assembled, but it only pops up when an error occurs."
+          "description": "Whether the IDE and the terminal should print show errors only. By default, the terminal prints the output each time a build is assembled, but it only pops up when an error occurs."
         },
         "megaenvironment.miscellaneous.verboseOperation": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the terminal should always show the output every time a build is assembled. By default, the terminal only pops up when an error occurs."
+          "description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs."
         }
       }
     },
@@ -249,7 +254,13 @@
 		"id": "m68k-as",
 		"aliases": [ "Macroassembler AS - Motorola 68000" ],
 		"extensions": [ ".68k", ".asm", ".s" ],
-		"configuration": "./configs/m68k-language-configuration.json"
+		"configuration": "./configs/as-language-configuration.json"
+	  },
+	  {
+		"id": "z80-as",
+		"aliases": [ "Macroassembler AS - Zilog Z80" ],
+		"extensions": [ ".z80" ],
+		"configuration": "./configs/as-language-configuration.json"
 	  },
 	  {
 		"id": "m68k-sdisasm",
@@ -264,6 +275,11 @@
 		"path": "./syntaxes/m68k-as.tmLanguage.json"
 	  },
 	  {
+	    "language": "z80-as",
+		"scopeName": "source.z80-as",
+		"path": "./syntaxes/z80-as.tmLanguage.json"
+	  },
+	  {
 		"language": "m68k-sdisasm",
 		"scopeName": "source.m68k-sdisasm",
 		"path": "./syntaxes/m68k-sdisasm.tmLanguage.json"
@@ -273,7 +289,7 @@
 	  {
 	    "label": "MegaEnvironment Dark",
 		"uiTheme": "vs-dark",
-		"path": "./themes/m68k-as.tmTheme.json"
+		"path": "./themes/as.tmTheme.json"
 	  },
 	  {
 		"label": "MegaEnvironment Sonic Disassembly",

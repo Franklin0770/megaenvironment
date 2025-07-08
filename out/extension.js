@@ -26,7 +26,7 @@ let extensionSettings = {
     mainName: '',
     constantsName: '',
     variablesName: '',
-    listingFile: false,
+    listingFile: true,
     listingName: '',
     errorFile: false,
     errorName: '',
@@ -39,10 +39,11 @@ let extensionSettings = {
     caseSensitive: true,
     backupName: '',
     backupDate: true,
+    compactSymbols: true,
     fillValue: '00',
     errorLevel: 0,
     errorNumber: false,
-    AsErrors: false,
+    asErrors: false,
     lowercaseHex: false,
     suppressWarnings: false,
     quietOperation: false,
@@ -59,46 +60,29 @@ function executeAssemblyCommand() {
         return -1;
     }
     outputChannel.clear();
-    let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${(0, path_1.join)(assemblerFolder, "rom.p")}" -A`;
-    if (extensionSettings.listingFile) {
-        command += 'L';
-    }
-    if (extensionSettings.caseSensitive) {
-        command += 'U';
-    }
-    command += 'x'.repeat(extensionSettings.errorLevel);
-    if (extensionSettings.errorNumber) {
-        command += 'n';
-    }
-    if (extensionSettings.lowercaseHex) {
-        command += 'h';
-    }
-    if (extensionSettings.suppressWarnings) {
-        command += 'w';
-    }
-    if (extensionSettings.quietOperation) {
-        command += 'q';
-    }
-    if (extensionSettings.sectionListing) {
-        command += 's';
-    }
-    if (extensionSettings.macroListing) {
-        command += 'M';
-    }
-    if (extensionSettings.sourceListing) {
-        command += 'P';
-    }
-    if (!extensionSettings.superiorWarnings) {
-        command += ' -supmode';
-    }
-    if (!extensionSettings.AsErrors) {
-        command += ' -gnuerrors';
-    }
-    if (extensionSettings.listingName !== '') {
-        command += ' -olist ' + extensionSettings.listingName + '.lst';
+    let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${(0, path_1.join)(assemblerFolder, "rom.p")}" -`;
+    const shortFlags = [
+        [extensionSettings.compactSymbols, 'A'],
+        [extensionSettings.listingFile, 'L'],
+        [extensionSettings.caseSensitive, 'U'],
+        [!!extensionSettings.errorLevel, 'x'.repeat(extensionSettings.errorLevel)],
+        [extensionSettings.errorNumber, 'n'],
+        [extensionSettings.lowercaseHex, 'h'],
+        [extensionSettings.suppressWarnings, 'w'],
+        [extensionSettings.quietOperation, 'q'],
+        [extensionSettings.sectionListing, 's'],
+        [extensionSettings.macroListing, 'M'],
+        [extensionSettings.sourceListing, 'P'],
+        [!extensionSettings.asErrors, ' -gnuerrors'],
+        [!extensionSettings.superiorWarnings, ' -supmode']
+    ];
+    for (const [condition, flag] of shortFlags) {
+        if (condition) {
+            command += flag;
+        }
     }
     if (extensionSettings.errorFile) {
-        if (extensionSettings.errorName !== '') {
+        if (extensionSettings.errorName) {
             command += ' -E ' + extensionSettings.errorName + '.log';
         }
         else {
@@ -108,7 +92,7 @@ function executeAssemblyCommand() {
     if (extensionSettings.debugFile !== 'None') {
         command += ' -g ' + extensionSettings.debugFile;
     }
-    if (extensionSettings.defaultCpu !== '') {
+    if (extensionSettings.defaultCpu) {
         command += ' -cpu ' + extensionSettings.defaultCpu;
     }
     if (extensionSettings.workingFolders.length > 0) {
@@ -151,7 +135,7 @@ function executeAssemblyCommand() {
                 vscode_1.window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
                 break;
             case 3:
-                vscode_1.window.showErrorMessage(`Build failed. A fatal was thrown by the assembler. Check the ${errorLocation} for more details.`);
+                vscode_1.window.showErrorMessage(`Build failed. A fatal error was thrown by the assembler. Check the ${errorLocation} for more details.`);
                 break;
             default:
                 vscode_1.window.showErrorMessage(`The assembler has thrown an unknown error. Check the ${errorLocation} for more details.`);
@@ -199,7 +183,7 @@ function assembleROM() {
             warnings = true;
             break;
         default:
-            break;
+            return;
     }
     const files = (0, fs_1.readdirSync)('.'); // Reads all files and folders and put them into a string array
     // Checks if there are any files that have the .gen extension. If so, it gets renamed with .pre and a number
@@ -275,11 +259,20 @@ function renameRom(projectFolder, warnings) {
             }
         }
     });
+    if (extensionSettings.quietOperation) {
+        return;
+    }
     if (!warnings) {
         vscode_1.window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
     }
     else {
-        vscode_1.window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`);
+        vscode_1.window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal')
+            .then(selection => {
+            if (selection === 'Show Terminal') {
+                outputChannel.show();
+            }
+        });
+        ;
     }
 }
 function findAndRunROM(systemVariable, emulator) {
@@ -291,14 +284,15 @@ function findAndRunROM(systemVariable, emulator) {
     process.chdir(projectFolder);
     const rom = (0, fs_1.readdirSync)('.').find(file => file.endsWith('.gen'));
     if (rom) {
-        const command = `"${systemVariable}" "${(0, path_1.join)(projectFolder, rom)}"`;
-        const result = (0, child_process_1.exec)(command, (error) => {
+        let errorCode = false;
+        (0, child_process_1.exec)(`"${systemVariable}" "${(0, path_1.join)(projectFolder, rom)}"`, (error) => {
             if (error) {
                 vscode_1.window.showErrorMessage('Cannot run the latest build. ' + error.message);
+                errorCode = true;
                 return;
             }
         });
-        if (result.exitCode !== 0) {
+        if (errorCode || extensionSettings.quietOperation) {
             return;
         }
         vscode_1.window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
@@ -321,14 +315,16 @@ function runTemporaryROM(systemVariable, emulator) {
             warnings = true;
             break;
         default:
-            break;
+            return;
     }
     if (!executeCompileCommand()) {
         return;
     }
-    const result = (0, child_process_1.exec)(`"${systemVariable}" "${(0, path_1.join)(assemblerFolder, "rom.bin")}"`, (error) => {
+    let errorCode = false;
+    (0, child_process_1.exec)(`"${systemVariable}" "${(0, path_1.join)(assemblerFolder, "rom.bin")}"`, (error) => {
         if (error) {
             vscode_1.window.showErrorMessage('Cannot run the build. ' + error.message);
+            errorCode = true;
             return;
         }
         (0, fs_1.unlink)((0, path_1.join)(assemblerFolder, 'rom.bin'), (error) => {
@@ -338,7 +334,7 @@ function runTemporaryROM(systemVariable, emulator) {
             }
         });
     });
-    if (result.exitCode !== 0) {
+    if (errorCode || extensionSettings.quietOperation) {
         return;
     }
     const currentDate = new Date();
@@ -346,7 +342,13 @@ function runTemporaryROM(systemVariable, emulator) {
         vscode_1.window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
     }
     else {
-        vscode_1.window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`);
+        vscode_1.window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal')
+            .then(selection => {
+            if (selection === 'Show Terminal') {
+                outputChannel.show();
+            }
+        });
+        ;
     }
 }
 function cleanProjectFolder() {
@@ -357,6 +359,9 @@ function cleanProjectFolder() {
             items++;
         }
     });
+    if (extensionSettings.quietOperation) {
+        return;
+    }
     vscode_1.window.showInformationMessage(`Cleanup completed. ${items} items were removed.`);
 }
 // This method is called when the extension is activated
@@ -398,7 +403,6 @@ async function activate(context) {
             vscode_1.window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
             return;
     }
-    vscode_1.window.showInformationMessage('Downloading the latest tools...');
     if ((0, fs_1.existsSync)(assemblerFolder)) {
         (0, fs_1.rmSync)(assemblerFolder, { recursive: true, force: true });
     }
@@ -444,7 +448,7 @@ async function activate(context) {
                 warnings = true;
                 break;
             default:
-                break;
+                return;
         }
         if (!executeCompileCommand()) {
             return;
@@ -528,9 +532,6 @@ async function activate(context) {
             vscode_1.window.showErrorMessage("You don't have an opened editor.");
             return;
         }
-        if (selectedText === '') {
-            vscode_1.window.showWarningMessage("You haven't selected any text field. To make sure you want to debug a portion of your code, select the text you want to analyze.");
-        }
         let text;
         let constantsExists = false;
         let constantsLocation = '';
@@ -569,9 +570,11 @@ async function activate(context) {
             vscode_1.window.showErrorMessage('Unable to create file for testing. ' + error.message);
             return;
         }
-        const result = (0, child_process_1.exec)(`"${systemVariable}" "temp.txt"`, (error) => {
+        let errorCode = false;
+        (0, child_process_1.exec)(`"${systemVariable}" "temp.txt"`, (error) => {
             if (error) {
                 vscode_1.window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
+                errorCode = true;
             }
             (0, fs_1.readdirSync)(assemblerFolder).forEach((file) => {
                 if (file !== assemblerPath && file !== compilerName) {
@@ -584,7 +587,7 @@ async function activate(context) {
             });
             process.chdir(projectFolder);
         });
-        if (result.exitCode !== 0) {
+        if (errorCode || extensionSettings.quietOperation) {
             return;
         }
         vscode_1.window.showInformationMessage('Debugging your current selection with EASy68k.');
@@ -617,11 +620,15 @@ async function activate(context) {
             files++;
         });
         const currentDate = new Date();
-        let fileName = extensionSettings.backupName === '' ? 'Backup' : extensionSettings.backupName;
+        const backupName = extensionSettings.backupName;
+        let fileName = backupName === '' ? 'Backup' : backupName;
         if (extensionSettings.backupDate) {
             fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${currentDate.getHours().toString().padStart(2, '0')}.${currentDate.getMinutes().toString().padStart(2, '0')}.${currentDate.getSeconds().toString().padStart(2, '0')}`; // I am aware that this line is extraordinarily long
         }
         zip.writeZip((0, path_1.join)('Backups', `${fileName}.zip`));
+        if (extensionSettings.quietOperation) {
+            return;
+        }
         vscode_1.window.showInformationMessage(`${files} files were backed up successfully.`);
     });
     const cleanup = vscode_1.commands.registerCommand('megaenvironment.cleanup', () => {
