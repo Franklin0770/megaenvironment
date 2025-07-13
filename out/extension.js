@@ -19,6 +19,8 @@ const adm_zip_1 = __importDefault(require("adm-zip"));
 let extensionSettings = {
     defaultCpu: '68000',
     superiorWarnings: false,
+    signWarning: false,
+    jumpsWarning: false,
     romName: '',
     romDate: true,
     prevRoms: true,
@@ -45,9 +47,11 @@ let extensionSettings = {
     errorNumber: false,
     asErrors: false,
     lowercaseHex: false,
+    compatibilityMode: false,
     suppressWarnings: false,
     quietOperation: false,
-    verboseOperation: false
+    verboseOperation: false,
+    warningsAsErrors: false
 };
 let assemblerFolder;
 let assemblerPath;
@@ -69,12 +73,15 @@ function executeAssemblyCommand() {
         [extensionSettings.errorNumber, 'n'],
         [extensionSettings.lowercaseHex, 'h'],
         [extensionSettings.suppressWarnings, 'w'],
-        [extensionSettings.quietOperation, 'q'],
         [extensionSettings.sectionListing, 's'],
         [extensionSettings.macroListing, 'M'],
         [extensionSettings.sourceListing, 'P'],
+        [extensionSettings.warningsAsErrors, ' -Werror'],
         [!extensionSettings.asErrors, ' -gnuerrors'],
-        [!extensionSettings.superiorWarnings, ' -supmode']
+        [!extensionSettings.superiorWarnings, ' -supmode'],
+        [extensionSettings.compatibilityMode, ' -compmode'],
+        [extensionSettings.signWarning, ' -wsign-extension'],
+        [extensionSettings.jumpsWarning, ' -wrelative']
     ];
     for (const [condition, flag] of shortFlags) {
         if (condition) {
@@ -96,16 +103,12 @@ function executeAssemblyCommand() {
         command += ' -cpu ' + extensionSettings.defaultCpu;
     }
     if (extensionSettings.workingFolders.length > 0) {
-        command += ' -i ';
-        for (let directory of extensionSettings.workingFolders) {
-            command += `"${directory}";`;
-        }
+        command += ' -i "' + extensionSettings.workingFolders.join('";"') + '"';
     }
+    console.log(command);
     const output = (0, child_process_1.spawnSync)(command, { encoding: 'ascii', shell: true });
     if (output.status === 0) {
-        if (!extensionSettings.quietOperation) {
-            outputChannel.append(output.stdout);
-        }
+        outputChannel.append(output.stdout);
         if (extensionSettings.verboseOperation) {
             outputChannel.show();
         }
@@ -120,9 +123,7 @@ function executeAssemblyCommand() {
         }
     }
     else {
-        if (!extensionSettings.quietOperation) {
-            outputChannel.append(output.stdout + '\n');
-        }
+        outputChannel.append(output.stdout + '\n');
         let errorLocation = 'log file';
         if (!extensionSettings.errorFile) {
             outputChannel.appendLine('==================== ASSEMBLER ERROR ====================\n');
@@ -147,21 +148,14 @@ function executeAssemblyCommand() {
 // Executes a program synchronously, returns true if successful, false if an error occurred
 function executeCompileCommand() {
     let command = `"${compilerName}" rom.p -l 0x${extensionSettings.fillValue} -k`;
-    if (extensionSettings.quietOperation) {
-        command += 'q';
-    }
     process.chdir(assemblerFolder);
     try {
         const output = (0, child_process_1.execSync)(command, { encoding: 'ascii' });
-        if (!extensionSettings.quietOperation) {
-            outputChannel.append('\n' + output);
-        }
+        outputChannel.append('\n' + output);
         return true;
     }
     catch (error) {
-        if (!extensionSettings.quietOperation) {
-            outputChannel.append(error.stdout + '\n');
-        }
+        outputChannel.append(error.stdout + '\n');
         outputChannel.appendLine('==================== COMPILER ERROR ====================\n');
         outputChannel.append(error.stderr);
         vscode_1.window.showErrorMessage('The compiler has thrown an unknown error. Check the terminal for more details.');
@@ -208,7 +202,9 @@ function assembleROM() {
             const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
             // Enforce limit
             if (extensionSettings.prevAmount !== 0 && latest >= extensionSettings.prevAmount - 1) {
-                vscode_1.window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
+                if (!extensionSettings.quietOperation) {
+                    vscode_1.window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
+                }
                 (0, fs_1.unlinkSync)(oldest.name);
                 number = oldest.index; // Reuse the index
             }
@@ -221,7 +217,7 @@ function assembleROM() {
             if (error) {
                 vscode_1.window.showWarningMessage(`Could not rename the previous ROM. Please manually rename it to "${newName}".`);
             }
-            else {
+            else if (!extensionSettings.quietOperation) {
                 vscode_1.window.showInformationMessage(`Latest build exists. Renamed to "${newName}".`);
             }
         });
@@ -259,10 +255,10 @@ function renameRom(projectFolder, warnings) {
             }
         }
     });
-    if (extensionSettings.quietOperation) {
-        return;
-    }
     if (!warnings) {
+        if (extensionSettings.quietOperation) {
+            return;
+        }
         vscode_1.window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
     }
     else {
@@ -333,11 +329,14 @@ function runTemporaryROM(systemVariable, emulator) {
             }
         });
     });
-    if (errorCode || extensionSettings.quietOperation) {
+    if (errorCode) {
         return;
     }
     const currentDate = new Date();
     if (!warnings) {
+        if (extensionSettings.quietOperation) {
+            return;
+        }
         vscode_1.window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
     }
     else {
@@ -352,7 +351,13 @@ function runTemporaryROM(systemVariable, emulator) {
 function cleanProjectFolder() {
     let items = 0;
     (0, fs_1.readdirSync)('.').forEach((item) => {
-        if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
+        const shouldDelete = extensionSettings.cleaningExtensions.some((ext) => {
+            if (ext === '.pre') {
+                return /\.pre\d+$/.test(item); // handles .pre0, .pre1, .pre999...
+            }
+            return item.endsWith(ext);
+        });
+        if (shouldDelete) {
             (0, fs_1.unlinkSync)(item);
             items++;
         }
@@ -704,6 +709,10 @@ async function activate(context) {
 const settingDescriptors = [
     { key: 'codeOptions.defaultCPU', target: 'defaultCpu' },
     { key: 'codeOptions.superiorModeWarnings', target: 'superiorWarnings' },
+    { key: 'codeOptions.compatibilityMode', target: 'compatibilityMode' },
+    { key: 'codeOptions.signExtensionWarning', target: 'signWarning' },
+    { key: 'codeOptions.absoluteJumpsWarning', target: 'jumpsWarning' },
+    { key: 'codeOptions.caseSensitiveMode', target: 'caseSensitive' },
     { key: 'buildControl.outputRomName', target: 'romName' },
     { key: 'buildControl.includeRomDate', target: 'romDate' },
     { key: 'buildControl.enablePreviousBuilds', target: 'prevRoms' },
@@ -721,7 +730,6 @@ const settingDescriptors = [
     { key: 'sourceCodeControl.generateSourceListing', target: 'sourceListing' },
     { key: 'sourceCodeControl.cleaningExtensionSelector', target: 'cleaningExtensions' },
     { key: 'sourceCodeControl.currentWorkingFolders', target: 'workingFolders' },
-    { key: 'sourceCodeControl.caseSensitiveMode', target: 'caseSensitive' },
     { key: 'backupOptions.backupFileName', target: 'backupName' },
     { key: 'backupOptions.includeBackupDate', target: 'backupDate' },
     { key: 'miscellaneous.fillValue', target: 'fillValue' },
@@ -731,7 +739,8 @@ const settingDescriptors = [
     { key: 'miscellaneous.lowercaseHexadecimal', target: 'lowercaseHex' },
     { key: 'miscellaneous.suppressWarnings', target: 'suppressWarnings' },
     { key: 'miscellaneous.quietOperation', target: 'quietOperation' },
-    { key: 'miscellaneous.verboseOperation', target: 'verboseOperation' }
+    { key: 'miscellaneous.verboseOperation', target: 'verboseOperation' },
+    { key: 'miscellaneous.warningsAsErrors', target: 'warningsAsErrors' }
 ];
 vscode_1.workspace.onDidChangeConfiguration((event) => {
     if (event.affectsConfiguration('megaenvironment')) {

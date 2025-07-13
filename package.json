@@ -1,9 +1,9 @@
 {
   "name": "megaenvironment",
-  "displayName": "Mega Drive Environment",
+  "displayName": "Mega Driven Environment",
   "publisher": "Brotherhood0",
-  "description": "Provides integration with The Macroassembler AS, among other features.",
-  "version": "0.2.0",
+  "description": "Provides integration with The Macroassembler AS, among other features, such as code highlighting.",
+  "version": "0.2.1",
   "engines": {
     "vscode": "^1.96.0"
   },
@@ -80,7 +80,7 @@
       }
     ],
     "configuration": {
-      "title": "Mega Drive Environment",
+      "title": "Mega Driven Environment",
       "properties": {
 		"megaenvironment.codeOptions.defaultCPU": {
 		  "type": "string",
@@ -90,7 +90,27 @@
 		"megaenvironment.codeOptions.superiorModeWarnings": {
 		  "type": "boolean",
 		  "default": false,
-		  "description": "Setting this means the assembler will issue warnings when a 68k privileged instruction takes place in your code, if not otherwise stated using \"supmode\"."
+		  "description": "Setting this means the assembler will issue warnings when a 68k privileged instruction takes place in your code, when you're not using the symbol \"supmode on\" in code."
+		},
+		"megaenvironment.codeOptions.compatibilityMode": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Compatibility mode gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the \"compmode on\" symbol, too."
+		},
+		"megaenvironment.codeOptions.signExtensionWarning": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Gives a warning when using implicit sign extensions. Only effective with the \"moveq\" instruction in 68K assembly."
+		},
+		"megaenvironment.codeOptions.absoluteJumpsWarning": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Gives a warning when a relative jump can be used instead of an absolute jump. Only effective in Z80 assembly."
+		},
+		"megaenvironment.codeOptions.caseSensitiveMode": {
+		  "type": "boolean",
+		  "default": true,
+		  "description": "Check this to make any symbol case-sensitive in your code."
 		},
         "megaenvironment.buildControl.outputRomName": {
           "type": "string",
@@ -193,7 +213,7 @@
 			]
 		  },
 		  "default": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
-		  "description": "Choose which files get deleted when running any cleaning commands."
+		  "description": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do NOT rename your code with these extensions for any reason, or else."
 		},
 		"megaenvironment.sourceCodeControl.currentWorkingFolders": {
 		  "type": "array",
@@ -201,12 +221,7 @@
 		  "items": {
 		    "type": "string"
 		  },
-		  "description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance)."
-		},
-		"megaenvironment.sourceCodeControl.caseSensitiveMode": {
-		  "type": "boolean",
-		  "default": true,
-		  "description": "Check this to make any symbol case sensitive in your code."
+		  "description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
 		},
         "megaenvironment.backupOptions.includeBackupDate": {
           "type": "boolean",
@@ -245,7 +260,7 @@
 		"megaenvironment.miscellaneous.AS-StyledErrors": {
 		  "type": "boolean",
 		  "default": false,
-		  "description": "Whether the terminal should display errors using the original AS syntax."
+		  "description": "Whether the terminal should display errors using the original AS syntax. You also gain the ability to localize macro-related errors."
 		},
 		"megaenvironment.miscellaneous.lowercaseHexadecimal": {
 		  "type": "boolean",
@@ -260,13 +275,18 @@
         "megaenvironment.miscellaneous.quietOperation": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the IDE and the terminal should print show errors only. By default, the terminal prints the output each time a build is assembled, but it only pops up when an error occurs."
+          "description": "This development environment can get a bit invasive: turn this on if you want the IDE to suppress information messages."
         },
         "megaenvironment.miscellaneous.verboseOperation": {
           "type": "boolean",
           "default": false,
           "description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs."
-        }
+        },
+		"megaenvironment.miscellaneous.warningsAsErrors": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Whether the assembler should treat warnings as errors."
+		}
       }
     },
 	"languages": [
