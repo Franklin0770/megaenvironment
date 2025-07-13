@@ -33,6 +33,16 @@
         "title": "Run Latest ROM with Regen",
         "category": "Execution"
       },
+	  {
+		"command": "megaenvironment.run_clownmdemu",
+		"title": "Run Latest ROM with ClownMDEmu",
+		"category": "Execution"
+	  },
+	  {
+		"command": "megaenvironment.run_openemu",
+		"title": "Run Latest ROM with OpenEmu",
+		"category": "Execution"
+	  },
       {
         "command": "megaenvironment.assemble_run_blastem",
         "title": "Assemble & Run with BlastEm",
@@ -43,6 +53,16 @@
         "title": "Assemble & Run with Regen",
         "category": "Test"
       },
+	  {
+		"command": "megaenvironment.assemble_run_clownmdemu",
+		"title": "Assemble & Run with ClownMDEmu",
+		"category": "Test"
+	  },
+	  {
+		"command": "megaenvironment.assemble_run_openemu",
+		"title": "Assemble & Run with OpenEmu",
+		"category": "Test"
+	  },
       {
         "command": "megaenvironment.backup",
         "title": "Backup Files And Clean Folder",

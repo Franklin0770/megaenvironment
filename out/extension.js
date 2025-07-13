@@ -272,7 +272,6 @@ function renameRom(projectFolder, warnings) {
                 outputChannel.show();
             }
         });
-        ;
     }
 }
 function findAndRunROM(systemVariable, emulator) {
@@ -348,7 +347,6 @@ function runTemporaryROM(systemVariable, emulator) {
                 outputChannel.show();
             }
         });
-        ;
     }
 }
 function cleanProjectFolder() {
@@ -481,6 +479,38 @@ async function activate(context) {
         }
         findAndRunROM(systemVariable, 'Regen');
     });
+    const run_ClownMdEmu = vscode_1.commands.registerCommand('megaenvironment.run_clownmdemu', () => {
+        const platform = process.platform;
+        if (platform !== 'win32' && platform !== 'linux') {
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
+                .then(selection => {
+                if (selection === 'Visit Site') {
+                    vscode_1.env.openExternal(vscode_1.Uri.parse('http://clownmdemu.clownacy.com/'));
+                }
+            });
+            return;
+        }
+        const systemVariable = process.env.ClownMDEmu;
+        // Throws an error if the Regen variable is missing or not set up correctly
+        if (systemVariable === undefined || !systemVariable.endsWith('clownmdemu.exe')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "ClownMDEmu" environment variable correctly. You must set this variable to the "clownmdemu.exe" executable. The current variable value is: ' + systemVariable);
+            return;
+        }
+        findAndRunROM(systemVariable, 'ClownMDEmu');
+    });
+    const run_OpenEmu = vscode_1.commands.registerCommand('megaenvironment.run_openemu', () => {
+        if (process.platform !== 'darwin') {
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
+            return;
+        }
+        const systemVariable = process.env.OpenEmu;
+        // Throws an error if the BlastEm variable is missing or not set up correctly
+        if (systemVariable === undefined || !systemVariable.endsWith('OpenEmu.app')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "OpenEmu" environment variable correctly. You must set this variable to the "OpenEmu.app" executable. The current variable value is: ' + systemVariable);
+            return;
+        }
+        findAndRunROM(systemVariable, 'OpenEmu');
+    });
     const assemble_and_run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.assemble_run_blastem', () => {
         if (process.platform !== 'win32') {
             vscode_1.window.showErrorMessage('This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.');
@@ -506,6 +536,38 @@ async function activate(context) {
             return;
         }
         runTemporaryROM(systemVariable, 'Regen');
+    });
+    const assemble_and_run_ClownMDEmu = vscode_1.commands.registerCommand('megaenvironment.assemble_run_clownmdemu', () => {
+        const platform = process.platform;
+        if (platform !== 'win32' && platform !== 'linux') {
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
+                .then(selection => {
+                if (selection === 'Visit Site') {
+                    vscode_1.env.openExternal(vscode_1.Uri.parse('http://clownmdemu.clownacy.com/'));
+                }
+            });
+            return;
+        }
+        const systemVariable = process.env.ClownMDEmu;
+        // Throws an error if the Regen variable is missing or not set up correctly
+        if (systemVariable === undefined || !systemVariable.endsWith('clownmdemu.exe')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "ClownMDEmu" environment variable correctly. You must set this variable to the "clownmdemu.exe" executable. The current variable value is: ' + systemVariable);
+            return;
+        }
+        runTemporaryROM(systemVariable, 'ClownMDEmu');
+    });
+    const assemble_and_run_OpenEmu = vscode_1.commands.registerCommand('megaenvironment.assemble_run_openemu', () => {
+        if (process.platform !== 'darwin') {
+            vscode_1.window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
+            return;
+        }
+        const systemVariable = process.env.OpenEmu;
+        // Throws an error if the BlastEm variable is missing or not set up correctly
+        if (systemVariable === undefined || !systemVariable.endsWith('OpenEmu.app')) {
+            vscode_1.window.showErrorMessage('You haven\'t set up the "OpenEmu" environment variable correctly. You must set this variable to the "OpenEmu.app" executable. The current variable value is: ' + systemVariable);
+            return;
+        }
+        runTemporaryROM(systemVariable, 'OpenEmu');
     });
     const open_EASy68k = vscode_1.commands.registerCommand('megaenvironment.open_easy68k', () => {
         if (process.platform !== 'win32') {
@@ -533,29 +595,27 @@ async function activate(context) {
             return;
         }
         let text;
-        let constantsExists = false;
         let constantsLocation = '';
         const constantsName = extensionSettings.constantsName;
         if (constantsName !== '') {
             constantsLocation = (0, path_1.join)(projectFolder, constantsName);
-            if ((0, fs_1.existsSync)(constantsLocation)) {
-                constantsExists = true;
-            }
         }
         let variablesExists = false;
         let variablesLocation = '';
         const variablesName = extensionSettings.variablesName;
         if (variablesName !== '') {
-            (0, path_1.join)(projectFolder, variablesName);
+            variablesLocation = (0, path_1.join)(projectFolder, variablesName);
             if ((0, fs_1.existsSync)(variablesLocation)) {
                 variablesExists = true;
             }
         }
-        if (constantsExists && variablesExists) {
-            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${(0, fs_1.readFileSync)(variablesLocation, 'utf-8')}\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
-        }
-        else if (constantsExists) {
-            text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
+        if ((0, fs_1.existsSync)(constantsLocation)) {
+            if (variablesExists) {
+                text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${(0, fs_1.readFileSync)(variablesLocation, 'utf-8')}\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
+            }
+            else {
+                text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${(0, fs_1.readFileSync)(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
+            }
         }
         else if (variablesExists) {
             text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${(0, fs_1.readFileSync)(variablesLocation, 'utf-8')}\n\n\tend\tstart`;
@@ -639,7 +699,7 @@ async function activate(context) {
         process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
         cleanProjectFolder();
     });
-    context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, assemble_and_run_BlastEm, assemble_and_run_Regen, backup, cleanup, open_EASy68k);
+    context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, backup, cleanup, open_EASy68k);
 }
 const settingDescriptors = [
     { key: 'codeOptions.defaultCPU', target: 'defaultCpu' },

@@ -5,7 +5,6 @@
 	"foldingStartMarker": "^\\s*(?i:macro|if|ifn?(?:def|symexist|used|exist|b)|rept|irpc?|while|function|struct|switch)\\b",
 	"foldingStopMarker": "^\\s*(?i:end(?:if|struct|case|m))\\b",
 	"patterns": [
-		{ "include": "#symbols" },
 		{ "include": "#instruction-label-structure" },
 		{ "include": "#instructions" },
 		{ "include": "#variables" },
@@ -13,6 +12,7 @@
 		{ "include": "#comments" },
 		{ "include": "#strings" },
 		{ "include": "#labels" },
+		{ "include": "#symbols" },
 		{ "include": "#operators" },
 		{ "include": "#functions" },
 		{ "include": "#pseudo-instructions" }
