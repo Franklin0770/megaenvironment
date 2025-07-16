@@ -133,6 +133,11 @@
           "description": "The maximum amount of .pre ROMs before it starts replacing the latest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
           "minimum": 0
         },
+		"megaenvironment.buildControl.sonicDisassemblySupport": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Downloads an alternative version that supports Sonic disassemblies. Highly recommended if you're into Sonic ROM hacking."
+		},
         "megaenvironment.sourceCodeControl.mainFileName": {
           "type": "string",
           "default": "Sonic.asm",

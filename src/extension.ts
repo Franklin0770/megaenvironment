@@ -6,7 +6,7 @@ TODOS:
 
 import { ExtensionContext, workspace, commands, window, env, Uri } from 'vscode';
 import { exec, execSync, spawnSync } from 'child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, rename, unlink, createWriteStream, chmodSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rename, unlink, createWriteStream, chmodSync, unlinkSync } from 'fs';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { join } from 'path';
@@ -21,6 +21,7 @@ interface ExtensionSettings {
     romDate: boolean;
     prevRoms: boolean;
     prevAmount: number;
+	sonicDisassembly: boolean;
     mainName: string;
     constantsName: string;
     variablesName: string;
@@ -59,6 +60,7 @@ let extensionSettings: ExtensionSettings = {
     romDate: true,
     prevRoms: true,
     prevAmount: 10,
+	sonicDisassembly: false,
     mainName: '',
     constantsName: '',
     variablesName: '',
@@ -88,12 +90,147 @@ let extensionSettings: ExtensionSettings = {
 	warningsAsErrors: false
 };
 
+const settingDescriptors = [
+	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu' },
+	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings'},
+	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode'},
+	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning' },
+	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning' },
+	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive' },
+	{ key: 'buildControl.outputRomName',					target: 'romName' },
+	{ key: 'buildControl.includeRomDate',					target: 'romDate' },
+	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
+	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
+	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
+	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
+	{ key: 'sourceCodeControl.variablesFileName',			target: 'variablesName' },
+	{ key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile' },
+	{ key: 'sourceCodeControl.listingFileName',				target: 'listingName' },
+	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile' },
+	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName' },
+	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile' },
+	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing' },
+	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing' },
+	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
+	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions'},
+	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
+	{ key: 'backupOptions.backupFileName',					target: 'backupName' },
+	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
+	{ key: 'miscellaneous.fillValue',						target: 'fillValue' },
+	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
+	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
+	{ key: 'miscellaneous.AS-StyledErrors',					target: 'AsErrors' },
+	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
+	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
+	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
+	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
+	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors'}
+];
+
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerName: string;
+let isDownloading: boolean;
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
-const streamPipeline = promisify(pipeline);
+
+async function downloadAssembler(assemblerType: number): Promise<boolean> {
+	isDownloading = true;
+	
+	const releaseTag = [ 'latest', 'v1.42b_212f' ];
+	const windowsBinary = [ 'windows-x86', 'windows-x86_64' ];
+	const macOSx86Binary = [ 'mac-x86_64', 'mac-universal' ];
+	const macOSarm64Binary = [ 'mac-arm64', 'mac-universal' ];
+	
+	let zipName: string;
+	const proc = process;
+	const streamPipeline = promisify(pipeline);
+
+	switch (proc.platform) {
+		case 'win32':
+			zipName = windowsBinary[assemblerType];
+			break;
+		case 'darwin':
+			if (proc.arch === 'x64') {
+				zipName = macOSx86Binary[assemblerType];
+			} else {
+				zipName = macOSarm64Binary[assemblerType];
+			}
+			break;
+		case 'linux':
+			if (proc.arch === 'x64') {
+				zipName = 'linux-x86_64';
+			} else {
+				zipName = 'linux-arm64';
+			}
+			break;
+		default:
+			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
+			return false;
+	}
+
+	zipName += '.zip';
+
+	if (!existsSync(assemblerFolder)) {
+		mkdirSync(assemblerFolder, { recursive: true });
+	}
+
+	proc.chdir(assemblerFolder);
+
+	const zipPath = join(assemblerFolder, zipName);
+	
+	const response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[assemblerType] + '/' + zipName);
+
+	const fileStream = createWriteStream(zipPath);
+
+	if (!response.ok || !response.body) {
+		window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
+		return false;
+	}
+
+	await streamPipeline(response.body, fileStream);
+
+	const zip = new AdmZip(zipPath);
+
+	for (const entry of zip.getEntries()) {
+		const filePath = join('.', entry.entryName);
+		// Remove the first folder from the path
+		writeFileSync(filePath, entry.getData());
+
+		if (proc.platform !== 'win32') {
+			chmodSync(filePath, 0o755); // Get permissions (rwx) for Unix-based systems
+		}
+	}
+
+	unlinkSync(zipPath);
+
+	isDownloading = false;
+
+	return true;
+}
+
+async function assemblerChecks(): Promise<boolean> {
+	if (!workspace.workspaceFolders) {
+		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
+		return false;
+	}
+
+	if (isDownloading) {
+		window.showInformationMessage('Hold on until your tools finished downloading!');
+		return new Promise((resolve) => {
+			const check = () => {
+				if (isDownloading) {
+					setTimeout(check, 200);
+				} else {
+					resolve(true);
+				}
+			};
+			check();
+		});
+	}
+
+	return true;
+}
 
 function executeAssemblyCommand(): number {
 	if (!existsSync(extensionSettings.mainName)) {
@@ -218,13 +355,10 @@ function executeCompileCommand(): boolean {
 	}
 }
 
-function assembleROM() {
-	if (!workspace.workspaceFolders) {
-		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
-		return;
-	}
+async function assembleROM() {
+	if (!(await assemblerChecks())) { return; }
 
-	const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
+	const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
 
 	process.chdir(projectFolder);
 
@@ -371,13 +505,10 @@ function findAndRunROM(systemVariable: string, emulator: string) {
 	}
 }
 
-function runTemporaryROM(systemVariable: string, emulator: string) {
-	if (!workspace.workspaceFolders) {
-		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
-		return;
-	}
+async function runTemporaryROM(systemVariable: string, emulator: string) {
+	if (!(await assemblerChecks())) { return; }
 
-	process.chdir(workspace.workspaceFolders[0].uri.fsPath);
+	process.chdir(workspace.workspaceFolders![0].uri.fsPath);
 
 	let warnings = false;
 
@@ -453,79 +584,25 @@ function cleanProjectFolder() {
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 export async function activate(context: ExtensionContext) {
-	const config = workspace.getConfiguration('megaenvironment');
-
-	for (const setting of settingDescriptors) {
-		const value = config.get(setting.key);
-		(extensionSettings as any)[setting.target] = value;
-	}
-
 	assemblerFolder = context.globalStorageUri.fsPath;
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerName = join(assemblerFolder, 'p2bin');
 
-	let zipName: string;
-	const proc = process;
-
-	switch (proc.platform) {
-		case 'win32':
-			zipName = 'windows-x86.zip';
-			assemblerPath += '.exe';
-			compilerName += '.exe';
-			break;
-		case 'darwin':
-			if (proc.arch === 'x64') {
-				zipName = 'mac-x86_64.zip';
-			} else {
-				zipName = 'mac-arm64.zip';
-			}
-			break;
-		case 'linux':
-			if (proc.arch === 'x64') {
-				zipName = 'linux-x86_64.zip';
-			} else {
-				zipName = 'linux-arm64.zip';
-			}
-			break;
-		default:
-			window.showErrorMessage("What platform is this? Please, let me know which operative system you're running VS Code on!");
-			return;
+	if (process.platform === 'win32') {
+		assemblerPath += '.exe';
+		compilerName += '.exe';
 	}
 
-	if (existsSync(assemblerFolder)) {
-		rmSync(assemblerFolder, { recursive: true, force: true });
+	const config = workspace.getConfiguration('megaenvironment');
+
+	for (const setting of settingDescriptors) {
+		(extensionSettings as any)[setting.target] = config.get(setting.key);
 	}
+	
+	extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
+	await downloadAssembler(+extensionSettings.sonicDisassembly);
 
-	mkdirSync(assemblerFolder, { recursive: true });
-
-	process.chdir(assemblerFolder);
-
-	const zipPath = join('.', zipName);
-
-	const response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/latest/' + zipName);
-
-	const fileStream = createWriteStream(zipPath);
-
-	if (!response.ok || !response.body) {
-		window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
-		return;
-	}
-
-	await streamPipeline(response.body, fileStream);
-
-	const zip = new AdmZip(zipPath);
-
-	for (const entry of zip.getEntries()) {
-		const path = join('.', entry.entryName);
-		// Remove the first folder from the path
-		writeFileSync(path, entry.getData());
-
-		if (process.platform !== 'win32') {
-			chmodSync(path, 0o755); // Get permissions (rwx) for Unix-based systems
-		}
-	}
-
-	unlinkSync(zipPath);
+	if (!(await downloadAssembler(+extensionSettings.sonicDisassembly))) { return; }
 
 	//
 	//	Commands
@@ -798,7 +875,7 @@ export async function activate(context: ExtensionContext) {
 			}
 
 			readdirSync(assemblerFolder).forEach((file) => {
-				if (file !== assemblerPath && file !== compilerName) {
+				if (file !== assemblerPath && file !== compilerName && file !== 'LICENSE.txt') {
 					unlink(file, (error) => {
 						if (error) {
 							window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error.message}`);
@@ -876,55 +953,28 @@ export async function activate(context: ExtensionContext) {
 		cleanProjectFolder();
 	});
 
-	context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, backup, cleanup, open_EASy68k);
+	context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k);
 }
-
-const settingDescriptors = [
-	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu' },
-	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings'},
-	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode'},
-	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning' },
-	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning' },
-	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive' },
-    { key: 'buildControl.outputRomName',					target: 'romName' },
-    { key: 'buildControl.includeRomDate',					target: 'romDate' },
-    { key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
-    { key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
-    { key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
-    { key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
-    { key: 'sourceCodeControl.variablesFileName',			target: 'variablesName' },
-    { key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile' },
-    { key: 'sourceCodeControl.listingFileName',				target: 'listingName' },
-	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile' },
-	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName' },
-	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile' },
-	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing' },
-	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing' },
-	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
-	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions'},
-	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
-    { key: 'backupOptions.backupFileName',					target: 'backupName' },
-    { key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
-    { key: 'miscellaneous.fillValue',						target: 'fillValue' },
-    { key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
-	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
-	{ key: 'miscellaneous.AS-StyledErrors',					target: 'AsErrors' },
-	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
-    { key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
-    { key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
-    { key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
-	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors'}
-];
 
 workspace.onDidChangeConfiguration((event) => {
 	if (event.affectsConfiguration('megaenvironment')) {
 		const config = workspace.getConfiguration('megaenvironment');
 
 		for (const setting of settingDescriptors) {
-			if (event.affectsConfiguration(`megaenvironment.${setting.key}`)) {
-				const value = config.get(setting.key);
-        		(extensionSettings as any)[setting.target] = value;
+			const key = setting.key;
+			if (event.affectsConfiguration(`megaenvironment.${key}`)) {
+        		(extensionSettings as any)[setting.target] = config.get(key);
 			}
+		}
+		
+		if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
+			extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
+			(async () => {
+				if (!extensionSettings.quietOperation) {
+					window.showInformationMessage('Swapping versions...');
+				}
+				await downloadAssembler(+extensionSettings.sonicDisassembly);
+			})();
 		}
 	}
 });
