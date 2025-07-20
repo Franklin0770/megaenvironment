@@ -1,14 +1,13 @@
 /*
 TODOS:
-- Maybe some asyncing; (Done!)
+- Maybe some MORE asyncing;
 - Maybe some classes for encapsulation.
 */
 
 import { ExtensionContext, workspace, commands, window, env, Uri } from 'vscode';
 import { exec, execSync, spawnSync } from 'child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rename, unlink, createWriteStream, chmodSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rename, unlink, createWriteStream, chmodSync } from 'fs';
 import { pipeline } from 'stream';
-import { promisify } from 'util';
 import { join } from 'path';
 import AdmZip from 'adm-zip';
 
@@ -129,22 +128,18 @@ const settingDescriptors = [
 
 let assemblerFolder: string;
 let assemblerPath: string;
-let compilerName: string;
+let compilerPath: string;
 let isDownloading: boolean;
+let firstActivation = true;
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
-
-async function downloadAssembler(assemblerType: number): Promise<boolean> {
-	isDownloading = true;
-	
-	const releaseTag = [ 'latest', 'v1.42b_212f' ];
+async function downloadAssembler(assemblerType: number): Promise<boolean> {	
 	const windowsBinary = [ 'windows-x86', 'windows-x86_64' ];
 	const macOSx86Binary = [ 'mac-x86_64', 'mac-universal' ];
 	const macOSarm64Binary = [ 'mac-arm64', 'mac-universal' ];
 	
 	let zipName: string;
 	const proc = process;
-	const streamPipeline = promisify(pipeline);
 
 	switch (proc.platform) {
 		case 'win32':
@@ -171,28 +166,86 @@ async function downloadAssembler(assemblerType: number): Promise<boolean> {
 
 	zipName += '.zip';
 
+	const releaseTag = [ 'latest', 'v1.42b_212f' ];
+	let response: Response;
+	try {
+		response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[assemblerType] + '/' + zipName);
+	} catch {
+		if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+			window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with what we have.");
+			return true;
+		}
+
+		window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection.");
+		return false;
+	}
+
+	if (!response.ok || !response.body) {
+		if (response.status === 404) {
+			if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+				window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
+				.then(selection => {
+					if (selection === 'Last Resort Guide') {
+						throw new Error('[Not implemented yet]');
+					}
+				});
+				return true;
+			}
+
+			window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
+			.then(selection => {
+				if (selection === 'Last Resort Guide!') {
+					throw new Error('[Not implemented yet]');
+				}
+			});
+			return false;
+		}
+
+		window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
+		return false;
+	}
+
 	if (!existsSync(assemblerFolder)) {
 		mkdirSync(assemblerFolder, { recursive: true });
 	}
 
 	proc.chdir(assemblerFolder);
-
 	const zipPath = join(assemblerFolder, zipName);
-	
-	const response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[assemblerType] + '/' + zipName);
-
 	const fileStream = createWriteStream(zipPath);
 
-	if (!response.ok || !response.body) {
-		window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
+	await new Promise<void>((resolve) => { 
+		pipeline(response.body as ReadableStream<any>, fileStream, () => {
+			resolve();
+		});
+	});
+
+	let zip: AdmZip;
+
+	try {
+		zip = new AdmZip(zipPath);
+	} catch {
+		if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+			window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
+			.then(selection => {
+				if (selection === 'Last Resort Guide') {
+					throw new Error('[Not implemented yet]');
+				}
+			});
+			return true;
+		}
+
+		window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
+		.then(selection => {
+			if (selection === 'Last Resort Guide!') {
+				throw new Error('[Not implemented yet]');
+			}
+		});
 		return false;
 	}
 
-	await streamPipeline(response.body, fileStream);
+	const entries = zip.getEntries();
 
-	const zip = new AdmZip(zipPath);
-
-	for (const entry of zip.getEntries()) {
+	for (const entry of entries) {
 		const filePath = join('.', entry.entryName);
 		// Remove the first folder from the path
 		writeFileSync(filePath, entry.getData());
@@ -202,11 +255,38 @@ async function downloadAssembler(assemblerType: number): Promise<boolean> {
 		}
 	}
 
-	unlinkSync(zipPath);
+	unlink(zipPath, (error) =>{
+		if (error) {
+			window.showWarningMessage('Could not remove the temporary ZIP file located at ' + zipPath);
+		}
+	});
 
-	isDownloading = false;
-
+	firstActivation = false;
 	return true;
+}
+
+async function promptEmulatorPath(emulator: string) {
+	const config =  workspace.getConfiguration('megaenvironment');
+	const path = config.get<string>(`paths.${emulator}`, '');
+
+	if (existsSync(path)) {
+		return;
+	}
+
+	window.showWarningMessage(`The path you provided for ${emulator} is either missing or incorrect. Be sure to put it in the text box which just appeared!`);
+
+	const input = await window.showInputBox({
+		title: `Set ${emulator} Path`,
+		prompt: 'Enter the full path to your emulator',
+		placeHolder: path,
+		ignoreFocusOut: true
+	});
+
+	await config.update(
+		`paths.${emulator}`,
+		input,
+		true // true = global setting
+	);
 }
 
 async function assemblerChecks(): Promise<boolean> {
@@ -216,7 +296,10 @@ async function assemblerChecks(): Promise<boolean> {
 	}
 
 	if (isDownloading) {
-		window.showInformationMessage('Hold on until your tools finished downloading!');
+		if (!firstActivation) {
+			window.showInformationMessage('Hold on until your tools finished downloading!');
+		}
+		
 		return new Promise((resolve) => {
 			const check = () => {
 				if (isDownloading) {
@@ -332,7 +415,7 @@ function executeAssemblyCommand(): number {
 
 // Executes a program synchronously, returns true if successful, false if an error occurred
 function executeCompileCommand(): boolean {
-	let command = `"${compilerName}" rom.p -l 0x${extensionSettings.fillValue} -k`;
+	let command = `"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`;
 
 	process.chdir(assemblerFolder);
 
@@ -381,7 +464,11 @@ async function assembleROM() {
 		if (!checkName.endsWith('.gen')) { continue; } // Indentantions are less clean
 
 		if (!extensionSettings.prevRoms) {
-			unlinkSync(checkName);
+			unlink(checkName, (error) => {
+				if (error) {
+					window.showErrorMessage('Cannot remove the previous .gen ROM.');
+				}
+			});
 			break;
 		}
 
@@ -404,7 +491,11 @@ async function assembleROM() {
 				if (!extensionSettings.quietOperation) {
 					window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
 				}
-				unlinkSync(oldest.name);
+				unlink(oldest.name, (error) => {
+					if (error) {
+						window.showErrorMessage('Unable to remove the oldest previous ROM.');
+					}
+				});
 				number = oldest.index; // Reuse the index
 			} else {
 				number = latest + 1;
@@ -423,10 +514,7 @@ async function assembleROM() {
 		break;
 	}
 
-
-	if (!executeCompileCommand()) {
-		return;
-	}
+	if (!executeCompileCommand()) { return; }
 
 	renameRom(projectFolder, warnings);
 }
@@ -450,7 +538,7 @@ function renameRom(projectFolder: string, warnings: boolean) {
 		fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${hours}.${minutes}.${seconds}`;
 	}
 
-	// Renames and moves the rom.bin file outside assemblerFolder since p2bin doesn't have a switch to change the output file name for some reason
+	// Renames and moves the rom.bin file outside assemblerFolder since P2BIN doesn't have a switch to change the output file name for some reason
 	rename('rom.bin', `${join(projectFolder, fileName)}.gen`, (error) => {
 		if (error) {
 			if (error?.code !== 'ENOENT') {
@@ -474,39 +562,41 @@ function renameRom(projectFolder: string, warnings: boolean) {
 	}
 }
 
-function findAndRunROM(systemVariable: string, emulator: string) {
+async function findAndRunROM(emulator: string) {
 	if (!workspace.workspaceFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 		return;
 	}
 
+	await promptEmulatorPath(emulator);
+
 	const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
-
 	process.chdir(projectFolder);
-
 	const rom = readdirSync('.').find(file => file.endsWith('.gen'));
 
-	if (rom) {
-		let errorCode = false;
-		exec(`"${systemVariable}" "${join(projectFolder, rom)}"`, (error) => {
-			if (error) {
-				window.showErrorMessage('Cannot run the latest build. ' + error.message);
-				errorCode = true;
-				return;
-			}
-		});
-
-		if (errorCode || extensionSettings.quietOperation) { return; }
-
-		window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
-
-	} else {
+	if (!rom) {
 		window.showErrorMessage('There are no ROMs to run. Build something first.');
+		return;
 	}
+
+	let errorCode = false;
+	exec(`"${workspace.getConfiguration(`megaenvironment`).get<string>(`paths.${emulator}`)}" "${join(projectFolder, rom)}"`, (error) => {
+		if (error) {
+			window.showErrorMessage('Cannot run the latest build. ' + error.message);
+			errorCode = true;
+			return;
+		}
+	});
+
+	if (errorCode || extensionSettings.quietOperation) { return; }
+
+	window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
 }
 
-async function runTemporaryROM(systemVariable: string, emulator: string) {
+async function runTemporaryROM(emulator: string) {
 	if (!(await assemblerChecks())) { return; }
+
+	await promptEmulatorPath(emulator);
 
 	process.chdir(workspace.workspaceFolders![0].uri.fsPath);
 
@@ -522,13 +612,11 @@ async function runTemporaryROM(systemVariable: string, emulator: string) {
 		return;
 	}
 	
-	if (!executeCompileCommand()) {
-		return;
-	}
+	if (!executeCompileCommand()) { return; }
 
 	let errorCode = false;
 
-	exec(`"${systemVariable}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
+	exec(`"${workspace.getConfiguration(`megaenvironment`).get<string>(`paths.${emulator}`)}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the build. ' + error.message);
 			errorCode = true;
@@ -571,7 +659,11 @@ function cleanProjectFolder() {
 		});
 
 		if (shouldDelete) {
-			unlinkSync(item);
+			unlink(item, (error) => {
+				if (error) {
+					window.showErrorMessage(`The file ${item} was skipped because it couldn't be cleaned up.`);
+				}
+			});
 			items++;
 		}
 	});
@@ -586,11 +678,11 @@ function cleanProjectFolder() {
 export async function activate(context: ExtensionContext) {
 	assemblerFolder = context.globalStorageUri.fsPath;
 	assemblerPath = join(assemblerFolder, 'asl');
-	compilerName = join(assemblerFolder, 'p2bin');
+	compilerPath = join(assemblerFolder, 'p2bin');
 
 	if (process.platform === 'win32') {
 		assemblerPath += '.exe';
-		compilerName += '.exe';
+		compilerPath += '.exe';
 	}
 
 	const config = workspace.getConfiguration('megaenvironment');
@@ -600,9 +692,7 @@ export async function activate(context: ExtensionContext) {
 	}
 	
 	extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
-	await downloadAssembler(+extensionSettings.sonicDisassembly);
-
-	if (!(await downloadAssembler(+extensionSettings.sonicDisassembly))) { return; }
+	if (!(downloadAssembler(+extensionSettings.sonicDisassembly))) { return; }
 
 	//
 	//	Commands
@@ -644,43 +734,23 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => {
-		if (process.platform !== 'win32') {
-			window.showErrorMessage('This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.');
-			return;
-		}
-
-		const systemVariable = process.env.BlastEm;
-
-		// Throws an error if the BlastEm variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('blastem.exe')) {
-			window.showErrorMessage('You haven\'t set up the "BlastEm" environment variable correctly. You must set this variable to the "blastem.exe" executable. The current variable value is: ' + systemVariable);
-			return;
-		}
-
-		findAndRunROM(systemVariable, 'BlastEm');
+		findAndRunROM('BlastEm');
 	});
 
 	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => {
-		if (process.platform !== 'win32') {
-			window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows, unfortunately.');
+		const platform = process.platform;
+		if (platform !== 'win32' && platform !== 'linux') {
+			window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
 			return;
 		}
 
-		const systemVariable = process.env.Regen;
-
-		// Throws an error if the Regen variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('Regen.exe')) {
-			window.showErrorMessage('You haven\'t set up the "Regen" environment variable correctly. You must set this variable to the "Regen.exe" executable. The current variable value is: ' + systemVariable);
-			return;
-		}
-
-		findAndRunROM(systemVariable, 'Regen');
+		findAndRunROM('Regen');
 	});
 
 	const run_ClownMdEmu = commands.registerCommand('megaenvironment.run_clownmdemu', () => {
 		const platform = process.platform;
 		if (platform !== 'win32' && platform !== 'linux') {
-			window.showErrorMessage('This command is not supported in your platform. ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
+			window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
 			.then(selection => {
 				if (selection === 'Visit Site') {
 					env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
@@ -689,15 +759,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const systemVariable = process.env.ClownMDEmu;
-
-		// Throws an error if the Regen variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('clownmdemu.exe')) {
-			window.showErrorMessage('You haven\'t set up the "ClownMDEmu" environment variable correctly. You must set this variable to the "clownmdemu.exe" executable. The current variable value is: ' + systemVariable);
-			return;
-		}
-
-		findAndRunROM(systemVariable, 'ClownMDEmu');
+		findAndRunROM('ClownMDEmu');
 	});
 
 	const run_OpenEmu = commands.registerCommand('megaenvironment.run_openemu', () => {
@@ -706,55 +768,58 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const systemVariable = process.env.OpenEmu;
-
-		// Throws an error if the BlastEm variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('OpenEmu.app')) {
-			window.showErrorMessage('You haven\'t set up the "OpenEmu" environment variable correctly. You must set this variable to the "OpenEmu.app" executable. The current variable value is: ' + systemVariable);
+		if (!workspace.workspaceFolders) {
+			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
 
-		findAndRunROM(systemVariable, 'OpenEmu');
+		if (!existsSync('/Applications/OpenEmu.app')) {
+			window.showErrorMessage("Looks like you haven't installed OpenEmu yet. Make sure it's located in the \"\\Applications\" folder when installed, or else it won't run properly.");
+			return;
+		}
+
+		const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
+		process.chdir(projectFolder);
+
+		const rom = readdirSync('.').find(file => file.endsWith('.gen'));
+
+		if (!rom) {
+			window.showErrorMessage('There are no ROMs to run. Build something first.');
+			return;
+		}
+
+		let errorCode = false;
+		exec(`open -a "OpenEmu" "${join(projectFolder, rom)}"`, (error) => {
+			if (error) {
+				window.showErrorMessage('Cannot run the latest build. ' + error.message);
+				errorCode = true;
+				return;
+			}
+		});
+
+		if (errorCode || extensionSettings.quietOperation) { return; }
+
+		window.showInformationMessage(`Running "${rom}" with OpenEmu.`);
 	});
 
 	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => {
-		if (process.platform !== 'win32') {
-			window.showErrorMessage('This command is not supported in your platform. BlastEm is only available for Windows, unfortunately.');
-			return;
-		}
-		
-		const systemVariable = process.env.BlastEm;
-
-		// Throws an error if the BlastEm variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('blastem.exe')) {
-			window.showErrorMessage('You haven\'t set up the "BlastEm" environment variable correctly. You must set this variable to the "blastem.exe" executable. The current variable value is: ' + systemVariable);
-			return;
-		}
-		
-		runTemporaryROM(systemVariable, 'BlastEm');
+		runTemporaryROM('BlastEm');
 	});
 
 	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', () => {
-		if (process.platform !== 'win32') {
-			window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows, unfortunately.');
-			return;
-		}
-
-		const systemVariable = process.env.Regen;
-
-		// Throws an error if the BlastEm variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('Regen.exe')) {
-			window.showErrorMessage('You haven\'t set up the "Regen" environment variable correctly. You must set this variable to the "Regen.exe" executable. The current variable value is: ' + systemVariable);
+		const platform = process.platform;
+		if (platform !== 'win32' && platform !== 'linux') {
+			window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
 			return;
 		}
 		
-		runTemporaryROM(systemVariable, 'Regen');
+		runTemporaryROM('Regen');
 	});
 
 	const assemble_and_run_ClownMDEmu = commands.registerCommand('megaenvironment.assemble_run_clownmdemu', () => {
 		const platform = process.platform;
 		if (platform !== 'win32' && platform !== 'linux') {
-			window.showErrorMessage('This command is not supported in your platform. ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
+			window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
 			.then(selection => {
 				if (selection === 'Visit Site') {
 					env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
@@ -763,32 +828,72 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const systemVariable = process.env.ClownMDEmu;
-
-		// Throws an error if the Regen variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('clownmdemu.exe')) {
-			window.showErrorMessage('You haven\'t set up the "ClownMDEmu" environment variable correctly. You must set this variable to the "clownmdemu.exe" executable. The current variable value is: ' + systemVariable);
-			return;
-		}
-
-		runTemporaryROM(systemVariable, 'ClownMDEmu');
+		runTemporaryROM('ClownMDEmu');
 	});
 
-	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', () => {
+	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', async () => {
 		if (process.platform !== 'darwin') {
 			window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
 			return;
 		}
 
-		const systemVariable = process.env.OpenEmu;
-
-		// Throws an error if the BlastEm variable is missing or not set up correctly
-		if (systemVariable === undefined || !systemVariable.endsWith('OpenEmu.app')) {
-			window.showErrorMessage('You haven\'t set up the "OpenEmu" environment variable correctly. You must set this variable to the "OpenEmu.app" executable. The current variable value is: ' + systemVariable);
+		if (!workspace.workspaceFolders) {
+			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
 
-		runTemporaryROM(systemVariable, 'OpenEmu');
+		if (!existsSync('/Applications/OpenEmu.app')) {
+			window.showErrorMessage("Looks like you haven't installed OpenEmu yet. Make sure it's located in the \"\\Applications\" folder when installed, or else it won't run properly.");
+			return;
+		}
+
+		if (!(await assemblerChecks())) { return; }
+
+		process.chdir(workspace.workspaceFolders![0].uri.fsPath);
+
+		let warnings = false;
+
+		switch (executeAssemblyCommand()) {
+		case 0:
+			break;
+		case 1:
+			warnings = true;
+			break;
+		default:
+			return;
+		}
+		
+		if (!executeCompileCommand()) { return; }
+
+		await new Promise<void>((resolve, reject) => { 
+			exec(`open -a "OpenEmu" "${join(assemblerFolder, 'rom.bin')}"`, (error) => {
+				if (error) {
+					window.showErrorMessage('Cannot run the build. ' + error.message);
+					reject();
+				}
+				resolve();
+			});
+		});
+
+		unlink(join(assemblerFolder, 'rom.bin'), (error) => {
+			if (error) {
+				window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
+				return;
+			}
+		});
+
+		const currentDate = new Date();
+		if (!warnings) {
+			if (extensionSettings.quietOperation) { return; }
+			window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with OpenEmu. (Oh yes!)`);
+		} else {
+			window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with OpenEmu.`, 'Show Terminal')
+			.then(selection => {
+				if (selection === 'Show Terminal') {
+					outputChannel.show();
+				}
+			});
+		}
 	});
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', () => {
@@ -802,29 +907,20 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
-
-		const systemVariable = process.env.EASy68k;
-
-		if (systemVariable === undefined || !systemVariable.endsWith('EDIT68K.exe')) {
-			window.showErrorMessage('You haven\'t set up the "EASy68k" environment variable correctly. You must set this variable to the "EDIT68K.exe" executable. The current variable value is: ' + systemVariable);
-			return;
-		}
-
-		process.chdir(assemblerFolder);
+		promptEmulatorPath('EASy68k');
 
 		const editor = window.activeTextEditor;
-		let selectedText: string;
 
-		if (editor) {
-			selectedText = editor.document.getText(editor.selection);
-		} else {
-			window.showErrorMessage("You don't have an opened editor.");
+		if (!editor) {
+			window.showErrorMessage("Seems like you forgot to open any text editor.");
 			return;
 		}
 
-		let text: string;
+		const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
+		const selectedText = editor.document.getText(editor.selection);
+		process.chdir(assemblerFolder);
 
+		let text: string;
 		let constantsLocation = '';
 		const constantsName = extensionSettings.constantsName;
 
@@ -868,14 +964,14 @@ export async function activate(context: ExtensionContext) {
 
 		let errorCode = false;
 
-		exec(`"${systemVariable}" "temp.txt"`, (error) => {
+		exec(`"${workspace.getConfiguration('megaenvironment').get<string>('paths.EASy68k')}" "temp.txt"`, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
 				errorCode = true;
 			}
 
 			readdirSync(assemblerFolder).forEach((file) => {
-				if (file !== assemblerPath && file !== compilerName && file !== 'LICENSE.txt') {
+				if (file !== assemblerPath && file !== compilerPath && file !== 'LICENSE.txt') {
 					unlink(file, (error) => {
 						if (error) {
 							window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error.message}`);
@@ -973,8 +1069,11 @@ workspace.onDidChangeConfiguration((event) => {
 				if (!extensionSettings.quietOperation) {
 					window.showInformationMessage('Swapping versions...');
 				}
-				await downloadAssembler(+extensionSettings.sonicDisassembly);
-			})();
+
+				isDownloading = true;
+				await downloadAssembler(+extensionSettings.sonicDisassembly); // + to auto-convert to a number (integer)
+				isDownloading = false;
+			})(); // () is for calling the anonymous function
 		}
 	}
 });
