@@ -5,7 +5,7 @@ TODOS:
 */
 
 import { ExtensionContext, workspace, commands, window, env, Uri } from 'vscode';
-import { exec, execSync, spawnSync } from 'child_process';
+import { exec } from 'child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rename, unlink, createWriteStream, chmodSync } from 'fs';
 import { pipeline } from 'stream';
 import { join } from 'path';
@@ -135,8 +135,6 @@ const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
 async function downloadAssembler(assemblerType: number): Promise<boolean> {	
 	const windowsBinary = [ 'windows-x86', 'windows-x86_64' ];
-	const macOSx86Binary = [ 'mac-x86_64', 'mac-universal' ];
-	const macOSarm64Binary = [ 'mac-arm64', 'mac-universal' ];
 	
 	let zipName: string;
 	const proc = process;
@@ -147,9 +145,9 @@ async function downloadAssembler(assemblerType: number): Promise<boolean> {
 			break;
 		case 'darwin':
 			if (proc.arch === 'x64') {
-				zipName = macOSx86Binary[assemblerType];
+				zipName = 'mac-x86_64';
 			} else {
-				zipName = macOSarm64Binary[assemblerType];
+				zipName ='mac-arm64';
 			}
 			break;
 		case 'linux':
@@ -210,8 +208,8 @@ async function downloadAssembler(assemblerType: number): Promise<boolean> {
 	}
 
 	proc.chdir(assemblerFolder);
-	const zipPath = join(assemblerFolder, zipName);
-	const fileStream = createWriteStream(zipPath);
+
+	const fileStream = createWriteStream(zipName);
 
 	await new Promise<void>((resolve) => { 
 		pipeline(response.body as ReadableStream<any>, fileStream, () => {
@@ -222,7 +220,7 @@ async function downloadAssembler(assemblerType: number): Promise<boolean> {
 	let zip: AdmZip;
 
 	try {
-		zip = new AdmZip(zipPath);
+		zip = new AdmZip(zipName);
 	} catch {
 		if (existsSync(assemblerPath) && existsSync(compilerPath)) {
 			window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
@@ -244,20 +242,22 @@ async function downloadAssembler(assemblerType: number): Promise<boolean> {
 	}
 
 	const entries = zip.getEntries();
-
 	for (const entry of entries) {
-		const filePath = join('.', entry.entryName);
 		// Remove the first folder from the path
-		writeFileSync(filePath, entry.getData());
+		writeFileSync(entry.entryName, entry.getData());
 
 		if (proc.platform !== 'win32') {
-			chmodSync(filePath, 0o755); // Get permissions (rwx) for Unix-based systems
+			chmodSync(entry.entryName, 0o755); // Get permissions (rwx) for Unix-based systems
 		}
 	}
 
-	unlink(zipPath, (error) =>{
-		if (error) {
-			window.showWarningMessage('Could not remove the temporary ZIP file located at ' + zipPath);
+	readdirSync('.').forEach(item => {
+		if (item === zipName || item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg') {
+			unlink(item, (error) => {
+				if (error) {
+					window.showWarningMessage('Could not remove the temporary file file located at ' + join(assemblerFolder, item));
+				}
+			});
 		}
 	});
 
@@ -290,8 +290,15 @@ async function promptEmulatorPath(emulator: string) {
 }
 
 async function assemblerChecks(): Promise<boolean> {
-	if (!workspace.workspaceFolders) {
+	const projectFolders = workspace.workspaceFolders;
+
+	if (!projectFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
+		return false;
+	}
+
+	if (!existsSync(join(projectFolders[0].uri.fsPath, extensionSettings.mainName))) {
+		window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`);
 		return false;
 	}
 
@@ -315,15 +322,18 @@ async function assemblerChecks(): Promise<boolean> {
 	return true;
 }
 
-function executeAssemblyCommand(): number {
-	if (!existsSync(extensionSettings.mainName)) {
-		window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`);
-		return -1;
-	}
+// Assembles and compiles a ROM
+// 0 if successful, 1 if successful with warnings and -1 if there's an error or a fatal one
+// If the number is negative we shall not proceed (this case only -1)
+async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
+	// We proceed with the assembler, which creates the program file
 
 	outputChannel.clear();
 
-	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, "rom.p")}" -`;
+	process.chdir(workspace.workspaceFolders![0].uri.fsPath); // We already checked this. This is why I put "!"
+
+	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, 'rom.p')}" -`;
+	let warnings = false;
 
 	const shortFlags: Array<[boolean, string]> = [
 		[extensionSettings.compactSymbols,		'A'],
@@ -344,7 +354,7 @@ function executeAssemblyCommand(): number {
 		[extensionSettings.jumpsWarning,		' -wrelative']
 	];
 
-	for (const [condition, flag] of shortFlags) {
+	for (const [condition, flag] of shortFlags) { // Best way I (and ChatGPT) could have thought to do this
 		if (condition) { command += flag; }
 	}
 
@@ -356,46 +366,53 @@ function executeAssemblyCommand(): number {
 		}
 	}
 
+	// Some other flags that have different behavior, not just booleans
+
 	if (extensionSettings.debugFile !== 'None') { command += ' -g ' + extensionSettings.debugFile; }
 
 	if (extensionSettings.defaultCpu) { command += ' -cpu ' + extensionSettings.defaultCpu; }
 
 	if (extensionSettings.workingFolders.length > 0) {
 		command += ' -i "' + extensionSettings.workingFolders.join('";"') + '"';
+	} else {
+		window.showWarningMessage('You have cleared the assets folders in the settings! Prepare yourself for "include" errors.');
 	}
 
-	console.log(command);
-	
-	const output = spawnSync(command, { encoding: 'ascii', shell: true });
+	// AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
+	const { aslOut, aslErr, code } = await new Promise<{ aslOut: string; aslErr: string; code: number }>((resolve) => {
+		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => {
+			if (!error) {
+				resolve({ aslOut: stdout, aslErr: stderr, code: 0 });
+			} else {
+				resolve({ aslOut: stdout ?? 'No output provided.', aslErr: stderr ?? 'No error provided.', code: error.code ?? -1 });
+			}
+		});
+	});
 
-	if (output.status === 0) {
-		outputChannel.append(output.stdout);
+	outputChannel.append(aslOut);
 
+	if (code === 0) {
 		if (extensionSettings.verboseOperation) {
 			outputChannel.show();
 		}
 
-		if (output.stderr === '' || extensionSettings.suppressWarnings) {
-			return 0;
-		} else {
+		if (aslErr !== '' && !extensionSettings.suppressWarnings) {
 			outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
-			outputChannel.appendLine(output.stderr);
+			outputChannel.appendLine(aslErr);
 			outputChannel.appendLine('============================================================');
-			return 1;
+			warnings = true;
 		}
 	} else {
-		outputChannel.append(output.stdout + '\n');
-
 		let errorLocation = 'log file';
 
 		if (!extensionSettings.errorFile) {
-			outputChannel.appendLine('==================== ASSEMBLER ERROR ====================\n');
-			outputChannel.append(output.stderr);
+			outputChannel.appendLine('\n==================== ASSEMBLER ERROR ====================\n');
+			outputChannel.append(aslErr);
 			outputChannel.show();
 			errorLocation = 'terminal';
 		}
 
-		switch (output.status) {
+		switch (code) {
 			case 2:
 				window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
 				break;
@@ -409,45 +426,52 @@ function executeAssemblyCommand(): number {
 				break;
 		}
 
-		return -1;
+		return -1; // Can't proceed with compiling, there's no program file
 	}
-}
 
-// Executes a program synchronously, returns true if successful, false if an error occurred
-function executeCompileCommand(): boolean {
-	let command = `"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`;
+	// Now, to the compiler!
 
-	process.chdir(assemblerFolder);
+	process.chdir(assemblerFolder); // We can't change the output folder, so this will do
 
-	try {
-		const output = execSync(command, { encoding: 'ascii' });
+	// Take only some outputs and the custom exit code with aliases. Unix wants '.', so I'm providing it
+	const { p2binOut, p2binErr, success } = await new Promise<{ p2binOut: string; p2binErr: string; success: boolean }>((resolve) => {
+		exec(`"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`, { encoding: 'ascii' }, (error, stdout, stderr) => {
+			if (!error) {
+				resolve({ p2binOut: stdout, p2binErr: stderr, success: true });
+			} else {
+				const longMessage = 'No output provided. Perhaps, according to my calculations, this is the rarest message you can get, so go play for the lottery until you can. Thank me later!';
+				resolve({ p2binOut: stdout ?? longMessage, p2binErr: stderr ?? 'No error provided.', success: false });
+			}
+		});
+	});
 
-		outputChannel.append('\n' + output);
+	outputChannel.append('\n' + p2binOut);
 
-		return true;
-	}
-	catch (error: any) {
-		outputChannel.append(error.stdout + '\n');
-
-		outputChannel.appendLine('==================== COMPILER ERROR ====================\n');
-		outputChannel.append(error.stderr);
+	if (success) {
+		if (p2binErr !== '' && extensionSettings.suppressWarnings) {
+			outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
+			outputChannel.appendLine(p2binErr);
+			outputChannel.appendLine('===========================================================');
+			return 1; // There's more than 1 warning anyway
+		}
+	} else {
+		outputChannel.appendLine('\n==================== COMPILER ERROR ====================\n');
+		outputChannel.append(p2binErr);
 
 		window.showErrorMessage('The compiler has thrown an unknown error. Check the terminal for more details.');
 
-		return false;
+		return -1; // There's more than 1 error anyway
 	}
+
+	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
 
 async function assembleROM() {
-	if (!(await assemblerChecks())) { return; }
-
-	const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
-
-	process.chdir(projectFolder);
+	if (await assemblerChecks() === false) { return; }
 
 	let warnings = false;
 
-	switch (executeAssemblyCommand()) {
+	switch (await executeAssemblyCommand()) {
 	case 0:
 		break;
 	case 1:
@@ -456,6 +480,10 @@ async function assembleROM() {
 	default:
 		return;
 	}
+
+	const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
+
+	process.chdir(projectFolder);
 
 	const files = readdirSync('.'); // Reads all files and folders and put them into a string array
 
@@ -514,8 +542,6 @@ async function assembleROM() {
 		break;
 	}
 
-	if (!executeCompileCommand()) { return; }
-
 	renameRom(projectFolder, warnings);
 }
 
@@ -527,11 +553,11 @@ function renameRom(projectFolder: string, warnings: boolean) {
 
 	let fileName: string;
 
-	if (extensionSettings.romName === '') {
+	if (extensionSettings.romName !== '') {
+		fileName = extensionSettings.romName;
+	} else {
 		const lastDot = extensionSettings.mainName.lastIndexOf('.');
 		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
-	} else {
-		fileName = extensionSettings.romName;
 	}
 
 	if (extensionSettings.romDate) {
@@ -539,9 +565,9 @@ function renameRom(projectFolder: string, warnings: boolean) {
 	}
 
 	// Renames and moves the rom.bin file outside assemblerFolder since P2BIN doesn't have a switch to change the output file name for some reason
-	rename('rom.bin', `${join(projectFolder, fileName)}.gen`, (error) => {
+	rename(join(assemblerFolder, 'rom.bin'), `${join(projectFolder, fileName)}.gen`, (error) => {
 		if (error) {
-			if (error?.code !== 'ENOENT') {
+			if (error.code !== 'ENOENT') {
 				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error.message}`);
 			} else {
 				window.showErrorMessage('Cannot rename your ROM, there might be a problem with the compiler. ' + error.message);
@@ -563,14 +589,16 @@ function renameRom(projectFolder: string, warnings: boolean) {
 }
 
 async function findAndRunROM(emulator: string) {
-	if (!workspace.workspaceFolders) {
+	const projectFolders = workspace.workspaceFolders;
+
+	if (!projectFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 		return;
 	}
 
 	await promptEmulatorPath(emulator);
 
-	const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
+	const projectFolder = projectFolders[0].uri.fsPath;
 	process.chdir(projectFolder);
 	const rom = readdirSync('.').find(file => file.endsWith('.gen'));
 
@@ -594,7 +622,7 @@ async function findAndRunROM(emulator: string) {
 }
 
 async function runTemporaryROM(emulator: string) {
-	if (!(await assemblerChecks())) { return; }
+	if (await assemblerChecks() === false) { return; }
 
 	await promptEmulatorPath(emulator);
 
@@ -602,7 +630,7 @@ async function runTemporaryROM(emulator: string) {
 
 	let warnings = false;
 
-	switch (executeAssemblyCommand()) {
+	switch (await executeAssemblyCommand()) {
 	case 0:
 		break;
 	case 1:
@@ -612,8 +640,6 @@ async function runTemporaryROM(emulator: string) {
 		return;
 	}
 	
-	if (!executeCompileCommand()) { return; }
-
 	let errorCode = false;
 
 	exec(`"${workspace.getConfiguration(`megaenvironment`).get<string>(`paths.${emulator}`)}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
@@ -702,13 +728,15 @@ export async function activate(context: ExtensionContext) {
 		assembleROM();
 	});
 
-	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', () => {
-		if (!workspace.workspaceFolders) {
+	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', async () => {
+		const projectFolders = workspace.workspaceFolders;
+
+		if (!projectFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
 
-		const projectFolder = workspace.workspaceFolders[0].uri.fsPath; // Get the full path to the currently opened folder
+		const projectFolder = projectFolders[0].uri.fsPath; // Get the full path to the currently opened folder
 
 		process.chdir(projectFolder);
 
@@ -716,17 +744,13 @@ export async function activate(context: ExtensionContext) {
 
 		let warnings = false;
 
-		switch (executeAssemblyCommand()) {
+		switch (await executeAssemblyCommand()) {
 		case 0:
 			break;
 		case 1:
 			warnings = true;
 			break;
 		default:
-			return;
-		}
-
-		if (!executeCompileCommand()) {
 			return;
 		}
 
@@ -768,7 +792,9 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		if (!workspace.workspaceFolders) {
+		const projectFolders = workspace.workspaceFolders;
+
+		if (!projectFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
@@ -778,7 +804,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
+		const projectFolder = projectFolders[0].uri.fsPath;
 		process.chdir(projectFolder);
 
 		const rom = readdirSync('.').find(file => file.endsWith('.gen'));
@@ -837,7 +863,9 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		if (!workspace.workspaceFolders) {
+		const projectFolders = workspace.workspaceFolders;
+
+		if (!projectFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
@@ -847,13 +875,13 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		if (!(await assemblerChecks())) { return; }
+		if (await assemblerChecks() === false) { return; }
 
-		process.chdir(workspace.workspaceFolders![0].uri.fsPath);
+		process.chdir(projectFolders![0].uri.fsPath); // Already checked if "projectFolder" exists
 
 		let warnings = false;
 
-		switch (executeAssemblyCommand()) {
+		switch (await executeAssemblyCommand()) {
 		case 0:
 			break;
 		case 1:
@@ -863,8 +891,6 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 		
-		if (!executeCompileCommand()) { return; }
-
 		await new Promise<void>((resolve, reject) => { 
 			exec(`open -a "OpenEmu" "${join(assemblerFolder, 'rom.bin')}"`, (error) => {
 				if (error) {
@@ -896,13 +922,15 @@ export async function activate(context: ExtensionContext) {
 		}
 	});
 
-	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', () => {
+	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', async () => {
 		if (process.platform !== 'win32') {
 			window.showErrorMessage('This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.');
 			return;
 		}
 
-		if (!workspace.workspaceFolders) {
+		const projectFolders = workspace.workspaceFolders;
+
+		if (!projectFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
@@ -916,7 +944,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const projectFolder = workspace.workspaceFolders[0].uri.fsPath;
+		const projectFolder = projectFolders[0].uri.fsPath;
 		const selectedText = editor.document.getText(editor.selection);
 		process.chdir(assemblerFolder);
 
@@ -964,6 +992,7 @@ export async function activate(context: ExtensionContext) {
 
 		let errorCode = false;
 
+		
 		exec(`"${workspace.getConfiguration('megaenvironment').get<string>('paths.EASy68k')}" "temp.txt"`, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
@@ -979,8 +1008,6 @@ export async function activate(context: ExtensionContext) {
 					});
 				}
 			});
-
-			process.chdir(projectFolder);
 		});
 
 		if (errorCode || extensionSettings.quietOperation) { return; }
@@ -989,12 +1016,14 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const backup = commands.registerCommand('megaenvironment.backup', () => {
-		if (!workspace.workspaceFolders) {
+		const projectFolders = workspace.workspaceFolders;
+
+		if (!projectFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
 
-		process.chdir(workspace.workspaceFolders[0].uri.fsPath); // Change current working folder to the project one
+		process.chdir(projectFolders[0].uri.fsPath); // Change current working folder to the project one
 
 		const zip = new AdmZip(); // Create zip archive reference
 		const items = readdirSync('.'); // Read all content in the project folder
@@ -1039,12 +1068,14 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const cleanup = commands.registerCommand('megaenvironment.cleanup', () => {
-		if (!workspace.workspaceFolders) {
+		const projectFolders = workspace.workspaceFolders;
+
+		if (!projectFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
 
-		process.chdir(workspace.workspaceFolders[0].uri.fsPath);
+		process.chdir(projectFolders[0].uri.fsPath);
 
 		cleanProjectFolder();
 	});

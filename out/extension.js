@@ -165,8 +165,7 @@ async function downloadAssembler(assemblerType) {
         (0, fs_1.mkdirSync)(assemblerFolder, { recursive: true });
     }
     proc.chdir(assemblerFolder);
-    const zipPath = (0, path_1.join)(assemblerFolder, zipName);
-    const fileStream = (0, fs_1.createWriteStream)(zipPath);
+    const fileStream = (0, fs_1.createWriteStream)(zipName);
     await new Promise((resolve) => {
         (0, stream_1.pipeline)(response.body, fileStream, () => {
             resolve();
@@ -174,7 +173,7 @@ async function downloadAssembler(assemblerType) {
     });
     let zip;
     try {
-        zip = new adm_zip_1.default(zipPath);
+        zip = new adm_zip_1.default(zipName);
     }
     catch {
         if ((0, fs_1.existsSync)(assemblerPath) && (0, fs_1.existsSync)(compilerPath)) {
@@ -196,16 +195,19 @@ async function downloadAssembler(assemblerType) {
     }
     const entries = zip.getEntries();
     for (const entry of entries) {
-        const filePath = (0, path_1.join)('.', entry.entryName);
         // Remove the first folder from the path
-        (0, fs_1.writeFileSync)(filePath, entry.getData());
+        (0, fs_1.writeFileSync)(entry.entryName, entry.getData());
         if (proc.platform !== 'win32') {
-            (0, fs_1.chmodSync)(filePath, 0o755); // Get permissions (rwx) for Unix-based systems
+            (0, fs_1.chmodSync)(entry.entryName, 0o755); // Get permissions (rwx) for Unix-based systems
         }
     }
-    (0, fs_1.unlink)(zipPath, (error) => {
-        if (error) {
-            vscode_1.window.showWarningMessage('Could not remove the temporary ZIP file located at ' + zipPath);
+    (0, fs_1.readdirSync)('.').forEach(item => {
+        if (item === zipName || item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg') {
+            (0, fs_1.unlink)(item, (error) => {
+                if (error) {
+                    vscode_1.window.showWarningMessage('Could not remove the temporary file file located at ' + (0, path_1.join)(assemblerFolder, item));
+                }
+            });
         }
     });
     firstActivation = false;
@@ -228,8 +230,13 @@ async function promptEmulatorPath(emulator) {
     );
 }
 async function assemblerChecks() {
-    if (!vscode_1.workspace.workspaceFolders) {
+    const projectFolders = vscode_1.workspace.workspaceFolders;
+    if (!projectFolders) {
         vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
+        return false;
+    }
+    if (!(0, fs_1.existsSync)((0, path_1.join)(projectFolders[0].uri.fsPath, extensionSettings.mainName))) {
+        vscode_1.window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`);
         return false;
     }
     if (isDownloading) {
@@ -250,13 +257,15 @@ async function assemblerChecks() {
     }
     return true;
 }
-function executeAssemblyCommand() {
-    if (!(0, fs_1.existsSync)(extensionSettings.mainName)) {
-        vscode_1.window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`);
-        return -1;
-    }
+// Assembles and compiles a ROM
+// 0 if successful, 1 if successful with warnings and -1 if there's an error or a fatal one
+// If the number is negative we shall not proceed (this case only -1)
+async function executeAssemblyCommand() {
+    // We proceed with the assembler, which creates the program file
     outputChannel.clear();
-    let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${(0, path_1.join)(assemblerFolder, "rom.p")}" -`;
+    process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath); // We already checked this. This is why I put "!"
+    let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${(0, path_1.join)(assemblerFolder, 'rom.p')}" -`;
+    let warnings = false;
     const shortFlags = [
         [extensionSettings.compactSymbols, 'A'],
         [extensionSettings.listingFile, 'L'],
@@ -275,7 +284,7 @@ function executeAssemblyCommand() {
         [extensionSettings.signWarning, ' -wsign-extension'],
         [extensionSettings.jumpsWarning, ' -wrelative']
     ];
-    for (const [condition, flag] of shortFlags) {
+    for (const [condition, flag] of shortFlags) { // Best way I (and ChatGPT) could have thought to do this
         if (condition) {
             command += flag;
         }
@@ -288,6 +297,7 @@ function executeAssemblyCommand() {
             command += ' -E';
         }
     }
+    // Some other flags that have different behavior, not just booleans
     if (extensionSettings.debugFile !== 'None') {
         command += ' -g ' + extensionSettings.debugFile;
     }
@@ -297,33 +307,41 @@ function executeAssemblyCommand() {
     if (extensionSettings.workingFolders.length > 0) {
         command += ' -i "' + extensionSettings.workingFolders.join('";"') + '"';
     }
-    console.log(command);
-    const output = (0, child_process_1.spawnSync)(command, { encoding: 'ascii', shell: true });
-    if (output.status === 0) {
-        outputChannel.append(output.stdout);
+    else {
+        vscode_1.window.showWarningMessage('You have cleared the assets folders in the settings! Prepare yourself for "include" errors.');
+    }
+    // AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
+    const { aslOut, aslErr, code } = await new Promise((resolve) => {
+        (0, child_process_1.exec)(command, { encoding: 'ascii' }, (error, stdout, stderr) => {
+            if (!error) {
+                resolve({ aslOut: stdout, aslErr: stderr, code: 0 });
+            }
+            else {
+                resolve({ aslOut: stdout ?? 'No output provided.', aslErr: stderr ?? 'No error provided.', code: error.code ?? -1 });
+            }
+        });
+    });
+    outputChannel.append(aslOut);
+    if (code === 0) {
         if (extensionSettings.verboseOperation) {
             outputChannel.show();
         }
-        if (output.stderr === '' || extensionSettings.suppressWarnings) {
-            return 0;
-        }
-        else {
+        if (aslErr !== '' && !extensionSettings.suppressWarnings) {
             outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
-            outputChannel.appendLine(output.stderr);
+            outputChannel.appendLine(aslErr);
             outputChannel.appendLine('============================================================');
-            return 1;
+            warnings = true;
         }
     }
     else {
-        outputChannel.append(output.stdout + '\n');
         let errorLocation = 'log file';
         if (!extensionSettings.errorFile) {
-            outputChannel.appendLine('==================== ASSEMBLER ERROR ====================\n');
-            outputChannel.append(output.stderr);
+            outputChannel.appendLine('\n==================== ASSEMBLER ERROR ====================\n');
+            outputChannel.append(aslErr);
             outputChannel.show();
             errorLocation = 'terminal';
         }
-        switch (output.status) {
+        switch (code) {
             case 2:
                 vscode_1.window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
                 break;
@@ -334,34 +352,45 @@ function executeAssemblyCommand() {
                 vscode_1.window.showErrorMessage(`The assembler has thrown an unknown error. Check the ${errorLocation} for more details.`);
                 break;
         }
-        return -1;
+        return -1; // Can't proceed with compiling, there's no program file
     }
-}
-// Executes a program synchronously, returns true if successful, false if an error occurred
-function executeCompileCommand() {
-    let command = `"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`;
-    process.chdir(assemblerFolder);
-    try {
-        const output = (0, child_process_1.execSync)(command, { encoding: 'ascii' });
-        outputChannel.append('\n' + output);
-        return true;
+    // Now, to the compiler!
+    process.chdir(assemblerFolder); // We can't change the output folder, so this will do
+    // Take only some outputs and the custom exit code with aliases. Unix wants '.', so I'm providing it
+    const { p2binOut, p2binErr, success } = await new Promise((resolve) => {
+        (0, child_process_1.exec)(`"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`, { encoding: 'ascii' }, (error, stdout, stderr) => {
+            if (!error) {
+                resolve({ p2binOut: stdout, p2binErr: stderr, success: true });
+            }
+            else {
+                const longMessage = 'No output provided. Perhaps, according to my calculations, this is the rarest message you can get, so go play for the lottery until you can. Thank me later!';
+                resolve({ p2binOut: stdout ?? longMessage, p2binErr: stderr ?? 'No error provided.', success: false });
+            }
+        });
+    });
+    outputChannel.append('\n' + p2binOut);
+    if (success) {
+        if (p2binErr !== '' && extensionSettings.suppressWarnings) {
+            outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
+            outputChannel.appendLine(p2binErr);
+            outputChannel.appendLine('===========================================================');
+            return 1; // There's more than 1 warning anyway
+        }
     }
-    catch (error) {
-        outputChannel.append(error.stdout + '\n');
-        outputChannel.appendLine('==================== COMPILER ERROR ====================\n');
-        outputChannel.append(error.stderr);
+    else {
+        outputChannel.appendLine('\n==================== COMPILER ERROR ====================\n');
+        outputChannel.append(p2binErr);
         vscode_1.window.showErrorMessage('The compiler has thrown an unknown error. Check the terminal for more details.');
-        return false;
+        return -1; // There's more than 1 error anyway
     }
+    return (+warnings); // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
 async function assembleROM() {
-    if (!(await assemblerChecks())) {
+    if (await assemblerChecks() === false) {
         return;
     }
-    const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
-    process.chdir(projectFolder);
     let warnings = false;
-    switch (executeAssemblyCommand()) {
+    switch (await executeAssemblyCommand()) {
         case 0:
             break;
         case 1:
@@ -370,6 +399,8 @@ async function assembleROM() {
         default:
             return;
     }
+    const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
+    process.chdir(projectFolder);
     const files = (0, fs_1.readdirSync)('.'); // Reads all files and folders and put them into a string array
     // Checks if there are any files that have the .gen extension. If so, it gets renamed with .pre and a number
     for (const checkName of files) {
@@ -422,9 +453,6 @@ async function assembleROM() {
         });
         break;
     }
-    if (!executeCompileCommand()) {
-        return;
-    }
     renameRom(projectFolder, warnings);
 }
 function renameRom(projectFolder, warnings) {
@@ -433,20 +461,20 @@ function renameRom(projectFolder, warnings) {
     const minutes = currentDate.getMinutes().toString().padStart(2, '0');
     const seconds = currentDate.getSeconds().toString().padStart(2, '0');
     let fileName;
-    if (extensionSettings.romName === '') {
-        const lastDot = extensionSettings.mainName.lastIndexOf('.');
-        fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
+    if (extensionSettings.romName !== '') {
+        fileName = extensionSettings.romName;
     }
     else {
-        fileName = extensionSettings.romName;
+        const lastDot = extensionSettings.mainName.lastIndexOf('.');
+        fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
     }
     if (extensionSettings.romDate) {
         fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${hours}.${minutes}.${seconds}`;
     }
     // Renames and moves the rom.bin file outside assemblerFolder since P2BIN doesn't have a switch to change the output file name for some reason
-    (0, fs_1.rename)('rom.bin', `${(0, path_1.join)(projectFolder, fileName)}.gen`, (error) => {
+    (0, fs_1.rename)((0, path_1.join)(assemblerFolder, 'rom.bin'), `${(0, path_1.join)(projectFolder, fileName)}.gen`, (error) => {
         if (error) {
-            if (error?.code !== 'ENOENT') {
+            if (error.code !== 'ENOENT') {
                 vscode_1.window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error.message}`);
             }
             else {
@@ -470,12 +498,13 @@ function renameRom(projectFolder, warnings) {
     }
 }
 async function findAndRunROM(emulator) {
-    if (!vscode_1.workspace.workspaceFolders) {
+    const projectFolders = vscode_1.workspace.workspaceFolders;
+    if (!projectFolders) {
         vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
         return;
     }
     await promptEmulatorPath(emulator);
-    const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
+    const projectFolder = projectFolders[0].uri.fsPath;
     process.chdir(projectFolder);
     const rom = (0, fs_1.readdirSync)('.').find(file => file.endsWith('.gen'));
     if (!rom) {
@@ -496,13 +525,13 @@ async function findAndRunROM(emulator) {
     vscode_1.window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
 }
 async function runTemporaryROM(emulator) {
-    if (!(await assemblerChecks())) {
+    if (await assemblerChecks() === false) {
         return;
     }
     await promptEmulatorPath(emulator);
     process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
     let warnings = false;
-    switch (executeAssemblyCommand()) {
+    switch (await executeAssemblyCommand()) {
         case 0:
             break;
         case 1:
@@ -510,9 +539,6 @@ async function runTemporaryROM(emulator) {
             break;
         default:
             return;
-    }
-    if (!executeCompileCommand()) {
-        return;
     }
     let errorCode = false;
     (0, child_process_1.exec)(`"${vscode_1.workspace.getConfiguration(`megaenvironment`).get(`paths.${emulator}`)}" "${(0, path_1.join)(assemblerFolder, "rom.bin")}"`, (error) => {
@@ -594,16 +620,17 @@ async function activate(context) {
     const assemble = vscode_1.commands.registerCommand('megaenvironment.assemble', () => {
         assembleROM();
     });
-    const clean_and_assemble = vscode_1.commands.registerCommand('megaenvironment.clean_assemble', () => {
-        if (!vscode_1.workspace.workspaceFolders) {
+    const clean_and_assemble = vscode_1.commands.registerCommand('megaenvironment.clean_assemble', async () => {
+        const projectFolders = vscode_1.workspace.workspaceFolders;
+        if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
-        const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath; // Get the full path to the currently opened folder
+        const projectFolder = projectFolders[0].uri.fsPath; // Get the full path to the currently opened folder
         process.chdir(projectFolder);
         cleanProjectFolder();
         let warnings = false;
-        switch (executeAssemblyCommand()) {
+        switch (await executeAssemblyCommand()) {
             case 0:
                 break;
             case 1:
@@ -611,9 +638,6 @@ async function activate(context) {
                 break;
             default:
                 return;
-        }
-        if (!executeCompileCommand()) {
-            return;
         }
         renameRom(projectFolder, warnings);
     });
@@ -646,7 +670,8 @@ async function activate(context) {
             vscode_1.window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
             return;
         }
-        if (!vscode_1.workspace.workspaceFolders) {
+        const projectFolders = vscode_1.workspace.workspaceFolders;
+        if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
@@ -654,7 +679,7 @@ async function activate(context) {
             vscode_1.window.showErrorMessage("Looks like you haven't installed OpenEmu yet. Make sure it's located in the \"\\Applications\" folder when installed, or else it won't run properly.");
             return;
         }
-        const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
+        const projectFolder = projectFolders[0].uri.fsPath;
         process.chdir(projectFolder);
         const rom = (0, fs_1.readdirSync)('.').find(file => file.endsWith('.gen'));
         if (!rom) {
@@ -703,7 +728,8 @@ async function activate(context) {
             vscode_1.window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
             return;
         }
-        if (!vscode_1.workspace.workspaceFolders) {
+        const projectFolders = vscode_1.workspace.workspaceFolders;
+        if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
@@ -711,12 +737,12 @@ async function activate(context) {
             vscode_1.window.showErrorMessage("Looks like you haven't installed OpenEmu yet. Make sure it's located in the \"\\Applications\" folder when installed, or else it won't run properly.");
             return;
         }
-        if (!(await assemblerChecks())) {
+        if (await assemblerChecks() === false) {
             return;
         }
-        process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
+        process.chdir(projectFolders[0].uri.fsPath); // Already checked if "projectFolder" exists
         let warnings = false;
-        switch (executeAssemblyCommand()) {
+        switch (await executeAssemblyCommand()) {
             case 0:
                 break;
             case 1:
@@ -724,9 +750,6 @@ async function activate(context) {
                 break;
             default:
                 return;
-        }
-        if (!executeCompileCommand()) {
-            return;
         }
         await new Promise((resolve, reject) => {
             (0, child_process_1.exec)(`open -a "OpenEmu" "${(0, path_1.join)(assemblerFolder, 'rom.bin')}"`, (error) => {
@@ -759,12 +782,13 @@ async function activate(context) {
             });
         }
     });
-    const open_EASy68k = vscode_1.commands.registerCommand('megaenvironment.open_easy68k', () => {
+    const open_EASy68k = vscode_1.commands.registerCommand('megaenvironment.open_easy68k', async () => {
         if (process.platform !== 'win32') {
             vscode_1.window.showErrorMessage('This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.');
             return;
         }
-        if (!vscode_1.workspace.workspaceFolders) {
+        const projectFolders = vscode_1.workspace.workspaceFolders;
+        if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
@@ -774,7 +798,7 @@ async function activate(context) {
             vscode_1.window.showErrorMessage("Seems like you forgot to open any text editor.");
             return;
         }
-        const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
+        const projectFolder = projectFolders[0].uri.fsPath;
         const selectedText = editor.document.getText(editor.selection);
         process.chdir(assemblerFolder);
         let text;
@@ -828,7 +852,6 @@ async function activate(context) {
                     });
                 }
             });
-            process.chdir(projectFolder);
         });
         if (errorCode || extensionSettings.quietOperation) {
             return;
@@ -836,11 +859,12 @@ async function activate(context) {
         vscode_1.window.showInformationMessage('Debugging your current selection with EASy68k.');
     });
     const backup = vscode_1.commands.registerCommand('megaenvironment.backup', () => {
-        if (!vscode_1.workspace.workspaceFolders) {
+        const projectFolders = vscode_1.workspace.workspaceFolders;
+        if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
-        process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath); // Change current working folder to the project one
+        process.chdir(projectFolders[0].uri.fsPath); // Change current working folder to the project one
         const zip = new adm_zip_1.default(); // Create zip archive reference
         const items = (0, fs_1.readdirSync)('.'); // Read all content in the project folder
         if (!(0, fs_1.existsSync)('Backups')) {
@@ -875,11 +899,12 @@ async function activate(context) {
         vscode_1.window.showInformationMessage(`${files} files were backed up successfully.`);
     });
     const cleanup = vscode_1.commands.registerCommand('megaenvironment.cleanup', () => {
-        if (!vscode_1.workspace.workspaceFolders) {
+        const projectFolders = vscode_1.workspace.workspaceFolders;
+        if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
-        process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
+        process.chdir(projectFolders[0].uri.fsPath);
         cleanProjectFolder();
     });
     context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k);
