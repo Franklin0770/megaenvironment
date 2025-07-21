@@ -8,7 +8,7 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 - Make use of some basic versioning, useful for producing multiple builds and be able to distinguish between them;
 - Gain speedy productivity from shortcuts to manage and organise your project folder;
 - Backup your project quickly, too;
-- Run ROMs with mostly Windows emulators (you need to set a system variable for this!);
+- Run ROMs with ~~mostly Windows~~ emulators ~~(you need to set a system variable for this!)~~;
 - Utilise nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
 - Avoid to include build tools or such, the extension downloads the necessary files to compile;
 - Highlight 68k and Z80 code, with three supported VS themes (Dark, Abyss and Sonic Disassembly);
