@@ -77,7 +77,11 @@
         "command": "megaenvironment.open_easy68k",
         "title": "Open Current Selection In EASy68k",
         "category": "Debug"
-      }
+      },
+	  {
+		"command": "megaenvironment.redownload_tools",
+		"title": "Re-download The Assembler"
+	  }
     ],
     "configuration": {
       "title": "Mega Driven Environment",
@@ -327,7 +331,7 @@
 		"megaenvironment.paths.Regen": {
 		  "type": "string",
 		  "default": "",
-		  "description": "Full path to the Regen.exe executable."
+		  "description": "Full path to the Regen executable."
 		},
 		"megaenvironment.paths.ClownMDEmu": {
 		  "type": "string",

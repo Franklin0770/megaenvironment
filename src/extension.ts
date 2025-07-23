@@ -4,9 +4,9 @@ TODOS:
 - Maybe some classes for encapsulation.
 */
 
-import { ExtensionContext, workspace, commands, window, env, Uri } from 'vscode';
+import { ExtensionContext, workspace, commands, window, env, Uri, ProgressLocation } from 'vscode';
 import { exec } from 'child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rename, unlink, createWriteStream, chmodSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod } from 'fs';
 import { pipeline } from 'stream';
 import { join } from 'path';
 import AdmZip from 'adm-zip';
@@ -118,7 +118,7 @@ const settingDescriptors = [
 	{ key: 'miscellaneous.fillValue',						target: 'fillValue' },
 	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
 	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
-	{ key: 'miscellaneous.AS-StyledErrors',					target: 'AsErrors' },
+	{ key: 'miscellaneous.AS-StyledErrors',					target: 'asErrors' },
 	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
 	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
 	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
@@ -133,157 +133,229 @@ let isDownloading: boolean;
 let firstActivation = true;
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
-async function downloadAssembler(assemblerType: number): Promise<boolean> {	
-	const windowsBinary = [ 'windows-x86', 'windows-x86_64' ];
-	
-	let zipName: string;
-	const proc = process;
+async function downloadAssembler(): Promise<boolean> {
+	isDownloading = true;
+	return await window.withProgress(
+		{
+			location: ProgressLocation.Window,
+			title: !extensionSettings.sonicDisassembly ? "Original assembler" : "Sonic's assembler",
+			cancellable: true
+		},
+		async (progress, token) => {
+			token.onCancellationRequested(() => {
+				window.showErrorMessage("Operation was cancelled! You can retry if you didn't mean to stop the download.", 'Re-attempt Download')
+				.then((selection) => {
+					if (selection === 'Re-attempt Download') {
+						downloadAssembler();
+					}
+				});
 
-	switch (proc.platform) {
-		case 'win32':
-			zipName = windowsBinary[assemblerType];
-			break;
-		case 'darwin':
-			if (proc.arch === 'x64') {
-				zipName = 'mac-x86_64';
-			} else {
-				zipName ='mac-arm64';
+				return false;
+			});
+
+			progress.report({ message: 'checking your platform...', increment: 0 });
+
+			let zipName: string;
+
+			switch (process.platform) {
+				case 'win32':
+					zipName = 'windows-x86';
+					break;
+				case 'darwin':
+					if (process.arch === 'arm64') {
+						zipName ='mac-arm64';
+					} else {
+						zipName = 'mac-x86_64';
+					}
+					break;
+				case 'linux':
+					if (process.arch === 'x64') {
+						zipName = 'linux-x86_64';
+					} else {
+						zipName = 'linux-arm64';
+					}
+					break;
+				default:
+					window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
+					return false;
 			}
-			break;
-		case 'linux':
-			if (proc.arch === 'x64') {
-				zipName = 'linux-x86_64';
-			} else {
-				zipName = 'linux-arm64';
+
+			zipName += '.zip';
+
+			progress.report({ message: 'requesting your assembler version...', increment: 10 });
+
+			const releaseTag = [ 'latest', 'v1.42b_212f' ];
+			let response: Response;
+			try {
+				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
+			} catch {
+				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+					window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with what we have.");
+					return true;
+				}
+
+				window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection.");
+				return false;
 			}
-			break;
-		default:
-			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
-			return false;
-	}
 
-	zipName += '.zip';
+			if (!response.ok || !response.body) {
+				if (response.status === 404) { // The classic "not found"
+					if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+						window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
+						.then(selection => {
+							if (selection === 'Last Resort Guide') {
+								throw new Error('[Not implemented yet]');
+							}
+						});
+						return true;
+					}
 
-	const releaseTag = [ 'latest', 'v1.42b_212f' ];
-	let response: Response;
-	try {
-		response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[assemblerType] + '/' + zipName);
-	} catch {
-		if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-			window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with what we have.");
-			return true;
-		}
+					window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
+					.then(selection => {
+						if (selection === 'Last Resort Guide!') {
+							throw new Error('[Not implemented yet]');
+						}
+					});
+					return false;
+				}
 
-		window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection.");
-		return false;
-	}
+				window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
+				unlink(zipName, (error) => {
+					if (error?.code !== 'ENOENT') {
+						window.showWarningMessage("Couldn't remove the temporary ZIP file.");
+					}
+				});
+				return false;
+			}
 
-	if (!response.ok || !response.body) {
-		if (response.status === 404) {
-			if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-				window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
+			progress.report({ message: 'downloading ZIP...', increment: 20 });
+
+			if (!existsSync(assemblerFolder)) {
+				mkdirSync(assemblerFolder, { recursive: true });
+			}
+
+			process.chdir(assemblerFolder);
+
+			const fileStream = createWriteStream(zipName);
+
+			const success = await new Promise<boolean>((resolve, reject) => { 
+				let retries = 3;
+				const retry = () => {
+					pipeline(response.body as ReadableStream<any>, fileStream, (error) => {
+						if (error) {
+							if (retries > 0) {
+								retries--;
+								setTimeout(retry, 1000);
+							} else {
+								if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+									window.showWarningMessage('Even though it turned out to be impossible to download the assembler, we still have the previous version we can use!');
+									resolve(true);
+								} else {
+									window.showErrorMessage('After multiple tries, it turned out to be impossible to download the assembler. Make sure you have a fast enough Internet connection.');
+									reject();
+								}
+							}
+						} else {
+							resolve(true);
+						}
+					});
+				};
+
+				retry(); // This is where it starts
+			});
+
+			if (!success) { return false; }
+
+			progress.report({ message: 'extracting ZIP...', increment: 50 });
+
+			let zip: AdmZip;
+
+			try {
+				zip = new AdmZip(zipName);
+			} catch {
+				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+					window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
+					.then(selection => {
+						if (selection === 'Last Resort Guide') {
+							throw new Error('[Not implemented yet]');
+						}
+					});
+					return true;
+				}
+
+				window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
 				.then(selection => {
-					if (selection === 'Last Resort Guide') {
+					if (selection === 'Last Resort Guide!') {
 						throw new Error('[Not implemented yet]');
 					}
 				});
-				return true;
+				return false;
 			}
 
-			window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
-			.then(selection => {
-				if (selection === 'Last Resort Guide!') {
-					throw new Error('[Not implemented yet]');
+			const entries = zip.getEntries();
+			for (const entry of entries) {
+				const name = entry.name;
+				// Remove the first folder from the path
+				await new Promise<void>((resolve, reject) => {
+					writeFile(name, entry.getData(), (error) => {
+						if (error) {
+							window.showErrorMessage('Cannot extract the file: ' + name);
+							reject();
+						}
+
+						resolve();
+					});
+				});
+
+				if (process.platform !== 'win32') {
+					chmod(name, 0o755, (error) => {
+						if (error) {
+							window.showErrorMessage('Cannot get read and write permissions for this file: ' + name);
+						}
+					}); // Get permissions (rwx) for Unix-based systems
+				}
+			}
+
+			progress.report({ message: 'cleaning things up...', increment: 10 });
+
+			readdirSync('.').forEach(item => {
+				if (item === zipName || !extensionSettings.sonicDisassembly && (item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg')) {
+					unlink(item, (error) => {
+						if (error) {
+							window.showWarningMessage('Could not remove the temporary file file located at ' + join(assemblerFolder, item));
+						}
+					});
 				}
 			});
-			return false;
-		}
 
-		window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
-		return false;
-	}
+			isDownloading = false;
+			firstActivation = false;
 
-	if (!existsSync(assemblerFolder)) {
-		mkdirSync(assemblerFolder, { recursive: true });
-	}
+			progress.report({ message: 'done! (This message will almost never be seen...)', increment: 10 });
 
-	proc.chdir(assemblerFolder);
-
-	const fileStream = createWriteStream(zipName);
-
-	await new Promise<void>((resolve) => { 
-		pipeline(response.body as ReadableStream<any>, fileStream, () => {
-			resolve();
-		});
-	});
-
-	let zip: AdmZip;
-
-	try {
-		zip = new AdmZip(zipName);
-	} catch {
-		if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-			window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
-			.then(selection => {
-				if (selection === 'Last Resort Guide') {
-					throw new Error('[Not implemented yet]');
-				}
-			});
 			return true;
 		}
-
-		window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
-		.then(selection => {
-			if (selection === 'Last Resort Guide!') {
-				throw new Error('[Not implemented yet]');
-			}
-		});
-		return false;
-	}
-
-	const entries = zip.getEntries();
-	for (const entry of entries) {
-		// Remove the first folder from the path
-		writeFileSync(entry.entryName, entry.getData());
-
-		if (proc.platform !== 'win32') {
-			chmodSync(entry.entryName, 0o755); // Get permissions (rwx) for Unix-based systems
-		}
-	}
-
-	readdirSync('.').forEach(item => {
-		if (item === zipName || item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg') {
-			unlink(item, (error) => {
-				if (error) {
-					window.showWarningMessage('Could not remove the temporary file file located at ' + join(assemblerFolder, item));
-				}
-			});
-		}
-	});
-
-	firstActivation = false;
-	return true;
+	);
 }
 
 async function promptEmulatorPath(emulator: string) {
 	const config =  workspace.getConfiguration('megaenvironment');
-	const path = config.get<string>(`paths.${emulator}`, '');
+	const key = `paths.${emulator}`;
+	const path = config.get<string>(key, '');
 
-	if (existsSync(path)) {
-		return;
-	}
+	if (existsSync(path)) { return; } // The emulator is already there, no need to ask anything
 
 	window.showWarningMessage(`The path you provided for ${emulator} is either missing or incorrect. Be sure to put it in the text box which just appeared!`);
 
 	const input = await window.showInputBox({
 		title: `Set ${emulator} Path`,
 		prompt: 'Enter the full path to your emulator',
-		placeHolder: path,
+		placeHolder: `Previous path: ${path}`,
 		ignoreFocusOut: true
 	});
 
 	await config.update(
-		`paths.${emulator}`,
+		key,
 		input,
 		true // true = global setting
 	);
@@ -315,6 +387,7 @@ async function assemblerChecks(): Promise<boolean> {
 					resolve(true);
 				}
 			};
+			
 			check();
 		});
 	}
@@ -350,7 +423,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		[!extensionSettings.asErrors, 			' -gnuerrors'],
 		[!extensionSettings.superiorWarnings,	' -supmode'],
 		[extensionSettings.compatibilityMode,	' -compmode'],
-		[extensionSettings.signWarning,			' -wsign-extension'],
+		[!extensionSettings.signWarning,		' -wno-implicit-sign-extension'],
 		[extensionSettings.jumpsWarning,		' -wrelative']
 	];
 
@@ -359,10 +432,10 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	}
 
 	if (extensionSettings.errorFile) {
-		if (extensionSettings.errorName) {
+		if (extensionSettings.errorName !== '') {
 			command += ' -E ' + extensionSettings.errorName + '.log';
 		} else {
-			command += ' -E';
+			command += ' -E ';
 		}
 	}
 
@@ -374,9 +447,11 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	if (extensionSettings.workingFolders.length > 0) {
 		command += ' -i "' + extensionSettings.workingFolders.join('";"') + '"';
-	} else {
+	} else if (extensionSettings.sonicDisassembly) {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Prepare yourself for "include" errors.');
 	}
+
+	console.log(command);
 
 	// AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
 	const { aslOut, aslErr, code } = await new Promise<{ aslOut: string; aslErr: string; code: number }>((resolve) => {
@@ -491,7 +566,7 @@ async function assembleROM() {
 	for (const checkName of files) {
 		if (!checkName.endsWith('.gen')) { continue; } // Indentantions are less clean
 
-		if (!extensionSettings.prevRoms) {
+		if (!extensionSettings.prevRoms) { // We simply replace the lastest ROM if there's no versioning to do
 			unlink(checkName, (error) => {
 				if (error) {
 					window.showErrorMessage('Cannot remove the previous .gen ROM.');
@@ -502,20 +577,22 @@ async function assembleROM() {
 
 		// Collects all .pre<number> files
 		const preFiles = files
-		.filter(f => /\.pre(\d+)$/.test(f)) // Get .pre files
+		.filter(f => /\.pre\d+$/.test(f)) // Get .pre files (test() is to make the match happen)
 		.map(f => ({
 			name: f,
-			index: parseInt(f.match(/\.pre(\d+)$/)![1], 10)
-		})); // Assigns an index to it
+			index: parseInt(f.match(/\.pre(\d+)$/)![1]) // We have to capture the number with Regex using ()
+		})); // Assigns a name and an index to it
 
 		let number = 0; // Index
 
+		// To handle the .pre0 corner case and skip useless operations, since it doesn't know with what number to start counting
 		if (preFiles.length > 0) {
 			const latest = Math.max(...preFiles.map(f => f.index));
 			const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
 
-			// Enforce limit
-			if (extensionSettings.prevAmount !== 0 && latest >= extensionSettings.prevAmount - 1) {
+			if (latest < extensionSettings.prevAmount - 1 || extensionSettings.prevAmount === 0 ) {
+				number = latest + 1;
+			} else { // Enforce limit
 				if (!extensionSettings.quietOperation) {
 					window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
 				}
@@ -525,15 +602,14 @@ async function assembleROM() {
 					}
 				});
 				number = oldest.index; // Reuse the index
-			} else {
-				number = latest + 1;
 			}
 		}
 
-		const newName = checkName.replace(/\.gen$/, `.pre${number}`);
+		// Cut the .gen extension and replace it with .preX
+		const newName = checkName.substring(0, checkName.length - 4) + `.pre${number}`;
 		rename(checkName, newName, (error) => {
 			if (error) {
-				window.showWarningMessage(`Could not rename the previous ROM. Please manually rename it to "${newName}".`);
+				window.showWarningMessage(`Could not rename the previous ROM. Please, manually rename it to "${newName}".`);
 			} else if (!extensionSettings.quietOperation) {
 				window.showInformationMessage(`Latest build exists. Renamed to "${newName}".`);
 			}
@@ -718,7 +794,7 @@ export async function activate(context: ExtensionContext) {
 	}
 	
 	extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
-	if (!(downloadAssembler(+extensionSettings.sonicDisassembly))) { return; }
+	if (!downloadAssembler()) { return; }
 
 	//
 	//	Commands
@@ -1080,7 +1156,27 @@ export async function activate(context: ExtensionContext) {
 		cleanProjectFolder();
 	});
 
-	context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k);
+	const redownloadTools = commands.registerCommand('megaenvironment.redownload_tools', async () => {
+		if (isDownloading && !firstActivation) {
+			window.showInformationMessage('Please, be patient! Your tools are already downloading.');
+			return;
+		}
+
+		if (!extensionSettings.quietOperation) {
+			window.showInformationMessage('Re-downloading your build tools...');
+		}
+
+		// Tools are effectively already downloading if we have started the extension with this command
+		if (firstActivation) { return; }
+		
+		await downloadAssembler();
+
+		if (extensionSettings.quietOperation) { return; }
+
+		window.showInformationMessage('Build tools successfully re-downloaded.');
+	});
+
+	context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, redownloadTools);
 }
 
 workspace.onDidChangeConfiguration((event) => {
@@ -1096,15 +1192,11 @@ workspace.onDidChangeConfiguration((event) => {
 		
 		if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
 			extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
-			(async () => {
-				if (!extensionSettings.quietOperation) {
-					window.showInformationMessage('Swapping versions...');
-				}
+			if (!extensionSettings.quietOperation) {
+				window.showInformationMessage('Swapping versions...');
+			}
 
-				isDownloading = true;
-				await downloadAssembler(+extensionSettings.sonicDisassembly); // + to auto-convert to a number (integer)
-				isDownloading = false;
-			})(); // () is for calling the anonymous function
+			downloadAssembler(); // + to auto-convert to a number (integer)
 		}
 	}
 });
