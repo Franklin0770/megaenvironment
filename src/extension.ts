@@ -4,9 +4,9 @@ TODOS:
 - Maybe some classes for encapsulation.
 */
 
-import { ExtensionContext, workspace, commands, window, env, Uri, ProgressLocation } from 'vscode';
+import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider } from 'vscode';
 import { exec } from 'child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync } from 'fs';
 import { pipeline } from 'stream';
 import { join } from 'path';
 import AdmZip from 'adm-zip';
@@ -100,6 +100,7 @@ const settingDescriptors = [
 	{ key: 'buildControl.includeRomDate',					target: 'romDate' },
 	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
 	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
+	// 'buildControl.sonicDisassemblySupport' is handled differently
 	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
 	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
 	{ key: 'sourceCodeControl.variablesFileName',			target: 'variablesName' },
@@ -238,12 +239,13 @@ async function downloadAssembler(): Promise<boolean> {
 
 			const fileStream = createWriteStream(zipName);
 
-			const success = await new Promise<boolean>((resolve, reject) => { 
-				let retries = 3;
+			const success = await new Promise<boolean>((resolve) => { 
+				let retries = 1;
 				const retry = () => {
 					pipeline(response.body as ReadableStream<any>, fileStream, (error) => {
 						if (error) {
-							if (retries > 0) {
+							if (retries <= 3) {
+								progress.report({ message: `downloading ZIP... (take number ${retries})`, increment: 0 });
 								retries--;
 								setTimeout(retry, 1000);
 							} else {
@@ -252,7 +254,7 @@ async function downloadAssembler(): Promise<boolean> {
 									resolve(true);
 								} else {
 									window.showErrorMessage('After multiple tries, it turned out to be impossible to download the assembler. Make sure you have a fast enough Internet connection.');
-									reject();
+									resolve(false);
 								}
 							}
 						} else {
@@ -338,27 +340,61 @@ async function downloadAssembler(): Promise<boolean> {
 	);
 }
 
-async function promptEmulatorPath(emulator: string) {
+async function promptEmulatorPath(emulator: string): Promise<boolean> {
+	let shouldContinue = true;
 	const config =  workspace.getConfiguration('megaenvironment');
 	const key = `paths.${emulator}`;
 	const path = config.get<string>(key, '');
 
-	if (existsSync(path)) { return; } // The emulator is already there, no need to ask anything
+	if (existsSync(path) && statSync(path).isFile()) { return true; } // The emulator is already there, no need to ask anything
 
-	window.showWarningMessage(`The path you provided for ${emulator} is either missing or incorrect. Be sure to put it in the text box which just appeared!`);
-
-	const input = await window.showInputBox({
+	const input = await window.showInputBox ({
 		title: `Set ${emulator} Path`,
-		prompt: 'Enter the full path to your emulator',
-		placeHolder: `Previous path: ${path}`,
+		prompt: 'Enter the full path to your emulator executable',
+		value: path,
 		ignoreFocusOut: true
 	});
 
-	await config.update(
+	if (!input) {
+		window.showErrorMessage('Without the path, it would be impossible to localise your emulator and run the ROM. Please, try again!', 'Retry')
+		.then((selection) => {
+			if (selection === 'Retry') {
+				promptEmulatorPath(emulator);
+			}
+		});
+
+		return false;
+	}
+
+	if (!existsSync(input)) {
+		window.showErrorMessage("The path you provided doesn't exist!", 'Retry')
+		.then((selection) => {
+			if (selection === 'Retry') {
+				promptEmulatorPath(emulator);
+			}
+		});
+
+		shouldContinue = false;
+	}
+
+	if (shouldContinue && statSync(input).isDirectory()) { // Gets stuck here if the path doesn't exist
+		window.showErrorMessage('The path you provided points only to a folder!', 'Retry')
+		.then((selection) => {
+			if (selection === 'Retry') {
+				promptEmulatorPath(emulator);
+			}
+		});
+
+		shouldContinue = false;
+	}
+
+	await config.update (
 		key,
 		input,
 		true // true = global setting
 	);
+
+	return shouldContinue;
 }
 
 async function assemblerChecks(): Promise<boolean> {
@@ -384,7 +420,7 @@ async function assemblerChecks(): Promise<boolean> {
 				if (isDownloading) {
 					setTimeout(check, 200);
 				} else {
-					resolve(true);
+					return resolve(true);
 				}
 			};
 			
@@ -403,7 +439,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	outputChannel.clear();
 
-	process.chdir(workspace.workspaceFolders![0].uri.fsPath); // We already checked this. This is why I put "!"
+	process.chdir(workspace.workspaceFolders![0].uri.fsPath); // We already checked if "workspaceFolders" exists. This is why I put "!"
 
 	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, 'rom.p')}" -`;
 	let warnings = false;
@@ -547,13 +583,13 @@ async function assembleROM() {
 	let warnings = false;
 
 	switch (await executeAssemblyCommand()) {
-	case 0:
-		break;
-	case 1:
-		warnings = true;
-		break;
-	default:
-		return;
+		case 0:
+			break;
+		case 1:
+			warnings = true;
+			break;
+		default:
+			return;
 	}
 
 	const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
@@ -672,7 +708,9 @@ async function findAndRunROM(emulator: string) {
 		return;
 	}
 
-	await promptEmulatorPath(emulator);
+	if (await promptEmulatorPath(emulator) === false) {
+		return;
+	}
 
 	const projectFolder = projectFolders[0].uri.fsPath;
 	process.chdir(projectFolder);
@@ -700,20 +738,22 @@ async function findAndRunROM(emulator: string) {
 async function runTemporaryROM(emulator: string) {
 	if (await assemblerChecks() === false) { return; }
 
-	await promptEmulatorPath(emulator);
+	if (await promptEmulatorPath(emulator) === false) {
+		return;
+	}
 
 	process.chdir(workspace.workspaceFolders![0].uri.fsPath);
 
 	let warnings = false;
 
 	switch (await executeAssemblyCommand()) {
-	case 0:
-		break;
-	case 1:
-		warnings = true;
-		break;
-	default:
-		return;
+		case 0:
+			break;
+		case 1:
+			warnings = true;
+			break;
+		default:
+			return;
 	}
 	
 	let errorCode = false;
@@ -821,13 +861,13 @@ export async function activate(context: ExtensionContext) {
 		let warnings = false;
 
 		switch (await executeAssemblyCommand()) {
-		case 0:
-			break;
-		case 1:
-			warnings = true;
-			break;
-		default:
-			return;
+			case 0:
+				break;
+			case 1:
+				warnings = true;
+				break;
+			default:
+				return;
 		}
 
 		renameRom(projectFolder, warnings);
@@ -891,7 +931,7 @@ export async function activate(context: ExtensionContext) {
 		}
 
 		let errorCode = false;
-		exec(`open -a "OpenEmu" "${join(projectFolder, rom)}"`, (error) => {
+		exec(`open -a OpenEmu "${join(projectFolder, rom)}"`, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run the latest build. ' + error.message);
 				errorCode = true;
@@ -958,24 +998,46 @@ export async function activate(context: ExtensionContext) {
 		let warnings = false;
 
 		switch (await executeAssemblyCommand()) {
-		case 0:
-			break;
-		case 1:
-			warnings = true;
-			break;
-		default:
-			return;
+			case 0:
+				break;
+			case 1:
+				warnings = true;
+				break;
+			default:
+				return;
 		}
-		
-		await new Promise<void>((resolve, reject) => { 
-			exec(`open -a "OpenEmu" "${join(assemblerFolder, 'rom.bin')}"`, (error) => {
+
+		const currentDate = new Date();
+		const hours = currentDate.getHours().toString().padStart(2, '0');
+		const minutes = currentDate.getMinutes().toString().padStart(2, '0');
+		const seconds = currentDate.getSeconds().toString().padStart(2, '0');
+		const romPath = join(assemblerFolder, `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`);
+
+		let shouldContinue = await new Promise<boolean>((resolve) =>  {
+			rename(join(assemblerFolder, 'rom.bin'), romPath, (error) => {
 				if (error) {
-					window.showErrorMessage('Cannot run the build. ' + error.message);
-					reject();
+					window.showErrorMessage('Cannot rename the ROM for OpenEmu.');
+					resolve(false);
 				}
-				resolve();
+
+				resolve(true);
 			});
 		});
+
+		if (!shouldContinue) { return; }
+		
+		// "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
+		shouldContinue = await new Promise<boolean>((resolve) => { 
+			exec(`open -a OpenEmu -W "${romPath}"`, (error) => {
+				if (error) {
+					window.showErrorMessage('Cannot run the build. ' + error.message);
+					resolve(false);
+				}
+				resolve(true);
+			});
+		});
+
+		if (!shouldContinue) { return; }
 
 		unlink(join(assemblerFolder, 'rom.bin'), (error) => {
 			if (error) {
@@ -984,12 +1046,11 @@ export async function activate(context: ExtensionContext) {
 			}
 		});
 
-		const currentDate = new Date();
 		if (!warnings) {
 			if (extensionSettings.quietOperation) { return; }
-			window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with OpenEmu. (Oh yes!)`);
+			window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}, running it with OpenEmu. (Oh yes!)`);
 		} else {
-			window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with OpenEmu.`, 'Show Terminal')
+			window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal')
 			.then(selection => {
 				if (selection === 'Show Terminal') {
 					outputChannel.show();
@@ -1011,7 +1072,9 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		promptEmulatorPath('EASy68k');
+		if (await promptEmulatorPath('EASy68k') === false) {
+			return;
+		}
 
 		const editor = window.activeTextEditor;
 
@@ -1156,6 +1219,71 @@ export async function activate(context: ExtensionContext) {
 		cleanProjectFolder();
 	});
 
+	const newProject = commands.registerCommand('megaenvironment.new_project', async () => {
+		const uri = await window.showOpenDialog ({
+			title: 'Select the folder for your new project',
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+			openLabel: 'Select'
+		});
+
+		if (!uri || uri.length === 0) { return; }
+
+		const projectPath = uri[0].fsPath;
+
+		const extensions = ['.asm', '.68k', '.s', '.z80', ...extensionSettings.cleaningExtensions];
+
+		const hasConflictingFiles = readdirSync(projectPath).some(item =>
+			extensions.some(ext => item.endsWith(ext))
+		);
+
+		if (hasConflictingFiles) {
+			const selection = await window.showWarningMessage(
+				'Looks like this folder already contains a project! If you continue, these files might be replaced. Do you wish to proceed?',
+				'Sure!',
+				'No, take me back'
+			);
+
+			if (selection !== 'Sure!') {
+				return;
+			}
+		}
+
+		writeFile(join(projectPath, 'Main.asm'), strings.megaDriveHeader, (error) => {
+			if (error) {
+				window.showErrorMessage('Unable to create the main code source file.');
+				return;
+			}
+		});
+
+		writeFile(join(projectPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
+			if (error) {
+				window.showErrorMessage('Unable to create the constants source file.');
+				return;
+			}
+		});
+
+		writeFile(join(projectPath, 'Variables.asm'), strings.megaDriveVariables, (error) => {
+			if (error) {
+				window.showErrorMessage('Unable to create the variables source file.');
+				return;
+			}
+		});
+
+		mkdirSync(join(projectPath, 'Assets'), { recursive: true });
+		mkdirSync(join(projectPath, '.vscode'), { recursive: true });
+
+		writeFile(join(projectPath, '.vscode', 'settings.json'), strings.workspaceSettings, (error) => {
+			if (error) {
+				window.showErrorMessage('Unable to create the workspace settings file.');
+				return;
+			}
+		});
+
+		commands.executeCommand('vscode.openFolder', Uri.file(projectPath), true);
+	});
+
 	const redownloadTools = commands.registerCommand('megaenvironment.redownload_tools', async () => {
 		if (isDownloading && !firstActivation) {
 			window.showInformationMessage('Please, be patient! Your tools are already downloading.');
@@ -1176,7 +1304,50 @@ export async function activate(context: ExtensionContext) {
 		window.showInformationMessage('Build tools successfully re-downloaded.');
 	});
 
-	context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, redownloadTools);
+	const generateConfiguration = commands.registerCommand('megaenvironment.generate_configuration', async () => {
+		const projectFolders = workspace.workspaceFolders;
+		if (!projectFolders) {
+			window.showErrorMessage('Please, have an opened project to make it possible to write your configuration into it!');
+			return;
+		}
+
+		const projectFolder = projectFolders[0].uri.fsPath;
+		const vscodeFolder = join(projectFolder, '.vscode');
+		if (!existsSync(vscodeFolder)) {
+			mkdirSync(projectFolder);
+		}
+
+		let shouldContinue = true;
+
+		if (existsSync(join(vscodeFolder, 'launch.json'))) {
+			shouldContinue = await new Promise<boolean>((resolve) => {
+				window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to overwrite it?', 'Yes', 'No')
+				.then((selection) => {
+					if (selection === 'Yes') {
+						resolve(true);
+					} else {
+						resolve(false);
+					}
+				});
+			});
+		}
+
+		if (!shouldContinue) { return; }
+
+		writeFileSync(join(vscodeFolder, 'launch.json'), strings.launchJson);
+	});
+
+	window.registerTreeDataProvider('run_emulator', new ButtonProvider());
+
+	// Hacky way to get a somewhat-debugger integrated into VS Code
+	debug.registerDebugConfigurationProvider('megaenvironment-nondebugger', {
+		resolveDebugConfiguration() {
+			commands.executeCommand('megaenvironment.open_easy68k');
+			return undefined; // Prevent actual debug session
+		}
+	});
+
+	context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
 }
 
 workspace.onDidChangeConfiguration((event) => {
@@ -1196,7 +1367,552 @@ workspace.onDidChangeConfiguration((event) => {
 				window.showInformationMessage('Swapping versions...');
 			}
 
-			downloadAssembler(); // + to auto-convert to a number (integer)
+			downloadAssembler();
 		}
 	}
 });
+
+class ButtonTreeItem extends TreeItem {
+	constructor (
+		public readonly label: string,
+		public readonly command: Command
+	) {
+		super(label, TreeItemCollapsibleState.None);
+		this.iconPath = new ThemeIcon('play-circle');
+	}
+}
+
+class ButtonProvider implements TreeDataProvider<ButtonTreeItem> {
+	getTreeItem(element: ButtonTreeItem): TreeItem {
+		return element;
+	}
+
+	getChildren(): ButtonTreeItem[] {
+		return [
+			new ButtonTreeItem('Run in BlastEm', {
+				command: 'megaenvironment.run_blastem',
+				title: 'Run in BlastEm',
+				tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
+			}),
+			new ButtonTreeItem('Run in Regen', {
+				command: 'megaenvironment.run_regen',
+				title: 'Run in Regen',
+				tooltip: 'Run lastest ROM (.gen) using Regen emulator'
+			}),
+			new ButtonTreeItem('Run in ClownMDEmu', {
+				command: 'megaenvironment.run_clownmdemu',
+				title: 'Run in ClownMDEmu',
+				tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
+			}),
+			new ButtonTreeItem('Run in OpenEmu', {
+				command: 'megaenvironment.run_openemu',
+				title: 'Run in OpenEmu',
+				tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator'
+			})
+		];
+	}
+}
+
+// Strings section
+
+const strings = {
+	workspaceSettings: String.raw
+`{
+	"workbench.colorTheme": "MegaEnvironment Dark",
+	"megaenvironment.sourceCodeControl.currentWorkingFolders": [
+		"Assets"
+	],
+	"megaenvironment.sourceCodeControl.mainFileName": "Main.asm"
+}`,
+
+	launchJson: String.raw
+`{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug selection with EASy68k",
+			"type": "megaenvironment-nondebugger", // Ignore the warnings, everything is fine
+			"request": "launch"
+		}
+	]
+}`,
+
+	megaDriveHeader: String.raw
+`ROM_Start
+
+	include "Constants.asm"
+	include "Variables.asm"
+	;include "ComplierMacros.asm"
+	;include "CodeMacros.asm"
+
+; 68000 vectors (with its error code in square brackets)
+		dc.l M68K_STACK			; Initial stack pointer value (SP value)
+		dc.l EntryPoint			; Start of program (PC value)
+		dc.l BusError			; Bus error							[1]
+		dc.l AddressError		; Address error						[2]
+		dc.l IllegalInstruction	; Illegal instruction				[3]
+		dc.l DivisionByZero		; Division by zero					[4]
+		dc.l CHKException		; CHK exception						[5]
+		dc.l TRAPVException		; TRAPV exception					[6]
+		dc.l PrivilegeViolation	; Privilege violation				[7]
+		dc.l TRACEException		; TRACE exception					[8]
+		dc.l LineAEmulator		; Line-A emulator					[9]
+		dc.l LineFEmulator		; Line-F emulator					[10]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l SpuriousException	; Spurious exception				[11]
+		dc.l IRQLevel			; IRQ level 1						[12]
+		dc.l IRQLevel			; IRQ level 2						[12]
+		dc.l IRQLevel			; IRQ level 3 						[12]
+		dc.l VDP_HBlank			; IRQ level 4 (horizontal retrace)
+		dc.l IRQLevel			; IRQ level 5						[12]
+		dc.l VDP_VBlank			; IRQ level 6 (vertical retrace)
+		dc.l IRQLevel			; IRQ level 7						[12]
+		dc.l TRAPException		; TRAP #00 exception				[13]
+		dc.l TRAPException		; TRAP #01 exception				[13]
+		dc.l TRAPException		; TRAP #02 exception				[13]
+		dc.l TRAPException		; TRAP #03 exception				[13]
+		dc.l TRAPException		; TRAP #04 exception				[13]
+		dc.l TRAPException		; TRAP #05 exception				[13]
+		dc.l TRAPException		; TRAP #06 exception				[13]
+		dc.l TRAPException		; TRAP #07 exception				[13]
+		dc.l TRAPException		; TRAP #08 exception				[13]
+		dc.l TRAPException		; TRAP #09 exception				[13]
+		dc.l TRAPException		; TRAP #10 exception				[13]
+		dc.l TRAPException		; TRAP #11 exception				[13]
+		dc.l TRAPException		; TRAP #12 exception				[13]
+		dc.l TRAPException		; TRAP #13 exception				[13]
+		dc.l TRAPException		; TRAP #14 exception				[13]
+		dc.l TRAPException		; TRAP #15 exception				[13]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; Unused (reserved)					[14]
+
+; Mega Drive ROM header (reference: https://plutiedev.com/rom-header)
+		dc.b "                "	; System type (e.g. "SEGA MEGA DRIVE ") - 16 bytes
+		dc.b "(C).... YYYY.MMM"	; Copyright, release year and month (e.g. "(C)SEGA 1991.APR") - 16 bytes
+		dc.b "                                                "	; Domestic name - 48 bytes
+		dc.b "                                                "	; Overseas name - 48 bytes
+		dc.b "GM-12345678-00"		; Serial number ("xx-yyyyyyyy-zz") - 14 bytes
+		dc.w $0000					; 16-bit checksum - 2 bytes
+		dc.b "J               "		; Device support (e.g. "J" for 3-button controller) - 16 bytes
+		dc.l ROM_Start				; Start address of ROM
+		dc.l ROM_End				; End address of ROM
+		dc.l $FF0000				; Start address of WRAM
+		dc.l $FFFFFF 				; End address of WRAM
+		dc.b "                                                                " ; padding for reserved space
+		dc.b "JUE"					; Region support - 16 bytes
+		dc.b "             "		; padding for reserved space (you can put a comment if you want!)
+
+; Error handler jump table
+BusError:
+	move.l	#$AAAAAAA1,d7
+	stop #$2700 ; some emulators might not recognize this instruction
+
+AddressError:
+	move.l	#$AAAAAAA2,d7
+	stop #$2700
+
+IllegalInstruction:
+	move.l	#$AAAAAAA3,d7
+	stop #$2700
+
+DivisionByZero:
+	move.l	#$AAAAAAA4,d7
+	stop #$2700
+
+CHKException:
+	move.l	#$AAAAAAA5,d7
+	stop #$2700
+
+TRAPVException:
+	move.l	#$AAAAAAA6,d7
+	stop #$2700
+
+PrivilegeViolation:
+	move.l	#$AAAAAAA7,d7
+	stop #$2700
+
+TRACEException:
+	move.l	#$AAAAAAA8,d7
+	stop #$2700
+
+LineAEmulator:
+	move.l	#$AAAAAAA9,d7
+	stop #$2700
+
+LineFEmulator:
+	move.l	#$AAAAAA10,d7
+	stop #$2700
+
+SpuriousException:
+	move.l	#$AAAAAA11,d7
+	stop #$2700
+
+IRQLevel:
+	move.l	#$AAAAAA12,d7
+	stop #$2700
+
+TRAPException:
+	move.l	#$AAAAAA13,d7
+	stop #$2700
+
+UnknownError:
+	move.l	#$AAAAAA14,d7
+	stop #$2700
+
+; ==========================
+
+; Vertical interrupt
+VDP_VBlank:
+	rte
+
+; Horizontal interrupt
+VDP_HBlank:
+	rte
+
+; ==========================
+
+EntryPoint:
+	; your code goes here
+
+	; your resources go here (from "Assets" folder)
+ROM_End`,
+
+
+	megaDriveConstants: String.raw
+`; M68K: Motorola 68000 related constant
+; Z80: Z80 related constant
+; JOYx: controller related constant
+; EXP: expansion related constant
+; VDP: VDP memory map related constant
+; VDPREG: VDP register related constant
+; PSG: PSG related constant
+; YM2612: YM2612 related constant
+; REG: miscellaneous Mega Drive register related constant
+; SIZE: size of a memory space
+
+; ---------------------------------
+;		From: Motorola 68000
+; ---------------------------------
+
+; Mega Drive memory spaces
+M68K_WRAM:	equ $FF0000		; 68000 memory start address
+M68K_STACK:	equ $FFFFFF		; 68000 stack
+JOY1_CTRL:	equ $A10009		; Controller 1 control port
+JOY1_DATA:	equ $A10003   	; Controller 1 data port
+JOY2_CTRL:	equ $A10005		; Controller 2 control port
+JOY2_DATA:	equ $A1000B   	; Controller 2 data port
+EXP_CTRL:	equ $A1000D		; Expansion control port
+EXP_DATA:	equ $A10006		; Expansion data port
+
+JOY1_SER_TRAN:	equ $A1000E		; Controller 1 serial transmit
+JOY1_SER_REC:	equ $A10010		; Controller 1 serial receive
+JOY1_SER_CTRL:	equ $A10012		; Controller 1 serial control
+JOY2_SER_TRAN:	equ $A10014		; Controller 2 serial transmit
+JOY2_SER_REC:	equ $A10016		; Controller 2 serial receive
+JOY2_SER_CTRL:	equ $A10018		; Controller 2 serial control
+EXP_SER_TRAN:	equ $A1001A		; Expansion serial transmit
+EXP_SER_REC:	equ $A1001C		; Expansion serial receive
+EXP_SER_CTRL:	equ $A1001E		; Expansion serial control
+
+REG_SRAM:		equ $A130F1		; SRAM access register
+
+REG_VERSION:	equ $A10001		; Version register
+REG_MEMORYMODE:	equ $A11000		; Memory mode register
+
+REG_TMSS:		equ $A14000		; TMSS "SEGA" register
+REG_TMSS_CART:	equ $A14101		; TMSS cartridge register
+
+REG_TIME:	equ $A13000		; TIME signal to cartridge ($00-$FF)
+REG_32X		equ $A130EC		; Becomes "MARS" when a 32X is attached
+
+; VDP memory addresses
+VDP_DATA:    	equ $C00000		; VDP data port
+VDP_CTRL:    	equ $C00004		; VDP control port and Status Register
+VDP_HVCOUNTER:  equ $C00008		; H/V counter
+
+VDP_VRAM:	equ	$40000000	; Video memory address control port
+VDP_VSRAM:	equ $40000010	; Vertical scroll memory address control port
+VDP_CRAM: 	equ $C0000000	; Color memory address control port
+
+VDP_VRAM_DMA:   equ $40000080	; DMA VRAM control port
+VDP_VSRAM_DMA:  equ $40000090	; DMA VSRAM control port
+VDP_CRAM_DMA:   equ $C0000080	; DMA CRAM control port
+
+PSG_OUT:	equ $C00011		; PSG output (or input)
+
+VDP_DEBUG:	equ $C0001C		; Debug register
+
+; VDP registers
+VDPREG_MODE1:     equ $8000  ; Mode register #1
+VDPREG_MODE2:     equ $8100  ; Mode register #2
+VDPREG_MODE3:     equ $8B00  ; Mode register #3
+VDPREG_MODE4:     equ $8C00  ; Mode register #4
+
+VDPREG_PLANEA:    equ $8200  ; Plane A table address
+VDPREG_PLANEB:    equ $8400  ; Plane B table address
+VDPREG_SPRITE:    equ $8500  ; Sprite table address
+VDPREG_WINDOW:    equ $8300  ; Window table address
+VDPREG_HSCROLL:   equ $8D00  ; HScroll table address
+
+VDPREG_SIZE:      equ $9000  ; Plane A and B size
+VDPREG_WINX:      equ $9100  ; Window X split position
+VDPREG_WINY:      equ $9200  ; Window Y split position
+VDPREG_INCR:      equ $8F00  ; Autoincrement
+VDPREG_BGCOL:     equ $8700  ; Background color
+VDPREG_HRATE:     equ $8A00  ; HBlank interrupt rate
+
+VDPREG_DMALEN_L:  equ $9300  ; DMA length (low)
+VDPREG_DMALEN_H:  equ $9400  ; DMA length (high)
+VDPREG_DMASRC_L:  equ $9500  ; DMA source (low)
+VDPREG_DMASRC_M:  equ $9600  ; DMA source (mid)
+VDPREG_DMASRC_H:  equ $9700  ; DMA source (high)
+
+; VRAM management (you can change these)
+VRAM_PLANEA:	equ $E000	; Plane A name table address
+VRAM_PLANEB:	equ $FFFF	; Plane B name table address
+VRAM_SPRITE:	equ $FFFF	; Sprite name table address
+VRAM_WINDOW:	equ $FFFF	; Window plane name table address
+VRAM_HSCROLL:	equ $FFFF	; Plane x coordinate
+
+; Z80 control from 68000
+Z80_WRAM:	equ $A00000  ; Z80 RAM start
+Z80_BUSREQ:	equ $A11100  ; Z80 bus request line
+Z80_RESET:	equ $A11200  ; Z80 reset line
+
+; YM2612 memory addresses from 68000
+YM2612_68K_CTRL0:	equ $A04000		; YM2612 bank 0 control port from 68000
+YM2612_68K_DATA0:	equ $A04001		; YM2612 bank 0 data port from 68000
+YM2612_68K_CTRL1:	equ $A04002		; YM2612 bank 1 control port from 68000
+YM2612_68K_DATA1:	equ $A04003		; YM2612 bank 1 data port from 68000
+
+; ----------------------------
+;		From: Zilog Z80
+; ----------------------------
+
+; Z80 side addresses
+Z80_STACK:	equ $2000
+
+; YM2612 memory addresses from Z80
+YM2612_CTRL0:	equ $4000		; YM2612 bank 0 control port
+YM2612_DATA0:	equ $4001		; YM2612 bank 0 data port
+YM2612_CTRL1:	equ $4002		; YM2612 bank 1 control port
+YM2612_DATA1:	equ $4003		; YM2612 bank 1 data port
+
+
+; --------------------------
+;		Generic Labels
+; --------------------------
+
+; Various memory space sizes in bytes
+SIZE_WRAM: 		equ 64000	; 68000 RAM size (64 KB)
+SIZE_VRAM:		equ 64000	; VDP VRAM size (64 KB)
+SIZE_VSRAM:		equ 80		; VDP vertical scroll RAM size (80 bytes)
+SIZE_CRAM:		equ 128		; VDP color RAM size (128 bytes, 64 colors)
+SIZE_Z80WRAM:	equ 8000	; Z80 RAM size (8 KB)
+
+; VDP name table addresses
+NOFLIP: equ $0000  ; Don't flip (default)
+HFLIP:  equ $0800  ; Flip horizontally
+VFLIP:  equ $1000  ; Flip vertically
+HVFLIP: equ $1800  ; Flip both ways (180° flip)
+
+PAL0:   equ $0000  ; Use palette 0 (default)
+PAL1:   equ $2000  ; Use palette 1
+PAL2:   equ $4000  ; Use palette 2
+PAL3:   equ $6000  ; Use palette 3
+
+LOPRI:  equ $0000  ; Low priority (default)
+HIPRI:  equ $8000  ; High priority
+
+; Controller labels
+JOY_C:	equ 5
+JOY_B:	equ 4
+JOY_R:	equ 3
+JOY_L:	equ 2
+JOY_D:	equ 1
+JOY_U:	equ 0
+
+; YM2612 labels
+LFO_ENABLE:		equ $22		; Enable Low Frequency Oscillator
+TIMER_A_H:		equ $24		; Timer A frequency (high)
+TIMER_A_L:		equ $25		; Timer A frequency (low)
+TIMER_B:		equ $26		; Timer B frequency
+CH3_TIMERCTRL:	equ $27		; Channel 3 Mode and Timer control
+KEY_ON_OFF:		equ $28		; Key-on and Key-off
+DAC_OUT:		equ $2A		; DAC output (or input)
+DAC_ENABLE:		equ $2B		; DAC enable
+
+CH1_4_OP1_MUL_DT:	equ $30		; Channel 1/4 operator 1 Multiply and Detune
+CH1_4_OP2_MUL_DT:	equ $38		; Channel 1/4 operator 2 Multiply and Detune
+CH1_4_OP3_MUL_DT:	equ $34		; Channel 1/4 operator 3 Multiply and Detune
+CH1_4_OP4_MUL_DT:	equ $3C		; Channel 1/4 operator 4 Multiply and Detune
+
+CH2_5_OP1_MUL_DT:	equ $31		; Channel 2/5 operator 1 Multiply and Detune
+CH2_5_OP2_MUL_DT:	equ $39		; Channel 2/5 operator 2 Multiply and Detune
+CH2_5_OP3_MUL_DT:	equ $35		; Channel 2/5 operator 3 Multiply and Detune
+CH2_5_OP4_MUL_DT:	equ $3D		; Channel 2/5 operator 4 Multiply and Detune
+
+CH3_6_OP1_MUL_DT:	equ $32		; Channel 3/6 operator 1 Multiply and Detune
+CH3_6_OP2_MUL_DT:	equ $3A		; Channel 3/6 operator 2 Multiply and Detune
+CH3_6_OP3_MUL_DT:	equ $36		; Channel 3/6 operator 3 Multiply and Detune
+CH3_6_OP4_MUL_DT:	equ $3E		; Channel 3/6 operator 4 Multiply and Detune
+
+CH1_4_OP1_TL:	equ $40		; Channel 1/4 operator 1 Total Level
+CH1_4_OP2_TL:	equ $48		; Channel 1/4 operator 2 Total Level
+CH1_4_OP3_TL:	equ $44		; Channel 1/4 operator 3 Total Level
+CH1_4_OP4_TL:	equ $4C		; Channel 1/4 operator 4 Total Level
+
+CH2_5_OP1_TL:	equ $41		; Channel 2/5 operator 1 Total Level
+CH2_5_OP2_TL:	equ $49		; Channel 2/5 operator 2 Total Level
+CH2_5_OP3_TL:	equ $45		; Channel 2/5 operator 3 Total Level
+CH2_5_OP4_TL:	equ $4D		; Channel 2/5 operator 4 Total Level
+
+CH3_6_OP1_TL:	equ $42		; Channel 3/6 operator 1 Total Level
+CH3_6_OP2_TL:	equ $4A		; Channel 3/6 operator 2 Total Level
+CH3_6_OP3_TL:	equ $46		; Channel 3/6 operator 3 Total Level
+CH3_6_OP4_TL:	equ $4E		; Channel 3/6 operator 4 Total Level
+
+CH1_4_OP1_AR_RS:	equ $50		; Channel 1/4 operator 1 Attack Rate and Rate Scaling
+CH1_4_OP2_AR_RS:	equ $58		; Channel 1/4 operator 2 Attack Rate and Rate Scaling
+CH1_4_OP3_AR_RS:	equ $54		; Channel 1/4 operator 3 Attack Rate and Rate Scaling
+CH1_4_OP4_AR_RS:	equ $5C		; Channel 1/4 operator 4 Attack Rate and Rate Scaling
+
+CH2_5_OP1_AR_RS:	equ $51		; Channel 2/5 operator 1 Attack Rate and Rate Scaling
+CH2_5_OP2_AR_RS:	equ $59		; Channel 2/5 operator 2 Attack Rate and Rate Scaling
+CH2_5_OP3_AR_RS:	equ $55		; Channel 2/5 operator 3 Attack Rate and Rate Scaling
+CH2_5_OP4_AR_RS:	equ $5D		; Channel 2/5 operator 4 Attack Rate and Rate Scaling
+
+CH3_6_OP1_AR_RS:	equ $52		; Channel 3/6 operator 1 Attack Rate and Rate Scaling
+CH3_6_OP2_AR_RS:	equ $5A		; Channel 3/6 operator 2 Attack Rate and Rate Scaling
+CH3_6_OP3_AR_RS:	equ $56		; Channel 3/6 operator 3 Attack Rate and Rate Scaling
+CH3_6_OP4_AR_RS:	equ $5E		; Channel 3/6 operator 4 Attack Rate and Rate Scaling
+
+CH1_4_OP1_DR_AM:	equ $60		; Channel 1/4 operator 1 Decay Rate and Amplitude Modulation enable
+CH1_4_OP2_DR_AM:	equ $68		; Channel 1/4 operator 2 Decay Rate and Amplitude Modulation enable
+CH1_4_OP3_DR_AM:	equ $64		; Channel 1/4 operator 3 Decay Rate and Amplitude Modulation enable
+CH1_4_OP4_DR_AM:	equ $6C		; Channel 1/4 operator 4 Decay Rate and Amplitude Modulation enable
+
+CH2_5_OP1_DR_AM:	equ $61		; Channel 2/5 operator 1 Decay Rate and Amplitude Modulation enable
+CH2_5_OP2_DR_AM:	equ $69		; Channel 2/5 operator 2 Decay Rate and Amplitude Modulation enable
+CH2_5_OP3_DR_AM:	equ $65		; Channel 2/5 operator 3 Decay Rate and Amplitude Modulation enable
+CH2_5_OP4_DR_AM:	equ $6D		; Channel 2/5 operator 4 Decay Rate and Amplitude Modulation enable
+
+CH3_6_OP1_DR_AM:	equ $62		; Channel 3/6 operator 1 Decay Rate and Amplitude Modulation enable
+CH3_6_OP2_DR_AM:	equ $6A		; Channel 3/6 operator 2 Decay Rate and Amplitude Modulation enable
+CH3_6_OP3_DR_AM:	equ $66		; Channel 3/6 operator 3 Decay Rate and Amplitude Modulation enable
+CH3_6_OP4_DR_AM:	equ $6E		; Channel 3/6 operator 4 Decay Rate and Amplitude Modulation enable
+
+CH1_4_OP1_SR:	equ $70		; Channel 1/4 operator 1 Sustain Rate
+CH1_4_OP2_SR:	equ $78		; Channel 1/4 operator 2 Sustain Rate
+CH1_4_OP3_SR:	equ $74		; Channel 1/4 operator 3 Sustain Rate
+CH1_4_OP4_SR:	equ $7C		; Channel 1/4 operator 4 Sustain Rate
+
+CH2_5_OP1_SR:	equ $71		; Channel 2/5 operator 1 Sustain Rate
+CH2_5_OP2_SR:	equ $79		; Channel 2/5 operator 2 Sustain Rate
+CH2_5_OP3_SR:	equ $75		; Channel 2/5 operator 3 Sustain Rate
+CH2_5_OP4_SR:	equ $7D		; Channel 2/5 operator 4 Sustain Rate
+
+CH3_6_OP1_SR:	equ $72		; Channel 3/6 operator 1 Sustain Rate
+CH3_6_OP2_SR:	equ $7A		; Channel 3/6 operator 2 Sustain Rate
+CH3_6_OP3_SR:	equ $76		; Channel 3/6 operator 3 Sustain Rate
+CH3_6_OP4_SR:	equ $7E		; Channel 3/6 operator 4 Sustain Rate
+
+CH1_4_OP1_RR_SL:	equ $80		; Channel 1/4 operator 1 Release Rate and Sustain Level
+CH1_4_OP2_RR_SL:	equ $88		; Channel 1/4 operator 2 Release Rate and Sustain Level
+CH1_4_OP3_RR_SL:	equ $84		; Channel 1/4 operator 3 Release Rate and Sustain Level
+CH1_4_OP4_RR_SL:	equ $8C		; Channel 1/4 operator 4 Release Rate and Sustain Level
+
+CH2_5_OP1_RR_SL:	equ $81		; Channel 2/5 operator 1 Release Rate and Sustain Level
+CH2_5_OP2_RR_SL:	equ $89		; Channel 2/5 operator 2 Release Rate and Sustain Level
+CH2_5_OP3_RR_SL:	equ $85		; Channel 2/5 operator 3 Release Rate and Sustain Level
+CH2_5_OP4_RR_SL:	equ $8D		; Channel 2/5 operator 4 Release Rate and Sustain Level
+
+CH3_6_OP1_RR_SL:	equ $82		; Channel 3/6 operator 1 Release Rate and Sustain Level
+CH3_6_OP2_RR_SL:	equ $8A		; Channel 3/6 operator 2 Release Rate and Sustain Level
+CH3_6_OP3_RR_SL:	equ $86		; Channel 3/6 operator 3 Release Rate and Sustain Level
+CH3_6_OP4_RR_SL:	equ $8E		; Channel 3/6 operator 4 Release Rate and Sustain Level
+
+CH1_4_OP1_SSG_EG:	equ $90		; Channel 1/4 operator 1 envelope shape
+CH1_4_OP2_SSG_EG:	equ $98		; Channel 1/4 operator 2 envelope shape
+CH1_4_OP3_SSG_EG:	equ $94		; Channel 1/4 operator 3 envelope shape
+CH1_4_OP4_SSG_EG:	equ $9C		; Channel 1/4 operator 4 envelope shape
+
+CH2_5_OP1_SSG_EG:	equ $91		; Channel 2/5 operator 1 envelope shape
+CH2_5_OP2_SSG_EG:	equ $99		; Channel 2/5 operator 2 envelope shape
+CH2_5_OP3_SSG_EG:	equ $95		; Channel 2/5 operator 3 envelope shape
+CH2_5_OP4_SSG_EG:	equ $9D		; Channel 2/5 operator 4 envelope shape
+
+CH3_6_OP1_SSG_EG:	equ $92		; Channel 3/6 operator 1 envelope shape
+CH3_6_OP2_SSG_EG:	equ $9A		; Channel 3/6 operator 2 envelope shape
+CH3_6_OP3_SSG_EG:	equ $96		; Channel 3/6 operator 3 envelope shape
+CH3_6_OP4_SSG_EG:	equ $9E		; Channel 3/6 operator 4 envelope shape
+
+CH1_4_FREQ_H:	equ $A4		; Channel 1/4 frequency (high)
+CH2_5_FREQ_H:	equ $A5		; Channel 2/5 frequency (high)
+CH3_6_FREQ_H:	equ $A6		; Channel 3/6 frequency (high)
+
+CH1_4_FREQ_L:	equ $A0		; Channel 1/4 frequency (low)
+CH2_5_FREQ_L:	equ $A1		; Channel 2/5 frequency (low)
+CH3_6_FREQ_L:	equ $A2		; Channel 3/6 frequency (low)
+
+CH3_OP1_FREQ_H:		equ $AD		; Channel 3 operator 1 frequency (high)
+CH3_OP2_FREQ_H:		equ $AE		; Channel 3 operator 2 frequency (high)
+CH3_OP3_FREQ_H:		equ $AC		; Channel 3 operator 3 frequency (high)
+CH3_OP4_FREQ_H:		equ $A6		; Channel 3 operator 4 frequency (high)
+
+CH3_OP1_FREQ_L:		equ $A9		; Channel 3 operator 1 frequency (low)
+CH3_OP2_FREQ_L:		equ $AA		; Channel 3 operator 2 frequency (low)
+CH3_OP3_FREQ_L:		equ $A8		; Channel 3 operator 3 frequency (low)
+CH3_OP4_FREQ_L:		equ $A2		; Channel 3 operator 4 frequency (low)
+
+CH1_4_ALG_FB:	equ $B0		; Channel 1/4 Algorithm and Feedback
+CH2_5_ALG_FB:	equ $B1		; Channel 2/5 Algorithm and Feedback
+CH3_6_ALG_FB:	equ $B2		; Channel 3/6 Algorithm and Feedback
+
+CH1_4_PAN_PMS_AMS:	equ $B4		; Channel 1/4 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
+CH2_5_PAN_PMS_AMS:	equ $B5		; Channel 2/5 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
+CH3_6_PAN_PMS_AMS:	equ $B6		; Channel 3/6 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity`,
+
+	megaDriveVariables: String.raw
+`; --------------------------
+;		Motorola 68000
+; --------------------------
+
+	org M68K_WRAM
+
+; your 68000 variables go here
+
+; ----------------------
+;		Zilog Z80
+; ----------------------
+
+	org $1000	; away from code and stack
+
+; your Z80 variables go here
+`
+};

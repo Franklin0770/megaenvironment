@@ -79,8 +79,16 @@
         "category": "Debug"
       },
 	  {
+		"command": "megaenvironment.new_project",
+		"title": "Create New Project"
+	  },
+	  {
 		"command": "megaenvironment.redownload_tools",
 		"title": "Re-download The Assembler"
+	  },
+	  {
+		"command": "megaenvironment.generate_configuration",
+		"title": "Generate configuration file for Run and Debug"
 	  }
     ],
     "configuration": {
@@ -179,12 +187,7 @@
         },
         "megaenvironment.sourceCodeControl.generateDebugFile": {
           "type": "string",
-          "enum": [
-            "None",
-            "MAP",
-            "NoICE",
-            "Atmel"
-          ],
+          "enum": [ "None", "MAP", "NoICE", "Atmel" ],
           "enumDescriptions": [
             "Choose not to generate any debug files.",
             "AS-specific MAP format. The information format is comprised of a symbol table and a table describing the assignment of source lines to machine addresses.",
@@ -213,17 +216,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              ".gen",
-              ".pre",
-              ".lst",
-              ".log",
-              ".map",
-              ".noi",
-              ".obj",
-              ".mac",
-              ".i"
-            ],
+            "enum": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
             "enumDescriptions": [
               "Latest ROMs.",
               "Any previous ROM.",
@@ -236,27 +229,13 @@
               "Source listing files."
             ]
           },
-          "default": [
-            ".gen",
-            ".pre",
-            ".lst",
-            ".log",
-            ".map",
-            ".noi",
-            ".obj",
-            ".mac",
-            ".i"
-          ],
+          "default": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
           "description": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do NOT rename your code with these extensions for any reason, or else."
         },
         "megaenvironment.sourceCodeControl.currentWorkingFolders": {
           "type": "array",
-          "default": [
-            "."
-          ],
-          "items": {
-            "type": "string"
-          },
+          "default": [ "." ],
+          "items": { "type": "string" },
           "description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
         },
         "megaenvironment.backupOptions.includeBackupDate": {
@@ -345,6 +324,60 @@
 		}
       }
     },
+	"menus": {
+	  "editor/title": [
+		{
+		  "command": "megaenvironment.assemble",
+		  "group": "navigation"
+	    },
+	    {
+		  "command": "megaenvironment.clean_assemble",
+		  "group": "navigation"
+	    }
+	  ],
+	  "editor/title/run": [
+	    {
+		  "command": "megaenvironment.assemble_run_blastem",
+		  "group": "navigation"
+		},
+		{
+		  "command": "megaenvironment.assemble_run_regen",
+		  "group": "navigation"
+		},
+		{
+		  "command": "megaenvironment.assemble_run_clownmdemu",
+		  "group": "navigation"
+		},
+		{
+		  "command": "megaenvironment.assemble_run_openemu",
+		  "group": "navigation"
+		}
+      ],
+	  "explorer/context": [
+		{
+  		  "command": "megaenvironment.cleanup",
+  		  "group": "navigation"
+		},
+		{
+		  "command": "megaenvironment.backup",
+		  "group": "navigation"
+		}
+	  ],
+	  "file/newFile": [
+		{
+		  "command": "megaenvironment.new_project",
+		  "group": "navigation"
+		}
+	  ]
+    },
+	"views": {
+	  "explorer": [
+		{
+		  "id": "run_emulator",
+		  "name": "Run lastest ROM"
+		}
+	  ]
+	},
     "languages": [
       {
         "id": "m68k-as",
