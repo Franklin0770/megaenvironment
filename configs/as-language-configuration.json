@@ -1,7 +1,4 @@
 {
-	"comments": {
-		"lineComment": ";"
-	},
 	"brackets": [
 		["(",")"]
 	],
@@ -20,7 +17,7 @@
 	"onEnterRules": [
 		{
 			"beforeText": "^\\s*(?i:rept|irpc?)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "endm" }
+			"action": { "indent": "indentOutdent", "appendText": "\n\tendm" }
 		},
 		{
 			"beforeText": "^\\s*\\w+:?\\s*(?i:macro)\\b.*$",
@@ -28,15 +25,15 @@
 		},
 		{
 			"beforeText": "^\\s*(?i:if|ifn?def|ifn?symexist|ifn?used|ifn?exist|ifn?b)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "endif" }
+			"action": { "indent": "indentOutdent", "appendText": "\n\tendif" }
 		},
 		{
 			"beforeText": "^\\s*(?i:struct)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "endstruct" }
+			"action": { "indent": "indentOutdent", "appendText": "\n\tendstruct" }
 		},
 		{
 			"beforeText": "^\\s*(?i:switch)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "endcase" }
+			"action": { "indent": "indentOutdent", "appendText": "\n\tendcase" }
 		},
 		{
 			"beforeText": "^\\s*(?i:case)\\b.*$",
@@ -48,15 +45,15 @@
 		},
 		{
 			"beforeText": "^\\s*(?i:section)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "endsection" }
+			"action": { "indent": "indentOutdent", "appendText": "\n\tendsection" }
     	},
 		{
 			"beforeText": "^\\s*(?i:expect)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "endexpect" }
+			"action": { "indent": "indentOutdent", "appendText": "\n\tendexpect" }
 		},
 		{
 			"beforeText": "^\\s*(?i:phase)\\b",
-			"action": { "indent": "indentOutdent", "appendText": "dephase" }
+			"action": { "indent": "indentOutdent", "appendText": "\n\tdephase" }
     	}
 	]
 }

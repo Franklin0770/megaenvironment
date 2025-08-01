@@ -2,6 +2,7 @@
 /*
 TODOS:
 - Maybe some MORE asyncing;
+- Fix sonicDisassemblySupport config switch when it couldn't update the assembler
 - Maybe some classes for encapsulation.
 */
 var __importDefault = (this && this.__importDefault) || function (mod) {
@@ -90,15 +91,19 @@ const settingDescriptors = [
     { key: 'miscellaneous.verboseOperation', target: 'verboseOperation' },
     { key: 'miscellaneous.warningsAsErrors', target: 'warningsAsErrors' }
 ];
+// Global variables that get assigned during activation
 let assemblerFolder;
 let assemblerPath;
 let compilerPath;
-let isDownloading;
+let isDownloading; // Gets assigned in "downloadAssembler()"
 let firstActivation = true;
 const outputChannel = vscode_1.window.createOutputChannel('The Macroassembler AS');
 async function downloadAssembler() {
     isDownloading = true;
-    return await vscode_1.window.withProgress({
+    // A progress indicator that shows in the Status Bar at the bottom
+    // Every report there's an increment value. If it adds up to 100 the indicator will disappear
+    // Returns 0 if there are no errors, 1 if there's an error but execution can continue, 2 if there's an error and execution can't continue
+    const exitCode = await vscode_1.window.withProgress({
         location: vscode_1.ProgressLocation.Window,
         title: !extensionSettings.sonicDisassembly ? "Original assembler" : "Sonic's assembler",
         cancellable: true
@@ -110,7 +115,7 @@ async function downloadAssembler() {
                     downloadAssembler();
                 }
             });
-            return false;
+            return 2;
         });
         progress.report({ message: 'checking your platform...', increment: 0 });
         let zipName;
@@ -136,7 +141,7 @@ async function downloadAssembler() {
                 break;
             default:
                 vscode_1.window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
-                return false;
+                return 2;
         }
         zipName += '.zip';
         progress.report({ message: 'requesting your assembler version...', increment: 10 });
@@ -145,13 +150,13 @@ async function downloadAssembler() {
         try {
             response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
         }
-        catch {
+        catch (error) {
             if ((0, fs_1.existsSync)(assemblerPath) && (0, fs_1.existsSync)(compilerPath)) {
-                vscode_1.window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with what we have.");
-                return true;
+                vscode_1.window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error);
+                return 1;
             }
-            vscode_1.window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection.");
-            return false;
+            vscode_1.window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. " + error);
+            return 2;
         }
         if (!response.ok || !response.body) {
             if (response.status === 404) { // The classic "not found"
@@ -162,7 +167,7 @@ async function downloadAssembler() {
                             throw new Error('[Not implemented yet]');
                         }
                     });
-                    return true;
+                    return 1;
                 }
                 vscode_1.window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
                     .then(selection => {
@@ -170,15 +175,16 @@ async function downloadAssembler() {
                         throw new Error('[Not implemented yet]');
                     }
                 });
-                return false;
+                return 2;
             }
+            // We need some additional management here
             vscode_1.window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
             (0, fs_1.unlink)(zipName, (error) => {
-                if (error?.code !== 'ENOENT') {
-                    vscode_1.window.showWarningMessage("Couldn't remove the temporary ZIP file.");
+                if (error) {
+                    vscode_1.window.showWarningMessage("Couldn't remove the temporary ZIP file. " + error.message);
                 }
             });
-            return false;
+            return 2;
         }
         progress.report({ message: 'downloading ZIP...', increment: 20 });
         if (!(0, fs_1.existsSync)(assemblerFolder)) {
@@ -186,11 +192,14 @@ async function downloadAssembler() {
         }
         process.chdir(assemblerFolder);
         const fileStream = (0, fs_1.createWriteStream)(zipName);
-        const success = await new Promise((resolve) => {
+        const exitCode = await new Promise((resolve) => {
             let retries = 1;
             const retry = () => {
                 (0, stream_1.pipeline)(response.body, fileStream, (error) => {
-                    if (error) {
+                    if (!error) {
+                        resolve(0);
+                    }
+                    else {
                         if (retries <= 3) {
                             progress.report({ message: `downloading ZIP... (take number ${retries})`, increment: 0 });
                             retries--;
@@ -198,24 +207,21 @@ async function downloadAssembler() {
                         }
                         else {
                             if ((0, fs_1.existsSync)(assemblerPath) && (0, fs_1.existsSync)(compilerPath)) {
-                                vscode_1.window.showWarningMessage('Even though it turned out to be impossible to download the assembler, we still have the previous version we can use!');
-                                resolve(true);
+                                vscode_1.window.showWarningMessage('Even though it turned out to be impossible to download the assembler, we still have the previous version we can use! ' + error.message);
+                                resolve(1);
                             }
                             else {
-                                vscode_1.window.showErrorMessage('After multiple tries, it turned out to be impossible to download the assembler. Make sure you have a fast enough Internet connection.');
-                                resolve(false);
+                                vscode_1.window.showErrorMessage('After multiple tries, it turned out to be impossible to download the assembler. Make sure you have a fast enough Internet connection. ' + error.message);
+                                resolve(2);
                             }
                         }
-                    }
-                    else {
-                        resolve(true);
                     }
                 });
             };
             retry(); // This is where it starts
         });
-        if (!success) {
-            return false;
+        if (exitCode !== 0) {
+            return exitCode;
         }
         progress.report({ message: 'extracting ZIP...', increment: 50 });
         let zip;
@@ -230,7 +236,7 @@ async function downloadAssembler() {
                         throw new Error('[Not implemented yet]');
                     }
                 });
-                return true;
+                return 1;
             }
             vscode_1.window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
                 .then(selection => {
@@ -238,16 +244,16 @@ async function downloadAssembler() {
                     throw new Error('[Not implemented yet]');
                 }
             });
-            return false;
+            return 2;
         }
         const entries = zip.getEntries();
+        // Manual extraction with file permission assignment if it's a Unix system
         for (const entry of entries) {
             const name = entry.name;
-            // Remove the first folder from the path
             await new Promise((resolve, reject) => {
                 (0, fs_1.writeFile)(name, entry.getData(), (error) => {
                     if (error) {
-                        vscode_1.window.showErrorMessage('Cannot extract the file: ' + name);
+                        vscode_1.window.showErrorMessage(`Cannot extract the file: ${name}. ${error.message}`);
                         reject();
                     }
                     resolve();
@@ -256,32 +262,47 @@ async function downloadAssembler() {
             if (process.platform !== 'win32') {
                 (0, fs_1.chmod)(name, 0o755, (error) => {
                     if (error) {
-                        vscode_1.window.showErrorMessage('Cannot get read and write permissions for this file: ' + name);
+                        vscode_1.window.showErrorMessage(`Cannot get read and write permissions for the file: ${name}. ${error.message}`);
                     }
                 }); // Get permissions (rwx) for Unix-based systems
             }
         }
         progress.report({ message: 'cleaning things up...', increment: 10 });
-        (0, fs_1.readdirSync)('.').forEach(item => {
-            if (item === zipName || !extensionSettings.sonicDisassembly && (item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg')) {
-                (0, fs_1.unlink)(item, (error) => {
-                    if (error) {
-                        vscode_1.window.showWarningMessage('Could not remove the temporary file file located at ' + (0, path_1.join)(assemblerFolder, item));
-                    }
-                });
-            }
+        await new Promise((resolve, reject) => {
+            (0, fs_1.readdir)('.', (error, files) => {
+                if (!error) {
+                    files.forEach(item => {
+                        if (item === zipName || !extensionSettings.sonicDisassembly && (item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg')) {
+                            (0, fs_1.unlink)(item, (error) => {
+                                if (error) {
+                                    vscode_1.window.showWarningMessage(`Could not remove the temporary file located at ${(0, path_1.join)(assemblerFolder, item)}. ${error.message}`);
+                                }
+                                resolve();
+                            });
+                        }
+                    });
+                }
+                else {
+                    vscode_1.window.showErrorMessage('Cannot read the assembler folder to cleanup files. ' + error.message);
+                    reject();
+                }
+            });
         });
-        isDownloading = false;
-        firstActivation = false;
         progress.report({ message: 'done! (This message will almost never be seen...)', increment: 10 });
-        return true;
+        return 0;
     });
+    isDownloading = false;
+    firstActivation = false;
+    return exitCode;
 }
 async function promptEmulatorPath(emulator) {
-    let shouldContinue = true;
+    let success = true;
     const config = vscode_1.workspace.getConfiguration('megaenvironment');
     const key = `paths.${emulator}`;
-    const path = config.get(key, '');
+    const path = config.get(key);
+    if (!path) {
+        return false;
+    }
     if ((0, fs_1.existsSync)(path) && (0, fs_1.statSync)(path).isFile()) {
         return true;
     } // The emulator is already there, no need to ask anything
@@ -307,20 +328,20 @@ async function promptEmulatorPath(emulator) {
                 promptEmulatorPath(emulator);
             }
         });
-        shouldContinue = false;
+        success = false;
     }
-    if (shouldContinue && (0, fs_1.statSync)(input).isDirectory()) { // Gets stuck here if the path doesn't exist
+    if (success && (0, fs_1.statSync)(input).isDirectory()) { // Gets stuck here if the path doesn't exist
         vscode_1.window.showErrorMessage('The path you provided points only to a folder!', 'Retry')
             .then((selection) => {
             if (selection === 'Retry') {
                 promptEmulatorPath(emulator);
             }
         });
-        shouldContinue = false;
+        success = false;
     }
     await config.update(key, input, true // true = global setting
     );
-    return shouldContinue;
+    return success;
 }
 async function assemblerChecks() {
     const projectFolders = vscode_1.workspace.workspaceFolders;
@@ -495,22 +516,37 @@ async function assembleROM() {
     }
     const projectFolder = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
     process.chdir(projectFolder);
-    const files = (0, fs_1.readdirSync)('.'); // Reads all files and folders and put them into a string array
+    let items; // The function exits if "items" isn't assigned, so it's fine to put "!"
+    const success = await new Promise((resolve) => {
+        (0, fs_1.readdir)('.', (error, files) => {
+            if (!error) {
+                items = files;
+                resolve(true);
+            }
+            else {
+                vscode_1.window.showErrorMessage('Cannot read your project folder to check for previous ROMs. ' + error.message);
+                resolve(false);
+            }
+        });
+    });
+    if (!success) {
+        return;
+    }
     // Checks if there are any files that have the .gen extension. If so, it gets renamed with .pre and a number
-    for (const checkName of files) {
+    for (const checkName of items) {
         if (!checkName.endsWith('.gen')) {
             continue;
         } // Indentantions are less clean
         if (!extensionSettings.prevRoms) { // We simply replace the lastest ROM if there's no versioning to do
             (0, fs_1.unlink)(checkName, (error) => {
                 if (error) {
-                    vscode_1.window.showErrorMessage('Cannot remove the previous .gen ROM.');
+                    vscode_1.window.showErrorMessage('Cannot remove the previous .gen ROM. ' + error.message);
                 }
             });
             break;
         }
         // Collects all .pre<number> files
-        const preFiles = files
+        const preFiles = items
             .filter(f => /\.pre\d+$/.test(f)) // Get .pre files (test() is to make the match happen)
             .map(f => ({
             name: f,
@@ -530,7 +566,7 @@ async function assembleROM() {
                 }
                 (0, fs_1.unlink)(oldest.name, (error) => {
                     if (error) {
-                        vscode_1.window.showErrorMessage('Unable to remove the oldest previous ROM.');
+                        vscode_1.window.showErrorMessage('Unable to remove the oldest previous ROM. ' + error.message);
                     }
                 });
                 number = oldest.index; // Reuse the index
@@ -540,7 +576,7 @@ async function assembleROM() {
         const newName = checkName.substring(0, checkName.length - 4) + `.pre${number}`;
         (0, fs_1.rename)(checkName, newName, (error) => {
             if (error) {
-                vscode_1.window.showWarningMessage(`Could not rename the previous ROM. Please, manually rename it to "${newName}".`);
+                vscode_1.window.showWarningMessage(`Could not rename the previous ROM. Please, manually rename it to "${newName}". ` + error.message);
             }
             else if (!extensionSettings.quietOperation) {
                 vscode_1.window.showInformationMessage(`Latest build exists. Renamed to "${newName}".`);
@@ -603,7 +639,22 @@ async function findAndRunROM(emulator) {
     }
     const projectFolder = projectFolders[0].uri.fsPath;
     process.chdir(projectFolder);
-    const rom = (0, fs_1.readdirSync)('.').find(file => file.endsWith('.gen'));
+    let rom;
+    const success = await new Promise((resolve) => {
+        (0, fs_1.readdir)('.', (error, files) => {
+            if (!error) {
+                rom = files.find(file => file.endsWith('.gen'));
+                resolve(true);
+            }
+            else {
+                vscode_1.window.showErrorMessage('Cannot read your project folder files to find the latest ROM.' + error.message);
+                resolve(false);
+            }
+        });
+    });
+    if (!success) {
+        return;
+    }
     if (!rom) {
         vscode_1.window.showErrorMessage('There are no ROMs to run. Build something first.');
         return;
@@ -639,11 +690,9 @@ async function runTemporaryROM(emulator) {
         default:
             return;
     }
-    let errorCode = false;
     (0, child_process_1.exec)(`"${vscode_1.workspace.getConfiguration(`megaenvironment`).get(`paths.${emulator}`)}" "${(0, path_1.join)(assemblerFolder, "rom.bin")}"`, (error) => {
         if (error) {
             vscode_1.window.showErrorMessage('Cannot run the build. ' + error.message);
-            errorCode = true;
             return;
         }
         (0, fs_1.unlink)((0, path_1.join)(assemblerFolder, 'rom.bin'), (error) => {
@@ -653,9 +702,6 @@ async function runTemporaryROM(emulator) {
             }
         });
     });
-    if (errorCode) {
-        return;
-    }
     const currentDate = new Date();
     if (!warnings) {
         if (extensionSettings.quietOperation) {
@@ -672,28 +718,49 @@ async function runTemporaryROM(emulator) {
         });
     }
 }
-function cleanProjectFolder() {
+async function cleanProjectFolder() {
     let items = 0;
-    (0, fs_1.readdirSync)('.').forEach((item) => {
-        const shouldDelete = extensionSettings.cleaningExtensions.some((ext) => {
-            if (ext === '.pre') {
-                return /\.pre\d+$/.test(item); // handles .pre0, .pre1, .pre999...
+    await new Promise((resolve, reject) => {
+        (0, fs_1.readdir)('.', (error, files) => {
+            if (!error) {
+                files.forEach((file) => {
+                    const shouldDelete = extensionSettings.cleaningExtensions.some((ext) => {
+                        if (ext === '.pre') {
+                            return /\.pre\d+$/.test(file); // handles .pre0, .pre1, .pre999...
+                        }
+                        return file.endsWith(ext);
+                    });
+                    if (shouldDelete) {
+                        (0, fs_1.unlink)(file, (error) => {
+                            if (error) {
+                                vscode_1.window.showErrorMessage(`The file ${file} was skipped because it couldn't be cleaned up. ` + error.message);
+                            }
+                        });
+                        items++;
+                    }
+                });
+                resolve();
             }
-            return item.endsWith(ext);
+            else {
+                vscode_1.window.showErrorMessage('Cannot read your project folder for cleanup. ' + error.message);
+                reject();
+            }
         });
-        if (shouldDelete) {
-            (0, fs_1.unlink)(item, (error) => {
-                if (error) {
-                    vscode_1.window.showErrorMessage(`The file ${item} was skipped because it couldn't be cleaned up.`);
-                }
-            });
-            items++;
-        }
     });
     if (extensionSettings.quietOperation) {
         return;
     }
-    vscode_1.window.showInformationMessage(`Cleanup completed. ${items} items were removed.`);
+    switch (items) {
+        default:
+            vscode_1.window.showInformationMessage(`Cleanup completed. ${items} items were removed.`);
+            return;
+        case 0:
+            vscode_1.window.showInformationMessage('No items to cleanup this time.');
+            return;
+        case 1:
+            vscode_1.window.showInformationMessage('Cleanup completed. 1 item was removed.');
+            return;
+    }
 }
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
@@ -710,13 +777,11 @@ async function activate(context) {
         extensionSettings[setting.target] = config.get(setting.key);
     }
     extensionSettings.sonicDisassembly = config.get('buildControl.sonicDisassemblySupport', false);
-    if (!downloadAssembler()) {
-        return;
-    }
+    downloadAssembler();
     //
     //	Commands
     //
-    const assemble = vscode_1.commands.registerCommand('megaenvironment.assemble', () => {
+    const assemble = vscode_1.commands.registerCommand('megaenvironment.assemble', async () => {
         assembleROM();
     });
     const clean_and_assemble = vscode_1.commands.registerCommand('megaenvironment.clean_assemble', async () => {
@@ -751,7 +816,7 @@ async function activate(context) {
         }
         findAndRunROM('Regen');
     });
-    const run_ClownMdEmu = vscode_1.commands.registerCommand('megaenvironment.run_clownmdemu', () => {
+    const run_ClownMdEmu = vscode_1.commands.registerCommand('megaenvironment.run_clownmdemu', async () => {
         const platform = process.platform;
         if (platform !== 'win32' && platform !== 'linux') {
             vscode_1.window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
@@ -764,7 +829,7 @@ async function activate(context) {
         }
         findAndRunROM('ClownMDEmu');
     });
-    const run_OpenEmu = vscode_1.commands.registerCommand('megaenvironment.run_openemu', () => {
+    const run_OpenEmu = vscode_1.commands.registerCommand('megaenvironment.run_openemu', async () => {
         if (process.platform !== 'darwin') {
             vscode_1.window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
             return;
@@ -780,28 +845,44 @@ async function activate(context) {
         }
         const projectFolder = projectFolders[0].uri.fsPath;
         process.chdir(projectFolder);
-        const rom = (0, fs_1.readdirSync)('.').find(file => file.endsWith('.gen'));
+        let rom;
+        const success1 = await new Promise((resolve) => {
+            (0, fs_1.readdir)('.', (error, files) => {
+                if (!error) {
+                    rom = files.find(file => file.endsWith('.gen'));
+                    resolve(true);
+                }
+                else {
+                    vscode_1.window.showErrorMessage('Cannot read your project folder files to find the latest ROM.' + error.message);
+                    resolve(false);
+                }
+            });
+        });
+        if (!success1) {
+            return;
+        }
         if (!rom) {
             vscode_1.window.showErrorMessage('There are no ROMs to run. Build something first.');
             return;
         }
-        let errorCode = false;
-        (0, child_process_1.exec)(`open -a OpenEmu "${(0, path_1.join)(projectFolder, rom)}"`, (error) => {
-            if (error) {
-                vscode_1.window.showErrorMessage('Cannot run the latest build. ' + error.message);
-                errorCode = true;
-                return;
-            }
+        const success2 = await new Promise((resolve) => {
+            (0, child_process_1.exec)(`open -a OpenEmu -W "${(0, path_1.join)(projectFolder, rom)}"`, (error) => {
+                if (error) {
+                    vscode_1.window.showErrorMessage('Cannot run the latest build. ' + error.message);
+                    resolve(false);
+                }
+                resolve(true);
+            });
         });
-        if (errorCode || extensionSettings.quietOperation) {
+        if (!success2 || extensionSettings.quietOperation) {
             return;
         }
         vscode_1.window.showInformationMessage(`Running "${rom}" with OpenEmu.`);
     });
-    const assemble_and_run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.assemble_run_blastem', () => {
+    const assemble_and_run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.assemble_run_blastem', async () => {
         runTemporaryROM('BlastEm');
     });
-    const assemble_and_run_Regen = vscode_1.commands.registerCommand('megaenvironment.assemble_run_regen', () => {
+    const assemble_and_run_Regen = vscode_1.commands.registerCommand('megaenvironment.assemble_run_regen', async () => {
         const platform = process.platform;
         if (platform !== 'win32' && platform !== 'linux') {
             vscode_1.window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
@@ -809,7 +890,7 @@ async function activate(context) {
         }
         runTemporaryROM('Regen');
     });
-    const assemble_and_run_ClownMDEmu = vscode_1.commands.registerCommand('megaenvironment.assemble_run_clownmdemu', () => {
+    const assemble_and_run_ClownMDEmu = vscode_1.commands.registerCommand('megaenvironment.assemble_run_clownmdemu', async () => {
         const platform = process.platform;
         if (platform !== 'win32' && platform !== 'linux') {
             vscode_1.window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
@@ -855,20 +936,20 @@ async function activate(context) {
         const minutes = currentDate.getMinutes().toString().padStart(2, '0');
         const seconds = currentDate.getSeconds().toString().padStart(2, '0');
         const romPath = (0, path_1.join)(assemblerFolder, `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`);
-        let shouldContinue = await new Promise((resolve) => {
+        let success = await new Promise((resolve) => {
             (0, fs_1.rename)((0, path_1.join)(assemblerFolder, 'rom.bin'), romPath, (error) => {
                 if (error) {
-                    vscode_1.window.showErrorMessage('Cannot rename the ROM for OpenEmu.');
+                    vscode_1.window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
                     resolve(false);
                 }
                 resolve(true);
             });
         });
-        if (!shouldContinue) {
+        if (!success) {
             return;
         }
         // "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
-        shouldContinue = await new Promise((resolve) => {
+        success = await new Promise((resolve) => {
             (0, child_process_1.exec)(`open -a OpenEmu -W "${romPath}"`, (error) => {
                 if (error) {
                     vscode_1.window.showErrorMessage('Cannot run the build. ' + error.message);
@@ -877,7 +958,7 @@ async function activate(context) {
                 resolve(true);
             });
         });
-        if (!shouldContinue) {
+        if (!success) {
             return;
         }
         (0, fs_1.unlink)((0, path_1.join)(assemblerFolder, 'rom.bin'), (error) => {
@@ -951,35 +1032,48 @@ async function activate(context) {
         else {
             text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
         }
-        try {
-            (0, fs_1.writeFileSync)('temp.txt', new TextEncoder().encode(text));
-        }
-        catch (error) {
-            vscode_1.window.showErrorMessage('Unable to create file for testing. ' + error.message);
+        const success1 = await new Promise((resolve) => {
+            (0, fs_1.writeFile)('temp.txt', new TextEncoder().encode(text), (error) => {
+                if (error) {
+                    vscode_1.window.showErrorMessage('Unable to create file for testing. ' + error.message);
+                    resolve(false);
+                }
+                resolve(true);
+            });
+        });
+        if (!success1) {
             return;
         }
-        let errorCode = false;
+        let success2 = true;
         (0, child_process_1.exec)(`"${vscode_1.workspace.getConfiguration('megaenvironment').get('paths.EASy68k')}" "temp.txt"`, (error) => {
             if (error) {
                 vscode_1.window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
-                errorCode = true;
+                success2 = false;
             }
-            (0, fs_1.readdirSync)(assemblerFolder).forEach((file) => {
-                if (file !== assemblerPath && file !== compilerPath && file !== 'LICENSE.txt') {
-                    (0, fs_1.unlink)(file, (error) => {
-                        if (error) {
-                            vscode_1.window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error.message}`);
+            // After execution, we cleanup the folders by erasing the files generated by EASy68k
+            (0, fs_1.readdir)(assemblerFolder, (error, files) => {
+                if (!error) {
+                    files.forEach((file) => {
+                        if (file !== assemblerPath && file !== compilerPath && file !== 'LICENSE.txt') {
+                            (0, fs_1.unlink)(file, (error) => {
+                                if (error) {
+                                    vscode_1.window.showWarningMessage(`Could not remove "${file}" for cleanup. You may want to do this by yourself. ${error.message}`);
+                                }
+                            });
                         }
                     });
                 }
+                else {
+                    vscode_1.window.showErrorMessage('Cannot read the assembler folder for cleanup. ' + error.message);
+                }
             });
         });
-        if (errorCode || extensionSettings.quietOperation) {
+        if (!success2 || extensionSettings.quietOperation) {
             return;
         }
         vscode_1.window.showInformationMessage('Debugging your current selection with EASy68k.');
     });
-    const backup = vscode_1.commands.registerCommand('megaenvironment.backup', () => {
+    const backup = vscode_1.commands.registerCommand('megaenvironment.backup', async () => {
         const projectFolders = vscode_1.workspace.workspaceFolders;
         if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
@@ -987,7 +1081,22 @@ async function activate(context) {
         }
         process.chdir(projectFolders[0].uri.fsPath); // Change current working folder to the project one
         const zip = new adm_zip_1.default(); // Create zip archive reference
-        const items = (0, fs_1.readdirSync)('.'); // Read all content in the project folder
+        let items;
+        const success = await new Promise((resolve) => {
+            (0, fs_1.readdir)('.', (error, files) => {
+                if (!error) {
+                    items = files;
+                    resolve(true);
+                }
+                else {
+                    vscode_1.window.showErrorMessage('Cannot read your project folder to backup files. ' + error.message);
+                    resolve(false);
+                }
+            });
+        });
+        if (!success) {
+            return;
+        }
         if (!(0, fs_1.existsSync)('Backups')) {
             vscode_1.window.showInformationMessage('No "Backups" folder found. Fixing.');
             (0, fs_1.mkdirSync)('Backups');
@@ -1019,7 +1128,7 @@ async function activate(context) {
         }
         vscode_1.window.showInformationMessage(`${files} files were backed up successfully.`);
     });
-    const cleanup = vscode_1.commands.registerCommand('megaenvironment.cleanup', () => {
+    const cleanup = vscode_1.commands.registerCommand('megaenvironment.cleanup', async () => {
         const projectFolders = vscode_1.workspace.workspaceFolders;
         if (!projectFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
@@ -1039,42 +1148,57 @@ async function activate(context) {
         if (!uri || uri.length === 0) {
             return;
         }
-        const projectPath = uri[0].fsPath;
+        const newPath = uri[0].fsPath;
         const extensions = ['.asm', '.68k', '.s', '.z80', ...extensionSettings.cleaningExtensions];
-        const hasConflictingFiles = (0, fs_1.readdirSync)(projectPath).some(item => extensions.some(ext => item.endsWith(ext)));
+        let hasConflictingFiles;
+        const success = await new Promise((resolve) => {
+            (0, fs_1.readdir)(newPath, (error, files) => {
+                if (!error) {
+                    hasConflictingFiles = files.some(item => extensions.some(ext => item.endsWith(ext)));
+                    resolve(true);
+                }
+                else {
+                    vscode_1.window.showErrorMessage('Cannot read the selected folder to check for existing projects.' + error.message);
+                    resolve(false);
+                }
+            });
+        });
+        if (!success) {
+            return;
+        }
         if (hasConflictingFiles) {
             const selection = await vscode_1.window.showWarningMessage('Looks like this folder already contains a project! If you continue, these files might be replaced. Do you wish to proceed?', 'Sure!', 'No, take me back');
             if (selection !== 'Sure!') {
                 return;
             }
         }
-        (0, fs_1.writeFile)((0, path_1.join)(projectPath, 'Main.asm'), strings.megaDriveHeader, (error) => {
+        (0, fs_1.writeFile)((0, path_1.join)(newPath, 'Main.asm'), strings.megaDriveHeader, (error) => {
             if (error) {
-                vscode_1.window.showErrorMessage('Unable to create the main code source file.');
+                vscode_1.window.showErrorMessage('Unable to create the main code source file. ' + error.message);
                 return;
             }
         });
-        (0, fs_1.writeFile)((0, path_1.join)(projectPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
+        (0, fs_1.writeFile)((0, path_1.join)(newPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
             if (error) {
-                vscode_1.window.showErrorMessage('Unable to create the constants source file.');
+                vscode_1.window.showErrorMessage('Unable to create the constants source file. ' + error.message);
                 return;
             }
         });
-        (0, fs_1.writeFile)((0, path_1.join)(projectPath, 'Variables.asm'), strings.megaDriveVariables, (error) => {
+        (0, fs_1.writeFile)((0, path_1.join)(newPath, 'Variables.asm'), strings.megaDriveVariables, (error) => {
             if (error) {
-                vscode_1.window.showErrorMessage('Unable to create the variables source file.');
+                vscode_1.window.showErrorMessage('Unable to create the variables source file. ' + error.message);
                 return;
             }
         });
-        (0, fs_1.mkdirSync)((0, path_1.join)(projectPath, 'Assets'), { recursive: true });
-        (0, fs_1.mkdirSync)((0, path_1.join)(projectPath, '.vscode'), { recursive: true });
-        (0, fs_1.writeFile)((0, path_1.join)(projectPath, '.vscode', 'settings.json'), strings.workspaceSettings, (error) => {
+        (0, fs_1.mkdirSync)((0, path_1.join)(newPath, 'Assets'), { recursive: true });
+        (0, fs_1.mkdirSync)((0, path_1.join)(newPath, '.vscode'), { recursive: true });
+        (0, fs_1.writeFile)((0, path_1.join)(newPath, '.vscode', 'settings.json'), strings.workspaceSettings, (error) => {
             if (error) {
-                vscode_1.window.showErrorMessage('Unable to create the workspace settings file.');
+                vscode_1.window.showErrorMessage('Unable to create the workspace settings file. ' + error.message);
                 return;
             }
         });
-        vscode_1.commands.executeCommand('vscode.openFolder', vscode_1.Uri.file(projectPath), true);
+        vscode_1.commands.executeCommand('vscode.openFolder', vscode_1.Uri.file(newPath), true);
     });
     const redownloadTools = vscode_1.commands.registerCommand('megaenvironment.redownload_tools', async () => {
         if (isDownloading && !firstActivation) {
@@ -1088,7 +1212,9 @@ async function activate(context) {
         if (firstActivation) {
             return;
         }
-        await downloadAssembler();
+        if (await downloadAssembler() !== 0) {
+            return;
+        }
         if (extensionSettings.quietOperation) {
             return;
         }
@@ -1105,9 +1231,9 @@ async function activate(context) {
         if (!(0, fs_1.existsSync)(vscodeFolder)) {
             (0, fs_1.mkdirSync)(projectFolder);
         }
-        let shouldContinue = true;
+        let success = true;
         if ((0, fs_1.existsSync)((0, path_1.join)(vscodeFolder, 'launch.json'))) {
-            shouldContinue = await new Promise((resolve) => {
+            success = await new Promise((resolve) => {
                 vscode_1.window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to overwrite it?', 'Yes', 'No')
                     .then((selection) => {
                     if (selection === 'Yes') {
@@ -1119,10 +1245,14 @@ async function activate(context) {
                 });
             });
         }
-        if (!shouldContinue) {
+        if (!success) {
             return;
         }
-        (0, fs_1.writeFileSync)((0, path_1.join)(vscodeFolder, 'launch.json'), strings.launchJson);
+        (0, fs_1.writeFile)((0, path_1.join)(vscodeFolder, 'launch.json'), strings.launchJson, (error) => {
+            if (error) {
+                vscode_1.window.showErrorMessage('Cannot create the "launch.json" file for custom settings. You need to set the main file name to "Main.asm" and a current working folder to "Assets". ' + error.message);
+            }
+        });
     });
     vscode_1.window.registerTreeDataProvider('run_emulator', new ButtonProvider());
     // Hacky way to get a somewhat-debugger integrated into VS Code
@@ -1134,7 +1264,7 @@ async function activate(context) {
     });
     context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
 }
-vscode_1.workspace.onDidChangeConfiguration((event) => {
+vscode_1.workspace.onDidChangeConfiguration(async (event) => {
     if (event.affectsConfiguration('megaenvironment')) {
         const config = vscode_1.workspace.getConfiguration('megaenvironment');
         for (const setting of settingDescriptors) {
@@ -1148,7 +1278,10 @@ vscode_1.workspace.onDidChangeConfiguration((event) => {
             if (!extensionSettings.quietOperation) {
                 vscode_1.window.showInformationMessage('Swapping versions...');
             }
-            downloadAssembler();
+            if (await downloadAssembler() !== 0) {
+                extensionSettings.sonicDisassembly = !extensionSettings.sonicDisassembly;
+                config.update('buildControl.sonicDisassemblySupport', extensionSettings.sonicDisassembly, true);
+            }
         }
     }
 });
@@ -1195,9 +1328,7 @@ class ButtonProvider {
 const strings = {
     workspaceSettings: String.raw `{
 	"workbench.colorTheme": "MegaEnvironment Dark",
-	"megaenvironment.sourceCodeControl.currentWorkingFolders": [
-		"Assets"
-	],
+	"megaenvironment.sourceCodeControl.currentWorkingFolders": [ "Assets" ],
 	"megaenvironment.sourceCodeControl.mainFileName": "Main.asm"
 }`,
     launchJson: String.raw `{
@@ -1390,7 +1521,7 @@ ROM_End`,
 
 ; Mega Drive memory spaces
 M68K_WRAM:	equ $FF0000		; 68000 memory start address
-M68K_STACK:	equ $FFFFFF		; 68000 stack
+M68K_STACK:	equ $FF0000		; 68000 stack
 JOY1_CTRL:	equ $A10009		; Controller 1 control port
 JOY1_DATA:	equ $A10003   	; Controller 1 data port
 JOY2_CTRL:	equ $A10005		; Controller 2 control port
@@ -1492,12 +1623,11 @@ YM2612_DATA0:	equ $4001		; YM2612 bank 0 data port
 YM2612_CTRL1:	equ $4002		; YM2612 bank 1 control port
 YM2612_DATA1:	equ $4003		; YM2612 bank 1 data port
 
-
 ; --------------------------
 ;		Generic Labels
 ; --------------------------
 
-; Various memory space sizes in bytes
+; Various memory spaces sizes in bytes
 SIZE_WRAM: 		equ 64000	; 68000 RAM size (64 KB)
 SIZE_VRAM:		equ 64000	; VDP VRAM size (64 KB)
 SIZE_VSRAM:		equ 80		; VDP vertical scroll RAM size (80 bytes)
