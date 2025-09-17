@@ -52,7 +52,8 @@ let extensionSettings = {
     suppressWarnings: false,
     quietOperation: false,
     verboseOperation: false,
-    warningsAsErrors: false
+    warningsAsErrors: false,
+    alwaysActive: false
 };
 const settingDescriptors = [
     { key: 'codeOptions.defaultCPU', target: 'defaultCpu' },
@@ -762,6 +763,27 @@ async function cleanProjectFolder() {
             return;
     }
 }
+async function projectCheck() {
+    if (extensionSettings.alwaysActive) {
+        return;
+    }
+    const projectFolders = vscode_1.workspace.workspaceFolders;
+    if (projectFolders) {
+        (0, fs_1.readdir)(projectFolders[0].uri.fsPath, (error, files) => {
+            if (!error) {
+                const hasMDFile = files.some(file => [extensionSettings.mainName, extensionSettings.variablesName, extensionSettings.constantsName, ".asm", ".68k", ".s"].some(ext => file.endsWith(ext)));
+                vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", hasMDFile);
+            }
+            else {
+                vscode_1.window.showErrorMessage("Unable to read your project folder to determine whether you've opened a Mega Drive project or not.");
+                vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", true);
+            }
+        });
+    }
+    else {
+        vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", false);
+    }
+}
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 async function activate(context) {
@@ -777,6 +799,12 @@ async function activate(context) {
         extensionSettings[setting.target] = config.get(setting.key);
     }
     extensionSettings.sonicDisassembly = config.get('buildControl.sonicDisassemblySupport', false);
+    if (!extensionSettings.alwaysActive) {
+        projectCheck();
+    }
+    else {
+        vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", true);
+    }
     downloadAssembler();
     //
     //	Commands
@@ -1262,7 +1290,7 @@ async function activate(context) {
             return undefined; // Prevent actual debug session
         }
     });
-    context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
+    context.subscriptions.push(vscode_1.workspace.onDidChangeWorkspaceFolders(projectCheck), vscode_1.workspace.onDidRenameFiles(projectCheck), assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
 }
 vscode_1.workspace.onDidChangeConfiguration(async (event) => {
     if (event.affectsConfiguration('megaenvironment')) {
@@ -1296,9 +1324,7 @@ class ButtonTreeItem extends vscode_1.TreeItem {
     }
 }
 class ButtonProvider {
-    getTreeItem(element) {
-        return element;
-    }
+    getTreeItem(element) { return element; }
     getChildren() {
         return [
             new ButtonTreeItem('Run in BlastEm', {
@@ -1548,7 +1574,7 @@ REG_TMSS:		equ $A14000		; TMSS "SEGA" register
 REG_TMSS_CART:	equ $A14101		; TMSS cartridge register
 
 REG_TIME:	equ $A13000		; TIME signal to cartridge ($00-$FF)
-REG_32X		equ $A130EC		; Becomes "MARS" when a 32X is attached
+REG_32X:	equ $A130EC		; Becomes "MARS" when a 32X is attached
 
 ; VDP memory addresses
 VDP_DATA:    	equ $C00000		; VDP data port
@@ -1628,11 +1654,11 @@ YM2612_DATA1:	equ $4003		; YM2612 bank 1 data port
 ; --------------------------
 
 ; Various memory spaces sizes in bytes
-SIZE_WRAM: 		equ 64000	; 68000 RAM size (64 KB)
-SIZE_VRAM:		equ 64000	; VDP VRAM size (64 KB)
+SIZE_WRAM: 		equ 65535	; 68000 RAM size (64 KB)
+SIZE_VRAM:		equ 65535	; VDP VRAM size (64 KB)
 SIZE_VSRAM:		equ 80		; VDP vertical scroll RAM size (80 bytes)
 SIZE_CRAM:		equ 128		; VDP color RAM size (128 bytes, 64 colors)
-SIZE_Z80WRAM:	equ 8000	; Z80 RAM size (8 KB)
+SIZE_Z80WRAM:	equ 8192	; Z80 RAM size (8 KB)
 
 ; VDP name table addresses
 NOFLIP: equ $0000  ; Don't flip (default)

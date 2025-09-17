@@ -49,6 +49,8 @@ interface ExtensionSettings { // Settings variable declaration
     quietOperation: boolean;
     verboseOperation: boolean;
 	warningsAsErrors: boolean;
+
+	alwaysActive: boolean;
 }
 
 let extensionSettings: ExtensionSettings = { // Settings variable assignments
@@ -87,7 +89,9 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
     suppressWarnings: false,
     quietOperation: false,
     verboseOperation: false,
-	warningsAsErrors: false
+	warningsAsErrors: false,
+
+	alwaysActive: false
 };
 
 const settingDescriptors = [ // Every setting name and variable to target
@@ -882,6 +886,25 @@ async function cleanProjectFolder() {
 	}
 }
 
+async function projectCheck() {
+	if (extensionSettings.alwaysActive) { return; }
+
+	const projectFolders = workspace.workspaceFolders;
+	
+	if (projectFolders) {
+		readdir(projectFolders[0].uri.fsPath, (error, files) => {
+		if (!error) {
+			const hasMDFile = files.some(file => [extensionSettings.mainName, extensionSettings.variablesName, extensionSettings.constantsName, ".asm", ".68k", ".s"].some(ext => file.endsWith(ext)));
+			commands.executeCommand("setContext", "megaenvironment.enabled", hasMDFile);
+		} else {
+			window.showErrorMessage("Unable to read your project folder to determine whether you've opened a Mega Drive project or not.");
+			commands.executeCommand("setContext", "megaenvironment.enabled", true);
+		}});
+	} else {
+		commands.executeCommand("setContext", "megaenvironment.enabled", false);
+	}
+}
+
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 export async function activate(context: ExtensionContext) {
@@ -901,6 +924,13 @@ export async function activate(context: ExtensionContext) {
 	}
 	
 	extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
+
+	if (!extensionSettings.alwaysActive) {
+		projectCheck();
+	} else {
+		commands.executeCommand("setContext", "megaenvironment.enabled", true);
+	}
+	
 	downloadAssembler();
 
 	//
@@ -1362,9 +1392,7 @@ export async function activate(context: ExtensionContext) {
 				'No, take me back'
 			);
 
-			if (selection !== 'Sure!') {
-				return;
-			}
+			if (selection !== 'Sure!') { return; }
 		}
 
 		writeFile(join(newPath, 'Main.asm'), strings.megaDriveHeader, (error) => {
@@ -1468,7 +1496,7 @@ export async function activate(context: ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
+	context.subscriptions.push(workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidRenameFiles(projectCheck), assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
 }
 
 workspace.onDidChangeConfiguration(async (event) => {
@@ -1511,9 +1539,7 @@ class ButtonTreeItem extends TreeItem {
 }
 
 class ButtonProvider implements TreeDataProvider<ButtonTreeItem> {
-	getTreeItem(element: ButtonTreeItem): TreeItem {
-		return element;
-	}
+	getTreeItem(element: ButtonTreeItem): TreeItem { return element; }
 
 	getChildren(): ButtonTreeItem[] {
 		return [
@@ -1774,7 +1800,7 @@ REG_TMSS:		equ $A14000		; TMSS "SEGA" register
 REG_TMSS_CART:	equ $A14101		; TMSS cartridge register
 
 REG_TIME:	equ $A13000		; TIME signal to cartridge ($00-$FF)
-REG_32X		equ $A130EC		; Becomes "MARS" when a 32X is attached
+REG_32X:	equ $A130EC		; Becomes "MARS" when a 32X is attached
 
 ; VDP memory addresses
 VDP_DATA:    	equ $C00000		; VDP data port
@@ -1854,11 +1880,11 @@ YM2612_DATA1:	equ $4003		; YM2612 bank 1 data port
 ; --------------------------
 
 ; Various memory spaces sizes in bytes
-SIZE_WRAM: 		equ 64000	; 68000 RAM size (64 KB)
-SIZE_VRAM:		equ 64000	; VDP VRAM size (64 KB)
+SIZE_WRAM: 		equ 65535	; 68000 RAM size (64 KB)
+SIZE_VRAM:		equ 65535	; VDP VRAM size (64 KB)
 SIZE_VSRAM:		equ 80		; VDP vertical scroll RAM size (80 bytes)
 SIZE_CRAM:		equ 128		; VDP color RAM size (128 bytes, 64 colors)
-SIZE_Z80WRAM:	equ 8000	; Z80 RAM size (8 KB)
+SIZE_Z80WRAM:	equ 8192	; Z80 RAM size (8 KB)
 
 ; VDP name table addresses
 NOFLIP: equ $0000  ; Don't flip (default)

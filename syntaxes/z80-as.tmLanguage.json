@@ -32,15 +32,15 @@
 		},
 		"variables": {
 			"name": "variable.register.as",
-			"match": "\\b(?i:af|bc|de|hl|ix|iy|sp|pc|a|b|c|d|e|h|l|r|i)\\b|(?<=f)'(?!\\w)"
+			"match": "\\b(?i:af'?|bc|de|hl|ix|iy|sp|pc|a|b|c|d|e|h|l|r|i)(?![\\w'])"
 		},
 		"constants": {
 			"name": "constant.numeric.as",
-			"match": "(?<![\\w\\)])(?:-?\\d{1,10}|[0-9a-fA-F]{1,8}h|%[01]{1,32}b|@[0-7]{1,11}[oq])(?!\\w)"
+			"match": "(?<![\\w\\)])(?:-?\\d{1,5}|[0-9a-fA-F]{1,4}h|[01]{1,16}b|[0-7]{1,6}[oq])(?!\\w)"
 		},
 		"comments": {
 			"name": "directive.comment.as",
-			"match": "(?:\\;.*$)"
+			"match": "\\;.*$"
 		},
 		"strings": {
 			"patterns": [
@@ -93,12 +93,25 @@
 			"match": "\\b(?i:set|equ|label|charset|codepage|pushv|popv|r?org|cpu|supmode|padding|segment|(?:de)?phase|save|restore|assume|(?:end)?expect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|page(?:size)?|newpage|macexp_(?:dft|ovr)|listing|title|(?:out)?radix|public|global|forward|shared|b?include|message|warning|error|fatal|read|intsyntax|relaxed|compmode)\\b"
 		},
 		"instruction-label-structure": {
-			"name": "instruction.label.as",
-			"match": "\\b(?i:(j[pr]|call))\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
-			"captures": { 
-				"1": { "name": "instruction.jump.as"},
-				"2": { "name": "directive.label.jump.as" }
-			}
+			"patterns": [
+				{
+					"name": "instruction.label.as",
+					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\bz|nz|c|nc|p|pe|po|m\\b))\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "variable.flag.as" },
+						"3": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"name": "instruction.label.as",
+					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "directive.label.jump.as" }
+					}
+				}
+			]
 		}
 	}
 }

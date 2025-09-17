@@ -35,6 +35,13 @@
 			}
 		},
 		{
+			"scope": "variable.flag.as",
+			"settings": {
+				"foreground": "#4899b9",
+				"fontStyle": "bold"
+			}
+		},
+		{
 			"scope": "constant.immediate.as",
 			"settings": {
 				"foreground": "#eca01c"
@@ -86,7 +93,7 @@
 		{
 			"scope": "directive.label.jump.as",
 			"settings": {
-				"foreground": "#b3ca88"
+				"foreground": "#b5ce86"
 			}
 		},
 		{

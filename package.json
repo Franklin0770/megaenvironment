@@ -14,67 +14,80 @@
       {
         "command": "megaenvironment.assemble",
         "title": "Assemble",
-        "category": "Build"
+        "category": "Build",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.clean_assemble",
         "title": "Clean & Assemble",
-        "category": "Build"
+        "category": "Build",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.run_blastem",
         "title": "Run Latest ROM with BlastEm",
-        "category": "Execution"
+        "category": "Execution",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.run_regen",
         "title": "Run Latest ROM with Regen",
-        "category": "Execution"
+        "category": "Execution",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.run_clownmdemu",
         "title": "Run Latest ROM with ClownMDEmu",
-        "category": "Execution"
+        "category": "Execution",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.run_openemu",
         "title": "Run Latest ROM with OpenEmu",
-        "category": "Execution"
+        "category": "Execution",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.assemble_run_blastem",
         "title": "Assemble & Run with BlastEm",
-        "category": "Test"
+        "category": "Test",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.assemble_run_regen",
         "title": "Assemble & Run with Regen",
-        "category": "Test"
+        "category": "Test",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.assemble_run_clownmdemu",
         "title": "Assemble & Run with ClownMDEmu",
-        "category": "Test"
+        "category": "Test",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.assemble_run_openemu",
         "title": "Assemble & Run with OpenEmu",
-        "category": "Test"
+        "category": "Test",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.backup",
         "title": "Backup Files And Clean Folder",
-        "category": "Cleaning"
+        "category": "Cleaning",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.cleanup",
         "title": "Clean Folder",
-        "category": "Cleaning"
+        "category": "Cleaning",
+		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.open_easy68k",
         "title": "Open Current Selection In EASy68k",
-        "category": "Debug"
+        "category": "Debug",
+		"when": "megaenvironment.enabled"
       },
 	  {
 		"command": "megaenvironment.new_project",
@@ -86,7 +99,8 @@
 	  },
 	  {
 		"command": "megaenvironment.generate_configuration",
-		"title": "Generate configuration file for Run and Debug"
+		"title": "Generate configuration file for Run and Debug",
+		"when": "megaenvironment.enabled"
 	  }
     ],
     "configuration": {
@@ -319,6 +333,11 @@
 		  "type": "string",
 		  "default": "",
 		  "description": "Full path to the EASy68k executable."	
+		},
+		"megaenvironment.extensionOptions.alwaysActive": {
+		  "type": "boolean",
+		  "default": false,
+		  "description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project."
 		}
       }
     },
@@ -326,39 +345,47 @@
 	  "editor/title": [
 		{
 		  "command": "megaenvironment.assemble",
-		  "group": "navigation"
+		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 	    },
 	    {
 		  "command": "megaenvironment.clean_assemble",
-		  "group": "navigation"
+		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 	    }
 	  ],
 	  "editor/title/run": [
 	    {
 		  "command": "megaenvironment.assemble_run_blastem",
-		  "group": "navigation"
+		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_regen",
-		  "group": "navigation"
+		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_clownmdemu",
-		  "group": "navigation"
+		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_openemu",
-		  "group": "navigation"
+		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 		}
       ],
 	  "explorer/context": [
 		{
   		  "command": "megaenvironment.cleanup",
-  		  "group": "navigation"
+  		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.backup",
-		  "group": "navigation"
+		  "group": "navigation",
+		  "when": "megaenvironment.enabled"
 		}
 	  ],
 	  "file/newFile": [
@@ -372,7 +399,8 @@
 	  "explorer": [
 		{
 		  "id": "run_emulator",
-		  "name": "Run lastest ROM"
+		  "name": "Run lastest ROM",
+		  "when": "megaenvironment.enabled"
 		}
 	  ]
 	},
