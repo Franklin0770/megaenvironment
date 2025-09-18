@@ -129,7 +129,9 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
 	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
 	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
-	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors'}
+	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors'},
+
+	{ key: 'extensionOptions.alwaysActive',					target: 'alwaysActive' }
 ];
 
 // Global variables that get assigned during activation
@@ -887,7 +889,10 @@ async function cleanProjectFolder() {
 }
 
 async function projectCheck() {
-	if (extensionSettings.alwaysActive) { return; }
+	if (extensionSettings.alwaysActive) {
+		commands.executeCommand("setContext", "megaenvironment.enabled", true); 
+		return;
+	}
 
 	const projectFolders = workspace.workspaceFolders;
 	
@@ -924,12 +929,6 @@ export async function activate(context: ExtensionContext) {
 	}
 	
 	extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
-
-	if (!extensionSettings.alwaysActive) {
-		projectCheck();
-	} else {
-		commands.executeCommand("setContext", "megaenvironment.enabled", true);
-	}
 	
 	downloadAssembler();
 
@@ -1524,9 +1523,25 @@ workspace.onDidChangeConfiguration(async (event) => {
 					true
 				);
 			}
+		} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
+			commands.executeCommand(
+				'setContext',
+				'megaenvironment.enabled',
+				extensionSettings.alwaysActive
+			);
 		}
 	}
 });
+
+function checkProject(directory: string) {
+	readdir(directory, (error, files) => {
+		if (!error) {
+
+		} else {
+
+		}
+	});
+}
 
 class ButtonTreeItem extends TreeItem {
 	constructor (
@@ -1534,7 +1549,6 @@ class ButtonTreeItem extends TreeItem {
 		public readonly command: Command
 	) {
 		super(label, TreeItemCollapsibleState.None);
-		this.iconPath = new ThemeIcon('play-circle');
 	}
 }
 
@@ -1543,24 +1557,24 @@ class ButtonProvider implements TreeDataProvider<ButtonTreeItem> {
 
 	getChildren(): ButtonTreeItem[] {
 		return [
-			new ButtonTreeItem('Run in BlastEm', {
+			new ButtonTreeItem('Run with BlastEm', {
 				command: 'megaenvironment.run_blastem',
-				title: 'Run in BlastEm',
+				title: 'Run with BlastEm',
 				tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
 			}),
-			new ButtonTreeItem('Run in Regen', {
+			new ButtonTreeItem('Run with Regen', {
 				command: 'megaenvironment.run_regen',
-				title: 'Run in Regen',
+				title: 'Run with Regen',
 				tooltip: 'Run lastest ROM (.gen) using Regen emulator'
 			}),
-			new ButtonTreeItem('Run in ClownMDEmu', {
+			new ButtonTreeItem('Run with ClownMDEmu', {
 				command: 'megaenvironment.run_clownmdemu',
-				title: 'Run in ClownMDEmu',
+				title: 'Run with ClownMDEmu',
 				tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
 			}),
-			new ButtonTreeItem('Run in OpenEmu', {
+			new ButtonTreeItem('Run with OpenEmu', {
 				command: 'megaenvironment.run_openemu',
-				title: 'Run in OpenEmu',
+				title: 'Run with OpenEmu',
 				tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator'
 			})
 		];

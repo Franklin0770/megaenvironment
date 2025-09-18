@@ -49,25 +49,25 @@
       },
       {
         "command": "megaenvironment.assemble_run_blastem",
-        "title": "Assemble & Run with BlastEm",
+        "title": "QuickRun BlastEm",
         "category": "Test",
 		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.assemble_run_regen",
-        "title": "Assemble & Run with Regen",
+        "title": "QuickRun Regen",
         "category": "Test",
 		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.assemble_run_clownmdemu",
-        "title": "Assemble & Run with ClownMDEmu",
+        "title": "QuickRun ClownMDEmu",
         "category": "Test",
 		"when": "megaenvironment.enabled"
       },
       {
         "command": "megaenvironment.assemble_run_openemu",
-        "title": "Assemble & Run with OpenEmu",
+        "title": "QuickRun OpenEmu",
         "category": "Test",
 		"when": "megaenvironment.enabled"
       },
@@ -347,44 +347,44 @@
 		  "command": "megaenvironment.assemble",
 		  "group": "navigation",
 		  "when": "megaenvironment.enabled"
-	    },
-	    {
-		  "command": "megaenvironment.clean_assemble",
-		  "group": "navigation",
-		  "when": "megaenvironment.enabled"
 	    }
 	  ],
 	  "editor/title/run": [
 	    {
 		  "command": "megaenvironment.assemble_run_blastem",
-		  "group": "navigation",
+		  "group": "1_runGroup@1",
 		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_regen",
-		  "group": "navigation",
+		  "group": "1_runGroup@2",
 		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_clownmdemu",
-		  "group": "navigation",
+		  "group": "1_runGroup@3",
 		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_openemu",
-		  "group": "navigation",
+		  "group": "1_runGroup@4",
 		  "when": "megaenvironment.enabled"
-		}
+		},
+		{
+		  "command": "megaenvironment.clean_assemble",
+		  "group": "2_buildGroup@1",
+		  "when": "megaenvironment.enabled"
+	    }
       ],
 	  "explorer/context": [
 		{
   		  "command": "megaenvironment.cleanup",
-  		  "group": "navigation",
+  		  "group": "0_fileExplorer@1",
 		  "when": "megaenvironment.enabled"
 		},
 		{
 		  "command": "megaenvironment.backup",
-		  "group": "navigation",
+		  "group": "0_fileExplorer@2",
 		  "when": "megaenvironment.enabled"
 		}
 	  ],
@@ -399,7 +399,8 @@
 	  "explorer": [
 		{
 		  "id": "run_emulator",
-		  "name": "Run lastest ROM",
+		  "name": "Run Lastest ROM",
+		  "icon": "play-circle",
 		  "when": "megaenvironment.enabled"
 		}
 	  ]
