@@ -7,11 +7,10 @@ TODOS:
 
 import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider } from 'vscode';
 import { exec } from 'child_process';
-import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync, PathLike } from 'fs';
+import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync } from 'fs';
 import { pipeline } from 'stream';
 import { join, basename } from 'path';
 import AdmZip from 'adm-zip';
-import { platform } from 'os';
 
 interface ExtensionSettings { // Settings variable declaration
 	defaultCpu: string;
