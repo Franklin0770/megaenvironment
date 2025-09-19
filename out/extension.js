@@ -299,23 +299,22 @@ async function downloadAssembler() {
 }
 async function promptEmulatorPath(emulator) {
     let success = true;
-    const config = vscode_1.workspace.getConfiguration('megaenvironment');
-    const key = `paths.${emulator}`;
-    const path = config.get(key);
-    if (!path) {
-        return false;
-    }
+    const config = vscode_1.workspace.getConfiguration('megaenvironment.paths');
+    const path = config.get(emulator);
     if ((0, fs_1.existsSync)(path) && (0, fs_1.statSync)(path).isFile()) {
         return true;
     } // The emulator is already there, no need to ask anything
-    const input = await vscode_1.window.showInputBox({
-        title: `Set ${emulator} Path`,
-        prompt: 'Enter the full path to your emulator executable',
-        value: path,
-        ignoreFocusOut: true
+    const executableExtension = process.platform === 'win32' ? ['exe'] : ['*'];
+    const uri = await vscode_1.window.showOpenDialog({
+        title: 'Select the executable of your emulator',
+        canSelectFolders: false,
+        canSelectFiles: true,
+        canSelectMany: false,
+        filters: { 'Executable files': executableExtension },
+        openLabel: 'Select'
     });
-    if (!input) {
-        vscode_1.window.showErrorMessage('Without the path, it would be impossible to localise your emulator and run the ROM. Please, try again!', 'Retry')
+    if (!uri || uri.length === 0) {
+        vscode_1.window.showErrorMessage('Without the path, it would be impossible to localize your emulator and run the ROM. Please, try again!', 'Retry')
             .then((selection) => {
             if (selection === 'Retry') {
                 promptEmulatorPath(emulator);
@@ -323,25 +322,7 @@ async function promptEmulatorPath(emulator) {
         });
         return false;
     }
-    if (!(0, fs_1.existsSync)(input)) {
-        vscode_1.window.showErrorMessage("The path you provided doesn't exist!", 'Retry')
-            .then((selection) => {
-            if (selection === 'Retry') {
-                promptEmulatorPath(emulator);
-            }
-        });
-        success = false;
-    }
-    if (success && (0, fs_1.statSync)(input).isDirectory()) { // Gets stuck here if the path doesn't exist
-        vscode_1.window.showErrorMessage('The path you provided points only to a folder!', 'Retry')
-            .then((selection) => {
-            if (selection === 'Retry') {
-                promptEmulatorPath(emulator);
-            }
-        });
-        success = false;
-    }
-    await config.update(key, input, true // true = global setting
+    await config.update(emulator, uri[0].fsPath, true // true = global setting
     );
     return success;
 }
@@ -700,43 +681,30 @@ async function runTemporaryROM(emulator) {
     }
 }
 async function cleanProjectFolder() {
-    let items = 0;
-    await new Promise((resolve, reject) => {
-        (0, fs_1.readdir)('.', (error, files) => {
-            if (!error) {
-                files.forEach((file) => {
-                    const shouldDelete = extensionSettings.cleaningExtensions.some((ext) => {
-                        if (ext === '.pre') {
-                            return /\.pre\d+$/.test(file); // handles .pre0, .pre1, .pre999...
-                        }
-                        return file.endsWith(ext);
-                    });
-                    if (shouldDelete) {
-                        (0, fs_1.unlink)(file, (error) => {
-                            if (error) {
-                                vscode_1.window.showErrorMessage(`The file ${file} was skipped because it couldn't be cleaned up. ` + error.message);
-                            }
-                        });
-                        items++;
-                    }
-                });
-                resolve();
-            }
-            else {
-                vscode_1.window.showErrorMessage('Cannot read your project folder for cleanup. ' + error.message);
-                reject();
+    const patterns = extensionSettings.cleaningExtensions.map((ext) => ext !== '.pre' ? `*${ext}` : '*.pre*');
+    const items = (await Promise.all(patterns.map((p) => vscode_1.workspace.findFiles(p)))).flat();
+    let failedItems = '';
+    for (const item of items) {
+        (0, fs_1.unlink)(item.fsPath, (error) => {
+            if (error) {
+                failedItems += (0, path_1.basename)(item.fsPath) + ', ';
             }
         });
-    });
+    }
     if (extensionSettings.quietOperation) {
         return;
     }
-    switch (items) {
+    switch (items.length) {
         default:
-            vscode_1.window.showInformationMessage(`Cleanup completed. ${items} items were removed.`);
+            if (failedItems === '') {
+                vscode_1.window.showInformationMessage(`Cleanup completed. ${items.length} items were removed.`);
+            }
+            else {
+                vscode_1.window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems);
+            }
             return;
         case 0:
-            vscode_1.window.showInformationMessage('No items to cleanup this time.');
+            vscode_1.window.showInformationMessage('No items to wipe this time.');
             return;
         case 1:
             vscode_1.window.showInformationMessage('Cleanup completed. 1 item was removed.');

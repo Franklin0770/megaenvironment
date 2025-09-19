@@ -7,10 +7,11 @@ TODOS:
 
 import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider } from 'vscode';
 import { exec } from 'child_process';
-import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync } from 'fs';
+import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync, PathLike } from 'fs';
 import { pipeline } from 'stream';
 import { join, basename } from 'path';
 import AdmZip from 'adm-zip';
+import { platform } from 'os';
 
 interface ExtensionSettings { // Settings variable declaration
 	defaultCpu: string;
@@ -372,23 +373,24 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 
 async function promptEmulatorPath(emulator: string): Promise<boolean> {
 	let success = true;
-	const config =  workspace.getConfiguration('megaenvironment');
-	const key = `paths.${emulator}`;
-	const path = config.get<string>(key);
+	const config =  workspace.getConfiguration('megaenvironment.paths');
+	const path = config.get<string>(emulator);
 
-	if (!path) { return false; }
+	if (existsSync(path!) && statSync(path!).isFile()) { return true; } // The emulator is already there, no need to ask anything
 
-	if (existsSync(path) && statSync(path).isFile()) { return true; } // The emulator is already there, no need to ask anything
+	const executableExtension = process.platform === 'win32' ? [ 'exe' ] : [ '*' ];
 
-	const input = await window.showInputBox({
-		title: `Set ${emulator} Path`,
-		prompt: 'Enter the full path to your emulator executable',
-		value: path,
-		ignoreFocusOut: true
+	const uri = await window.showOpenDialog({
+		title: 'Select the executable of your emulator',
+		canSelectFolders: false,
+		canSelectFiles: true,
+		canSelectMany: false,
+		filters: { 'Executable files': executableExtension },
+		openLabel: 'Select'
 	});
 
-	if (!input) {
-		window.showErrorMessage('Without the path, it would be impossible to localise your emulator and run the ROM. Please, try again!', 'Retry')
+	if (!uri || uri.length === 0) {
+		window.showErrorMessage('Without the path, it would be impossible to localize your emulator and run the ROM. Please, try again!', 'Retry')
 		.then((selection) => {
 			if (selection === 'Retry') {
 				promptEmulatorPath(emulator);
@@ -398,31 +400,9 @@ async function promptEmulatorPath(emulator: string): Promise<boolean> {
 		return false;
 	}
 
-	if (!existsSync(input)) {
-		window.showErrorMessage("The path you provided doesn't exist!", 'Retry')
-		.then((selection) => {
-			if (selection === 'Retry') {
-				promptEmulatorPath(emulator);
-			}
-		});
-
-		success = false;
-	}
-
-	if (success && statSync(input).isDirectory()) { // Gets stuck here if the path doesn't exist
-		window.showErrorMessage('The path you provided points only to a folder!', 'Retry')
-		.then((selection) => {
-			if (selection === 'Retry') {
-				promptEmulatorPath(emulator);
-			}
-		});
-
-		success = false;
-	}
-
 	await config.update(
-		key,
-		input,
+		emulator,
+		uri[0].fsPath,
 		true // true = global setting
 	);
 
@@ -821,42 +801,30 @@ async function runTemporaryROM(emulator: string) {
 }
 
 async function cleanProjectFolder() {
-	let items = 0;
-	await new Promise<void>((resolve, reject) => {
-		readdir('.', (error, files) => {
-			if (!error) {
-				files.forEach((file) => {
-					const shouldDelete = extensionSettings.cleaningExtensions.some((ext) => {
-						if (ext === '.pre') {
-							return /\.pre\d+$/.test(file); // handles .pre0, .pre1, .pre999...
-						}
-						return file.endsWith(ext);
-					});
+	const patterns = extensionSettings.cleaningExtensions.map((ext) => ext !== '.pre' ? `*${ext}` : '*.pre*');
+	const items = (await Promise.all(patterns.map((p) => workspace.findFiles(p)))).flat();
+	let failedItems = '';
 
-					if (shouldDelete) {
-						unlink(file, (error) => {
-							if (error) {
-								window.showErrorMessage(`The file ${file} was skipped because it couldn't be cleaned up. ` + error.message);
-							}
-						});
-						items++;
-					}
-				});
-				resolve();
-			} else {
-				window.showErrorMessage('Cannot read your project folder for cleanup. ' + error.message);
-				reject();
+	for (const item of items) {
+		unlink(item.fsPath, (error) => {
+			if (error) {
+				failedItems += basename(item.fsPath) + ', ';
 			}
 		});
-	});
+	}
 
 	if (extensionSettings.quietOperation) { return; }
 
-	switch (items) {
-		default: window.showInformationMessage(`Cleanup completed. ${items} items were removed.`);
+	switch (items.length) {
+		default:
+			if (failedItems === '') {
+				window.showInformationMessage(`Cleanup completed. ${items.length} items were removed.`);
+			} else {
+				window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems);
+			}
 			return;
 		case 0:
-			window.showInformationMessage('No items to cleanup this time.');
+			window.showInformationMessage('No items to wipe this time.');
 			return;
 		case 1:
 			window.showInformationMessage('Cleanup completed. 1 item was removed.');
@@ -1315,7 +1283,7 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const newProject = commands.registerCommand('megaenvironment.new_project', async () => {
-		const uri = await window.showOpenDialog ({
+		const uri = await window.showOpenDialog({
 			title: 'Select the folder for your new project',
 			canSelectFolders: true,
 			canSelectFiles: false,
@@ -1326,7 +1294,6 @@ export async function activate(context: ExtensionContext) {
 		if (!uri || uri.length === 0) { return; }
 
 		const newPath = uri[0].fsPath;
-
 		const extensions = [ '.asm', '.68k', '.s', '.z80', ...extensionSettings.cleaningExtensions ];
 
 		let hasConflictingFiles!: boolean;
