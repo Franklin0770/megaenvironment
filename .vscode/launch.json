@@ -19,8 +19,6 @@
 			"skipFiles": [
 				"<node_internals>/**",
 				"${workspaceFolder}/node_modules/**",
-				"${workspaceFolder}/out/**",
-				"${workspaceFolder}/src/test/**",
 				"C:/Users/Francesco Hacker/AppData/Local/Programs/Microsoft VS Code/resources/app/**",
 				"/Applications/Visual Studio Code.app/Contents/Resources/app/**"
 			]

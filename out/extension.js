@@ -90,7 +90,8 @@ const settingDescriptors = [
     { key: 'miscellaneous.suppressWarnings', target: 'suppressWarnings' },
     { key: 'miscellaneous.quietOperation', target: 'quietOperation' },
     { key: 'miscellaneous.verboseOperation', target: 'verboseOperation' },
-    { key: 'miscellaneous.warningsAsErrors', target: 'warningsAsErrors' }
+    { key: 'miscellaneous.warningsAsErrors', target: 'warningsAsErrors' },
+    { key: 'extensionOptions.alwaysActive', target: 'alwaysActive' }
 ];
 // Global variables that get assigned during activation
 let assemblerFolder;
@@ -630,38 +631,20 @@ function renameRom(projectFolder, warnings) {
     }
 }
 async function findAndRunROM(emulator) {
-    const projectFolders = vscode_1.workspace.workspaceFolders;
-    if (!projectFolders) {
+    if (!vscode_1.workspace.workspaceFolders) {
         vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
         return;
     }
     if (await promptEmulatorPath(emulator) === false) {
         return;
     }
-    const projectFolder = projectFolders[0].uri.fsPath;
-    process.chdir(projectFolder);
-    let rom;
-    const success = await new Promise((resolve) => {
-        (0, fs_1.readdir)('.', (error, files) => {
-            if (!error) {
-                rom = files.find(file => file.endsWith('.gen'));
-                resolve(true);
-            }
-            else {
-                vscode_1.window.showErrorMessage('Cannot read your project folder files to find the latest ROM.' + error.message);
-                resolve(false);
-            }
-        });
-    });
-    if (!success) {
-        return;
-    }
-    if (!rom) {
+    const rom = await vscode_1.workspace.findFiles('*.gen', undefined, 1);
+    if (rom.length === 0) {
         vscode_1.window.showErrorMessage('There are no ROMs to run. Build something first.');
         return;
     }
     let errorCode = false;
-    (0, child_process_1.exec)(`"${vscode_1.workspace.getConfiguration(`megaenvironment`).get(`paths.${emulator}`)}" "${(0, path_1.join)(projectFolder, rom)}"`, (error) => {
+    (0, child_process_1.exec)(`"${vscode_1.workspace.getConfiguration(`megaenvironment`).get(`paths.${emulator}`)}" "${rom[0].fsPath}"`, (error) => {
         if (error) {
             vscode_1.window.showErrorMessage('Cannot run the latest build. ' + error.message);
             errorCode = true;
@@ -671,13 +654,10 @@ async function findAndRunROM(emulator) {
     if (errorCode || extensionSettings.quietOperation) {
         return;
     }
-    vscode_1.window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
+    vscode_1.window.showInformationMessage(`Running "${(0, path_1.basename)(rom[0].fsPath)}" with ${emulator}.`);
 }
 async function runTemporaryROM(emulator) {
-    if (await assemblerChecks() === false) {
-        return;
-    }
-    if (await promptEmulatorPath(emulator) === false) {
+    if (!await assemblerChecks() || !await promptEmulatorPath(emulator)) {
         return;
     }
     process.chdir(vscode_1.workspace.workspaceFolders[0].uri.fsPath);
@@ -769,16 +749,12 @@ async function projectCheck() {
     }
     const projectFolders = vscode_1.workspace.workspaceFolders;
     if (projectFolders) {
-        (0, fs_1.readdir)(projectFolders[0].uri.fsPath, (error, files) => {
-            if (!error) {
-                const hasMDFile = files.some(file => [extensionSettings.mainName, extensionSettings.variablesName, extensionSettings.constantsName, ".asm", ".68k", ".s"].some(ext => file.endsWith(ext)));
-                vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", hasMDFile);
-            }
-            else {
-                vscode_1.window.showErrorMessage("Unable to read your project folder to determine whether you've opened a Mega Drive project or not.");
-                vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", true);
-            }
-        });
+        if ((await vscode_1.workspace.findFiles('*.asm', undefined, 1)).length > 0) {
+            vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", true);
+        }
+        else {
+            vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", false);
+        }
     }
     else {
         vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", false);
@@ -804,6 +780,7 @@ async function activate(context) {
     }
     else {
         vscode_1.commands.executeCommand("setContext", "megaenvironment.enabled", true);
+        return;
     }
     downloadAssembler();
     //
@@ -871,30 +848,13 @@ async function activate(context) {
             vscode_1.window.showErrorMessage("Looks like you haven't installed OpenEmu yet. Make sure it's located in the \"\\Applications\" folder when installed, or else it won't run properly.");
             return;
         }
-        const projectFolder = projectFolders[0].uri.fsPath;
-        process.chdir(projectFolder);
-        let rom;
-        const success1 = await new Promise((resolve) => {
-            (0, fs_1.readdir)('.', (error, files) => {
-                if (!error) {
-                    rom = files.find(file => file.endsWith('.gen'));
-                    resolve(true);
-                }
-                else {
-                    vscode_1.window.showErrorMessage('Cannot read your project folder files to find the latest ROM.' + error.message);
-                    resolve(false);
-                }
-            });
-        });
-        if (!success1) {
-            return;
-        }
-        if (!rom) {
+        const rom = await vscode_1.workspace.findFiles('*.gen', undefined, 1);
+        if (rom.length === 0) {
             vscode_1.window.showErrorMessage('There are no ROMs to run. Build something first.');
             return;
         }
-        const success2 = await new Promise((resolve) => {
-            (0, child_process_1.exec)(`open -a OpenEmu -W "${(0, path_1.join)(projectFolder, rom)}"`, (error) => {
+        const success = await new Promise((resolve) => {
+            (0, child_process_1.exec)(`open -a OpenEmu -W "${rom[0].fsPath}"`, (error) => {
                 if (error) {
                     vscode_1.window.showErrorMessage('Cannot run the latest build. ' + error.message);
                     resolve(false);
@@ -902,10 +862,10 @@ async function activate(context) {
                 resolve(true);
             });
         });
-        if (!success2 || extensionSettings.quietOperation) {
+        if (!success || extensionSettings.quietOperation) {
             return;
         }
-        vscode_1.window.showInformationMessage(`Running "${rom}" with OpenEmu.`);
+        vscode_1.window.showInformationMessage(`Running "${(0, path_1.basename)(rom[0].fsPath)}" with OpenEmu.`);
     });
     const assemble_and_run_BlastEm = vscode_1.commands.registerCommand('megaenvironment.assemble_run_blastem', async () => {
         runTemporaryROM('BlastEm');
@@ -1290,7 +1250,7 @@ async function activate(context) {
             return undefined; // Prevent actual debug session
         }
     });
-    context.subscriptions.push(vscode_1.workspace.onDidChangeWorkspaceFolders(projectCheck), vscode_1.workspace.onDidRenameFiles(projectCheck), assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
+    context.subscriptions.push(vscode_1.workspace.onDidChangeWorkspaceFolders(projectCheck), vscode_1.workspace.onDidCreateFiles(projectCheck), assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
 }
 vscode_1.workspace.onDidChangeConfiguration(async (event) => {
     if (event.affectsConfiguration('megaenvironment')) {
@@ -1311,8 +1271,19 @@ vscode_1.workspace.onDidChangeConfiguration(async (event) => {
                 config.update('buildControl.sonicDisassemblySupport', extensionSettings.sonicDisassembly, true);
             }
         }
+        else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
+            projectCheck();
+        }
     }
 });
+function checkProject(directory) {
+    (0, fs_1.readdir)(directory, (error, files) => {
+        if (!error) {
+        }
+        else {
+        }
+    });
+}
 class ButtonTreeItem extends vscode_1.TreeItem {
     label;
     command;
@@ -1327,24 +1298,24 @@ class ButtonProvider {
     getTreeItem(element) { return element; }
     getChildren() {
         return [
-            new ButtonTreeItem('Run in BlastEm', {
+            new ButtonTreeItem('Run with BlastEm', {
                 command: 'megaenvironment.run_blastem',
-                title: 'Run in BlastEm',
+                title: 'Run with BlastEm',
                 tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
             }),
-            new ButtonTreeItem('Run in Regen', {
+            new ButtonTreeItem('Run with Regen', {
                 command: 'megaenvironment.run_regen',
-                title: 'Run in Regen',
+                title: 'Run with Regen',
                 tooltip: 'Run lastest ROM (.gen) using Regen emulator'
             }),
-            new ButtonTreeItem('Run in ClownMDEmu', {
+            new ButtonTreeItem('Run with ClownMDEmu', {
                 command: 'megaenvironment.run_clownmdemu',
-                title: 'Run in ClownMDEmu',
+                title: 'Run with ClownMDEmu',
                 tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
             }),
-            new ButtonTreeItem('Run in OpenEmu', {
+            new ButtonTreeItem('Run with OpenEmu', {
                 command: 'megaenvironment.run_openemu',
-                title: 'Run in OpenEmu',
+                title: 'Run with OpenEmu',
                 tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator'
             })
         ];

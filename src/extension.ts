@@ -9,7 +9,7 @@ import { ExtensionContext, workspace, commands, debug, window, env, Uri, Progres
 import { exec } from 'child_process';
 import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync } from 'fs';
 import { pipeline } from 'stream';
-import { join } from 'path';
+import { join, basename } from 'path';
 import AdmZip from 'adm-zip';
 
 interface ExtensionSettings { // Settings variable declaration
@@ -747,42 +747,22 @@ function renameRom(projectFolder: string, warnings: boolean) {
 }
 
 async function findAndRunROM(emulator: string) {
-	const projectFolders = workspace.workspaceFolders;
-
-	if (!projectFolders) {
+	if (!workspace.workspaceFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 		return;
 	}
 
-	if (await promptEmulatorPath(emulator) === false) {
-		return;
-	}
+	if (await promptEmulatorPath(emulator) === false) { return; }
+	
+	const rom = await workspace.findFiles('*.gen', undefined, 1);
 
-	const projectFolder = projectFolders[0].uri.fsPath;
-	process.chdir(projectFolder);
-
-	let rom: string | undefined;
-	const success = await new Promise<boolean>((resolve) => {
-		readdir('.', (error, files) => {
-			if (!error) {
-				rom = files.find(file => file.endsWith('.gen'));
-				resolve(true);
-			} else {
-				window.showErrorMessage('Cannot read your project folder files to find the latest ROM.' + error.message);
-				resolve(false);
-			}
-		});
-	});
-
-	if (!success) { return; }
-
-	if (!rom) {
+	if (rom.length === 0) {
 		window.showErrorMessage('There are no ROMs to run. Build something first.');
 		return;
 	}
 
 	let errorCode = false;
-	exec(`"${workspace.getConfiguration(`megaenvironment`).get<string>(`paths.${emulator}`)}" "${join(projectFolder, rom)}"`, (error) => {
+	exec(`"${workspace.getConfiguration(`megaenvironment`).get<string>(`paths.${emulator}`)}" "${rom[0].fsPath}"`, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the latest build. ' + error.message);
 			errorCode = true;
@@ -792,15 +772,11 @@ async function findAndRunROM(emulator: string) {
 
 	if (errorCode || extensionSettings.quietOperation) { return; }
 
-	window.showInformationMessage(`Running "${rom}" with ${emulator}.`);
+	window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with ${emulator}.`);
 }
 
 async function runTemporaryROM(emulator: string) {
-	if (await assemblerChecks() === false) { return; }
-
-	if (await promptEmulatorPath(emulator) === false) {
-		return;
-	}
+	if (!await assemblerChecks() || !await promptEmulatorPath(emulator)) { return; }
 
 	process.chdir(workspace.workspaceFolders![0].uri.fsPath);
 
@@ -889,22 +865,16 @@ async function cleanProjectFolder() {
 }
 
 async function projectCheck() {
-	if (extensionSettings.alwaysActive) {
-		commands.executeCommand("setContext", "megaenvironment.enabled", true); 
-		return;
-	}
+	if (extensionSettings.alwaysActive) { return; }
 
 	const projectFolders = workspace.workspaceFolders;
 	
 	if (projectFolders) {
-		readdir(projectFolders[0].uri.fsPath, (error, files) => {
-		if (!error) {
-			const hasMDFile = files.some(file => [extensionSettings.mainName, extensionSettings.variablesName, extensionSettings.constantsName, ".asm", ".68k", ".s"].some(ext => file.endsWith(ext)));
-			commands.executeCommand("setContext", "megaenvironment.enabled", hasMDFile);
-		} else {
-			window.showErrorMessage("Unable to read your project folder to determine whether you've opened a Mega Drive project or not.");
+		if ((await workspace.findFiles('*.asm', undefined, 1)).length > 0) {
 			commands.executeCommand("setContext", "megaenvironment.enabled", true);
-		}});
+		} else {
+			commands.executeCommand("setContext", "megaenvironment.enabled", false);
+		}
 	} else {
 		commands.executeCommand("setContext", "megaenvironment.enabled", false);
 	}
@@ -929,6 +899,13 @@ export async function activate(context: ExtensionContext) {
 	}
 	
 	extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
+	
+	if (!extensionSettings.alwaysActive) {
+		projectCheck();
+	} else {
+		commands.executeCommand("setContext", "megaenvironment.enabled", true);
+		return;
+	}
 	
 	downloadAssembler();
 
@@ -1016,32 +993,15 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const projectFolder = projectFolders[0].uri.fsPath;
-		process.chdir(projectFolder);
+		const rom = await workspace.findFiles('*.gen', undefined, 1);
 
-		let rom: string | undefined;
-		const success1 = await new Promise<boolean>((resolve) => {
-			readdir('.', (error, files) => {
-				if (!error) {
-					rom = files.find(file => file.endsWith('.gen'));
-					resolve(true);
-				} else {
-					window.showErrorMessage('Cannot read your project folder files to find the latest ROM.' + error.message);
-					resolve(false);
-				}
-			});
-		});
-
-		if (!success1) { return; }
-
-		if (!rom) {
+		if (rom.length === 0) {
 			window.showErrorMessage('There are no ROMs to run. Build something first.');
 			return;
 		}
 
-
-		const success2 = await new Promise<boolean>((resolve) => {
-			exec(`open -a OpenEmu -W "${join(projectFolder, rom!)}"`, (error) => {
+		const success = await new Promise<boolean>((resolve) => {
+			exec(`open -a OpenEmu -W "${rom[0].fsPath}"`, (error) => {
 				if (error) {
 					window.showErrorMessage('Cannot run the latest build. ' + error.message);
 					resolve(false);
@@ -1051,9 +1011,9 @@ export async function activate(context: ExtensionContext) {
 			});
 		});
 
-		if (!success2 || extensionSettings.quietOperation) { return; }
+		if (!success || extensionSettings.quietOperation) { return; }
 
-		window.showInformationMessage(`Running "${rom}" with OpenEmu.`);
+		window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with OpenEmu.`);
 	});
 
 	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', async () => {
@@ -1495,7 +1455,13 @@ export async function activate(context: ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidRenameFiles(projectCheck), assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
+	context.subscriptions.push(
+		workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidCreateFiles(projectCheck),
+		assemble, clean_and_assemble,
+		run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu,
+		assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu,
+		backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration
+	);
 }
 
 workspace.onDidChangeConfiguration(async (event) => {
@@ -1524,11 +1490,7 @@ workspace.onDidChangeConfiguration(async (event) => {
 				);
 			}
 		} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
-			commands.executeCommand(
-				'setContext',
-				'megaenvironment.enabled',
-				extensionSettings.alwaysActive
-			);
+			projectCheck();
 		}
 	}
 });
@@ -1549,6 +1511,7 @@ class ButtonTreeItem extends TreeItem {
 		public readonly command: Command
 	) {
 		super(label, TreeItemCollapsibleState.None);
+		this.iconPath = new ThemeIcon('play-circle');
 	}
 }
 
