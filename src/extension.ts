@@ -5,7 +5,7 @@ TODOS:
 - Maybe some classes for encapsulation.
 */
 
-import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider } from 'vscode';
+import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider, ConfigurationChangeEvent } from 'vscode';
 import { exec } from 'child_process';
 import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync } from 'fs';
 import { pipeline } from 'stream';
@@ -140,6 +140,7 @@ let assemblerPath: string;
 let compilerPath: string;
 let isDownloading: boolean; // Gets assigned in "downloadAssembler()"
 let firstActivation = true;
+let compatibleEmulators: ButtonTreeItem[] = [];
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
 async function downloadAssembler(): Promise<0 | 1 | 2> {
@@ -741,7 +742,7 @@ async function findAndRunROM(emulator: string) {
 	}
 
 	let errorCode = false;
-	exec(`"${workspace.getConfiguration(`megaenvironment`).get<string>(`paths.${emulator}`)}" "${rom[0].fsPath}"`, (error) => {
+	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${rom[0].fsPath}"`, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the latest build. ' + error.message);
 			errorCode = true;
@@ -771,7 +772,7 @@ async function runTemporaryROM(emulator: string) {
 			return;
 	}
 	
-	exec(`"${workspace.getConfiguration(`megaenvironment`).get<string>(`paths.${emulator}`)}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
+	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the build. ' + error.message);
 			return;
@@ -831,22 +832,6 @@ async function cleanProjectFolder() {
 	}
 }
 
-async function projectCheck() {
-	if (extensionSettings.alwaysActive) { return; }
-
-	const projectFolders = workspace.workspaceFolders;
-	
-	if (projectFolders) {
-		if ((await workspace.findFiles('*.asm', undefined, 1)).length > 0) {
-			commands.executeCommand("setContext", "megaenvironment.enabled", true);
-		} else {
-			commands.executeCommand("setContext", "megaenvironment.enabled", false);
-		}
-	} else {
-		commands.executeCommand("setContext", "megaenvironment.enabled", false);
-	}
-}
-
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 export async function activate(context: ExtensionContext) {
@@ -854,9 +839,75 @@ export async function activate(context: ExtensionContext) {
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerPath = join(assemblerFolder, 'p2bin');
 
-	if (process.platform === 'win32') {
-		assemblerPath += '.exe';
-		compilerPath += '.exe';
+	switch (process.platform) {
+		case 'win32':
+			assemblerPath += '.exe';
+			compilerPath += '.exe';
+			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			compatibleEmulators = [
+				new ButtonTreeItem('Run with BlastEm', {
+					command: 'megaenvironment.run_blastem',
+					title: 'Run with BlastEm',
+					tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
+				}),
+				new ButtonTreeItem('Run with Regen', {
+					command: 'megaenvironment.run_regen',
+					title: 'Run with Regen',
+					tooltip: 'Run lastest ROM (.gen) using Regen emulator'
+				}),
+				new ButtonTreeItem('Run with ClownMDEmu', {
+					command: 'megaenvironment.run_clownmdemu',
+					title: 'Run with ClownMDEmu',
+					tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
+				})
+			];
+			break;
+		case 'darwin':
+			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
+			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
+			compatibleEmulators = [
+				new ButtonTreeItem('Run with BlastEm', {
+					command: 'megaenvironment.run_blastem',
+					title: 'Run with BlastEm',
+					tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
+				}),
+				new ButtonTreeItem('Run with ClownMDEmu', {
+					command: 'megaenvironment.run_clownmdemu',
+					title: 'Run with ClownMDEmu',
+					tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
+				}),
+				new ButtonTreeItem('Run with OpenEmu', {
+					command: 'megaenvironment.run_openemu',
+					title: 'Run with OpenEmu',
+					tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator',
+				})
+			];
+			break;
+		case 'linux':
+			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			compatibleEmulators = [
+				new ButtonTreeItem('Run with BlastEm', {
+					command: 'megaenvironment.run_blastem',
+					title: 'Run with BlastEm',
+					tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
+				}),
+				new ButtonTreeItem('Run with Regen', {
+					command: 'megaenvironment.run_regen',
+					title: 'Run with Regen',
+					tooltip: 'Run lastest ROM (.gen) using Regen emulator'
+				}),
+				new ButtonTreeItem('Run with ClownMDEmu', {
+					command: 'megaenvironment.run_clownmdemu',
+					title: 'Run with ClownMDEmu',
+					tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
+				})
+			];
+			break;
+		default:
+			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
+			return;
 	}
 
 	const config = workspace.getConfiguration('megaenvironment');
@@ -870,7 +921,7 @@ export async function activate(context: ExtensionContext) {
 	if (!extensionSettings.alwaysActive) {
 		projectCheck();
 	} else {
-		commands.executeCommand("setContext", "megaenvironment.enabled", true);
+		commands.executeCommand("setContext", "megaenvironment.onProject", true);
 		return;
 	}
 	
@@ -1173,7 +1224,7 @@ export async function activate(context: ExtensionContext) {
 
 		let success2 = true;
 		
-		exec(`"${workspace.getConfiguration('megaenvironment').get<string>('paths.EASy68k')}" "temp.txt"`, (error) => {
+		exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>('EASy68k')}" "temp.txt"`, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
 				success2 = false;
@@ -1320,7 +1371,7 @@ export async function activate(context: ExtensionContext) {
 			if (selection !== 'Sure!') { return; }
 		}
 
-		writeFile(join(newPath, 'Main.asm'), strings.megaDriveHeader, (error) => {
+		writeFile(join(newPath, 'Main.68k'), strings.megaDriveHeader, (error) => {
 			if (error) {
 				window.showErrorMessage('Unable to create the main code source file. ' + error.message);
 				return;
@@ -1422,7 +1473,7 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	context.subscriptions.push(
-		workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidCreateFiles(projectCheck),
+		workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidChangeConfiguration(event => { updateConfiguration(event); }),
 		assemble, clean_and_assemble,
 		run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu,
 		assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu,
@@ -1430,7 +1481,23 @@ export async function activate(context: ExtensionContext) {
 	);
 }
 
-workspace.onDidChangeConfiguration(async (event) => {
+async function projectCheck() {
+	if (extensionSettings.alwaysActive) { return; }
+
+	const projectFolders = workspace.workspaceFolders;
+	
+	if (projectFolders) {
+		if ((await workspace.findFiles('*.asm', undefined, 1)).length > 0) {
+			commands.executeCommand("setContext", "megaenvironment.onProject", true);
+		} else {
+			commands.executeCommand("setContext", "megaenvironment.onProject", false);
+		}
+	} else {
+		commands.executeCommand("setContext", "megaenvironment.onProject", false);
+	}
+}
+
+async function updateConfiguration(event: ConfigurationChangeEvent) {
 	if (event.affectsConfiguration('megaenvironment')) {
 		const config = workspace.getConfiguration('megaenvironment');
 
@@ -1456,19 +1523,13 @@ workspace.onDidChangeConfiguration(async (event) => {
 				);
 			}
 		} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
-			projectCheck();
+			commands.executeCommand('setContext', 'megaenvironment.onProject', true);
 		}
 	}
-});
+}
 
 function checkProject(directory: string) {
-	readdir(directory, (error, files) => {
-		if (!error) {
-
-		} else {
-
-		}
-	});
+	
 }
 
 class ButtonTreeItem extends TreeItem {
@@ -1483,31 +1544,7 @@ class ButtonTreeItem extends TreeItem {
 
 class ButtonProvider implements TreeDataProvider<ButtonTreeItem> {
 	getTreeItem(element: ButtonTreeItem): TreeItem { return element; }
-
-	getChildren(): ButtonTreeItem[] {
-		return [
-			new ButtonTreeItem('Run with BlastEm', {
-				command: 'megaenvironment.run_blastem',
-				title: 'Run with BlastEm',
-				tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
-			}),
-			new ButtonTreeItem('Run with Regen', {
-				command: 'megaenvironment.run_regen',
-				title: 'Run with Regen',
-				tooltip: 'Run lastest ROM (.gen) using Regen emulator'
-			}),
-			new ButtonTreeItem('Run with ClownMDEmu', {
-				command: 'megaenvironment.run_clownmdemu',
-				title: 'Run with ClownMDEmu',
-				tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
-			}),
-			new ButtonTreeItem('Run with OpenEmu', {
-				command: 'megaenvironment.run_openemu',
-				title: 'Run with OpenEmu',
-				tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator'
-			})
-		];
-	}
+	getChildren(): ButtonTreeItem[] { return compatibleEmulators; }
 }
 
 // Strings section
@@ -1517,7 +1554,7 @@ const strings = {
 `{
 	"workbench.colorTheme": "MegaEnvironment Dark",
 	"megaenvironment.sourceCodeControl.currentWorkingFolders": [ "Assets" ],
-	"megaenvironment.sourceCodeControl.mainFileName": "Main.asm"
+	"megaenvironment.sourceCodeControl.mainFileName": "Main.68k"
 }`,
 
 	launchJson: String.raw

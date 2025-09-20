@@ -15,79 +15,79 @@
         "command": "megaenvironment.assemble",
         "title": "Assemble",
         "category": "Build",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.clean_assemble",
         "title": "Clean & Assemble",
         "category": "Build",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.run_blastem",
         "title": "Run Latest ROM with BlastEm",
         "category": "Execution",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.run_regen",
         "title": "Run Latest ROM with Regen",
         "category": "Execution",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.run_clownmdemu",
         "title": "Run Latest ROM with ClownMDEmu",
         "category": "Execution",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.run_openemu",
         "title": "Run Latest ROM with OpenEmu",
         "category": "Execution",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.assemble_run_blastem",
         "title": "QuickRun BlastEm",
         "category": "Test",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.assemble_run_regen",
         "title": "QuickRun Regen",
         "category": "Test",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject && megaenvironment.Regen.compatiblePlatform"
       },
       {
         "command": "megaenvironment.assemble_run_clownmdemu",
         "title": "QuickRun ClownMDEmu",
         "category": "Test",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.assemble_run_openemu",
         "title": "QuickRun OpenEmu",
         "category": "Test",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject && megaenvironment.OpenEmu.compatiblePlatform"
       },
       {
         "command": "megaenvironment.backup",
         "title": "Backup Files And Clean Folder",
         "category": "Cleaning",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.cleanup",
         "title": "Clean Folder",
         "category": "Cleaning",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
       {
         "command": "megaenvironment.open_easy68k",
         "title": "Open Current Selection In EASy68k",
         "category": "Debug",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
       },
 	  {
 		"command": "megaenvironment.new_project",
@@ -100,7 +100,7 @@
 	  {
 		"command": "megaenvironment.generate_configuration",
 		"title": "Generate configuration file for Run and Debug",
-		"when": "megaenvironment.enabled"
+		"when": "megaenvironment.onProject"
 	  }
     ],
     "configuration": {
@@ -164,7 +164,7 @@
         },
         "megaenvironment.sourceCodeControl.mainFileName": {
           "type": "string",
-          "default": "Sonic.asm",
+          "default": "Sonic.68k",
           "description": "The main source code file name used in the project, where the code gets executed."
         },
         "megaenvironment.sourceCodeControl.constantsFileName": {
@@ -346,46 +346,46 @@
 		{
 		  "command": "megaenvironment.assemble",
 		  "group": "navigation",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject"
 	    }
 	  ],
 	  "editor/title/run": [
 	    {
 		  "command": "megaenvironment.assemble_run_blastem",
 		  "group": "1_runGroup@1",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_regen",
 		  "group": "1_runGroup@2",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject && megaenvironment.Regen.compatiblePlatform"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_clownmdemu",
 		  "group": "1_runGroup@3",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_openemu",
 		  "group": "1_runGroup@4",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject && megaenvironment.OpenEmu.compatiblePlatform"
 		},
 		{
 		  "command": "megaenvironment.clean_assemble",
 		  "group": "2_buildGroup@1",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject"
 	    }
       ],
 	  "explorer/context": [
 		{
   		  "command": "megaenvironment.cleanup",
   		  "group": "0_fileExplorer@1",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject"
 		},
 		{
 		  "command": "megaenvironment.backup",
 		  "group": "0_fileExplorer@2",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject"
 		}
 	  ],
 	  "file/newFile": [
@@ -401,7 +401,7 @@
 		  "id": "run_emulator",
 		  "name": "Run Lastest ROM",
 		  "icon": "play-circle",
-		  "when": "megaenvironment.enabled"
+		  "when": "megaenvironment.onProject"
 		}
 	  ]
 	},
@@ -456,6 +456,11 @@
       }
     ]
   },
+  "activationEvents": [
+    "workspaceContains: *.asm",
+	"workspaceContains: *.68k",
+	"workspaceContains: *.s"
+  ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
