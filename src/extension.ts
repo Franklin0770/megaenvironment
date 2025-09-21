@@ -5,7 +5,7 @@ TODOS:
 - Maybe some classes for encapsulation.
 */
 
-import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider, ConfigurationChangeEvent } from 'vscode';
+import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment } from 'vscode';
 import { exec } from 'child_process';
 import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync } from 'fs';
 import { pipeline } from 'stream';
@@ -447,9 +447,7 @@ async function assemblerChecks(): Promise<boolean> {
 // If the number is negative we shall not proceed (this case only -1)
 async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	// We proceed with the assembler, which creates the program file
-
 	outputChannel.clear();
-
 	process.chdir(workspace.workspaceFolders![0].uri.fsPath); // We already checked if "workspaceFolders" exists. This is why I put "!"
 
 	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, 'rom.p')}" -`;
@@ -834,6 +832,12 @@ async function cleanProjectFolder() {
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 export async function activate(context: ExtensionContext) {
+	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);
+	runButton.text = "$(cloud-download)";
+	runButton.tooltip = "Re-download The Assembler";
+	runButton.command = "megaenvironment.redownload_tools";
+	runButton.show();
+
 	assemblerFolder = context.globalStorageUri.fsPath;
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerPath = join(assemblerFolder, 'p2bin');
@@ -844,14 +848,17 @@ export async function activate(context: ExtensionContext) {
 			compilerPath += '.exe';
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', true);
 			break;
 		case 'darwin':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
+			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
 			break;
 		case 'linux':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
 			break;
 		default:
 			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
@@ -1422,6 +1429,7 @@ export async function activate(context: ExtensionContext) {
 
 	context.subscriptions.push(
 		workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidChangeConfiguration(event => { updateConfiguration(event); }),
+		runButton,
 		assemble, clean_and_assemble,
 		run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu,
 		assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu,

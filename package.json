@@ -92,8 +92,7 @@
         "command": "megaenvironment.open_easy68k",
         "title": "Open Current Selection In EASy68k",
         "category": "Debug",
-		"when": "megaenvironment.onProject",
-		"enablement": "megaenvironment.EASy68k.compatiblePlatform"
+		"when": "megaenvironment.onProject"
       },
 	  {
 		"command": "megaenvironment.new_project",
@@ -354,6 +353,13 @@
 		  "group": "navigation@1",
 		  "when": "megaenvironment.onProject"
 	    }
+	  ],
+	  "editor/context": [
+		{
+		  "command": "megaenvironment.open_easy68k",
+		  "group": "navigation@2",
+		  "when": "megaenvironment.EASy68k.compatiblePlatform"
+		}
 	  ],
 	  "editor/title/run": [
 	    {

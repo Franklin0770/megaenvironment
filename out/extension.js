@@ -714,6 +714,11 @@ async function cleanProjectFolder() {
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 async function activate(context) {
+    const runButton = vscode_1.window.createStatusBarItem(vscode_1.StatusBarAlignment.Left, 0);
+    runButton.text = "$(cloud-download)";
+    runButton.tooltip = "Re-download The Assembler";
+    runButton.command = "megaenvironment.redownload_tools";
+    runButton.show();
     assemblerFolder = context.globalStorageUri.fsPath;
     assemblerPath = (0, path_1.join)(assemblerFolder, 'asl');
     compilerPath = (0, path_1.join)(assemblerFolder, 'p2bin');
@@ -723,14 +728,17 @@ async function activate(context) {
             compilerPath += '.exe';
             vscode_1.commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
             vscode_1.commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+            vscode_1.commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', true);
             break;
         case 'darwin':
             vscode_1.commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
             vscode_1.commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
+            vscode_1.commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
             break;
         case 'linux':
             vscode_1.commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
             vscode_1.commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+            vscode_1.commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
             break;
         default:
             vscode_1.window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
@@ -1216,7 +1224,7 @@ async function activate(context) {
             return undefined; // Prevent actual debug session
         }
     });
-    context.subscriptions.push(vscode_1.workspace.onDidChangeWorkspaceFolders(projectCheck), vscode_1.workspace.onDidChangeConfiguration(event => { updateConfiguration(event); }), assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
+    context.subscriptions.push(vscode_1.workspace.onDidChangeWorkspaceFolders(projectCheck), vscode_1.workspace.onDidChangeConfiguration(event => { updateConfiguration(event); }), runButton, assemble, clean_and_assemble, run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu, assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu, backup, cleanup, open_EASy68k, newProject, redownloadTools, generateConfiguration);
 }
 async function projectCheck() {
     if (extensionSettings.alwaysActive) {
