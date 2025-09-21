@@ -140,7 +140,6 @@ let assemblerPath: string;
 let compilerPath: string;
 let isDownloading: boolean; // Gets assigned in "downloadAssembler()"
 let firstActivation = true;
-let compatibleEmulators: ButtonTreeItem[] = [];
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
 async function downloadAssembler(): Promise<0 | 1 | 2> {
@@ -845,65 +844,14 @@ export async function activate(context: ExtensionContext) {
 			compilerPath += '.exe';
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
-			compatibleEmulators = [
-				new ButtonTreeItem('Run with BlastEm', {
-					command: 'megaenvironment.run_blastem',
-					title: 'Run with BlastEm',
-					tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
-				}),
-				new ButtonTreeItem('Run with Regen', {
-					command: 'megaenvironment.run_regen',
-					title: 'Run with Regen',
-					tooltip: 'Run lastest ROM (.gen) using Regen emulator'
-				}),
-				new ButtonTreeItem('Run with ClownMDEmu', {
-					command: 'megaenvironment.run_clownmdemu',
-					title: 'Run with ClownMDEmu',
-					tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
-				})
-			];
 			break;
 		case 'darwin':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
-			compatibleEmulators = [
-				new ButtonTreeItem('Run with BlastEm', {
-					command: 'megaenvironment.run_blastem',
-					title: 'Run with BlastEm',
-					tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
-				}),
-				new ButtonTreeItem('Run with ClownMDEmu', {
-					command: 'megaenvironment.run_clownmdemu',
-					title: 'Run with ClownMDEmu',
-					tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
-				}),
-				new ButtonTreeItem('Run with OpenEmu', {
-					command: 'megaenvironment.run_openemu',
-					title: 'Run with OpenEmu',
-					tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator',
-				})
-			];
 			break;
 		case 'linux':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
-			compatibleEmulators = [
-				new ButtonTreeItem('Run with BlastEm', {
-					command: 'megaenvironment.run_blastem',
-					title: 'Run with BlastEm',
-					tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
-				}),
-				new ButtonTreeItem('Run with Regen', {
-					command: 'megaenvironment.run_regen',
-					title: 'Run with Regen',
-					tooltip: 'Run lastest ROM (.gen) using Regen emulator'
-				}),
-				new ButtonTreeItem('Run with ClownMDEmu', {
-					command: 'megaenvironment.run_clownmdemu',
-					title: 'Run with ClownMDEmu',
-					tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
-				})
-			];
 			break;
 		default:
 			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
@@ -969,11 +917,11 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => {
-		const platform = process.platform;
-		if (platform !== 'win32' && platform !== 'linux') {
-			window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
-			return;
-		}
+		// const platform = process.platform;
+		// if (platform !== 'win32' && platform !== 'linux') {
+		// 	window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
+		// 	return;
+		// }
 
 		findAndRunROM('Regen');
 	});
@@ -994,10 +942,10 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const run_OpenEmu = commands.registerCommand('megaenvironment.run_openemu', async () => {
-		if (process.platform !== 'darwin') {
-			window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
-			return;
-		}
+		// if (process.platform !== 'darwin') {
+		// 	window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
+		// 	return;
+		// }
 
 		const projectFolders = workspace.workspaceFolders;
 
@@ -1039,11 +987,11 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', async () => {
-		const platform = process.platform;
-		if (platform !== 'win32' && platform !== 'linux') {
-			window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
-			return;
-		}
+		// const platform = process.platform;
+		// if (platform !== 'win32' && platform !== 'linux') {
+		// 	window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
+		// 	return;
+		// }
 		
 		runTemporaryROM('Regen');
 	});
@@ -1064,10 +1012,10 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', async () => {
-		if (process.platform !== 'darwin') {
-			window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
-			return;
-		}
+		// if (process.platform !== 'darwin') {
+		// 	window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
+		// 	return;
+		// }
 
 		const projectFolders = workspace.workspaceFolders;
 
@@ -1151,10 +1099,10 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', async () => {
-		if (process.platform !== 'win32') {
-			window.showErrorMessage('This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.');
-			return;
-		}
+		// if (process.platform !== 'win32') {
+		// 	window.showErrorMessage('This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.');
+		// 	return;
+		// }
 
 		const projectFolders = workspace.workspaceFolders;
 
@@ -1544,7 +1492,30 @@ class ButtonTreeItem extends TreeItem {
 
 class ButtonProvider implements TreeDataProvider<ButtonTreeItem> {
 	getTreeItem(element: ButtonTreeItem): TreeItem { return element; }
-	getChildren(): ButtonTreeItem[] { return compatibleEmulators; }
+	getChildren(): ButtonTreeItem[] {
+		return [
+			new ButtonTreeItem('Run with BlastEm', {
+				command: 'megaenvironment.run_blastem',
+				title: 'Run with BlastEm',
+				tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
+			}),
+			new ButtonTreeItem('Run with Regen', {
+				command: 'megaenvironment.run_regen',
+				title: 'Run with Regen',
+				tooltip: 'Run lastest ROM (.gen) using Regen emulator'
+			}),
+			new ButtonTreeItem('Run with ClownMDEmu', {
+				command: 'megaenvironment.run_clownmdemu',
+				title: 'Run with ClownMDEmu',
+				tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
+			}),
+			new ButtonTreeItem('Run with OpenEmu', {
+				command: 'megaenvironment.run_openemu',
+				title: 'Run with OpenEmu',
+				tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator',
+			})
+		];
+	 }
 }
 
 // Strings section

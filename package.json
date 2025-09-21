@@ -15,7 +15,8 @@
         "command": "megaenvironment.assemble",
         "title": "Assemble",
         "category": "Build",
-		"when": "megaenvironment.onProject"
+		"when": "megaenvironment.onProject",
+		"icon": "$(tools)"
       },
       {
         "command": "megaenvironment.clean_assemble",
@@ -33,7 +34,8 @@
         "command": "megaenvironment.run_regen",
         "title": "Run Latest ROM with Regen",
         "category": "Execution",
-		"when": "megaenvironment.onProject"
+		"when": "megaenvironment.onProject",
+		"enablement": "megaenvironment.Regen.compatiblePlatform"
       },
       {
         "command": "megaenvironment.run_clownmdemu",
@@ -45,7 +47,8 @@
         "command": "megaenvironment.run_openemu",
         "title": "Run Latest ROM with OpenEmu",
         "category": "Execution",
-		"when": "megaenvironment.onProject"
+		"when": "megaenvironment.onProject",
+		"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
       },
       {
         "command": "megaenvironment.assemble_run_blastem",
@@ -57,7 +60,8 @@
         "command": "megaenvironment.assemble_run_regen",
         "title": "QuickRun Regen",
         "category": "Test",
-		"when": "megaenvironment.onProject && megaenvironment.Regen.compatiblePlatform"
+		"when": "megaenvironment.onProject",
+		"enablement": "megaenvironment.Regen.compatiblePlatform"
       },
       {
         "command": "megaenvironment.assemble_run_clownmdemu",
@@ -69,7 +73,8 @@
         "command": "megaenvironment.assemble_run_openemu",
         "title": "QuickRun OpenEmu",
         "category": "Test",
-		"when": "megaenvironment.onProject && megaenvironment.OpenEmu.compatiblePlatform"
+		"when": "megaenvironment.onProject",
+		"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
       },
       {
         "command": "megaenvironment.backup",
@@ -87,7 +92,8 @@
         "command": "megaenvironment.open_easy68k",
         "title": "Open Current Selection In EASy68k",
         "category": "Debug",
-		"when": "megaenvironment.onProject"
+		"when": "megaenvironment.onProject",
+		"enablement": "megaenvironment.EASy68k.compatiblePlatform"
       },
 	  {
 		"command": "megaenvironment.new_project",
@@ -100,7 +106,7 @@
 	  {
 		"command": "megaenvironment.generate_configuration",
 		"title": "Generate configuration file for Run and Debug",
-		"when": "megaenvironment.onProject"
+		"when": "megaenvironment.onProject && megaenvironment.EASy68k.compatiblePlatform"
 	  }
     ],
     "configuration": {
@@ -345,7 +351,7 @@
 	  "editor/title": [
 		{
 		  "command": "megaenvironment.assemble",
-		  "group": "navigation",
+		  "group": "navigation@1",
 		  "when": "megaenvironment.onProject"
 	    }
 	  ],
@@ -358,7 +364,7 @@
 		{
 		  "command": "megaenvironment.assemble_run_regen",
 		  "group": "1_runGroup@2",
-		  "when": "megaenvironment.onProject && megaenvironment.Regen.compatiblePlatform"
+		  "when": "megaenvironment.onProject"
 		},
 		{
 		  "command": "megaenvironment.assemble_run_clownmdemu",
@@ -368,7 +374,7 @@
 		{
 		  "command": "megaenvironment.assemble_run_openemu",
 		  "group": "1_runGroup@4",
-		  "when": "megaenvironment.onProject && megaenvironment.OpenEmu.compatiblePlatform"
+		  "when": "megaenvironment.onProject"
 		},
 		{
 		  "command": "megaenvironment.clean_assemble",
