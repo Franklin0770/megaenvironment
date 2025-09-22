@@ -1469,9 +1469,9 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 	}
 }
 
-function checkProject(directory: string) {
+// function checkProject(directory: string) {
 	
-}
+// }
 
 class ButtonTreeItem extends TreeItem {
 	constructor (
