@@ -38,7 +38,7 @@ Now that you're almost done, you'll want to compile the extension, so you can ru
 cd megaenvironment
 npm run compile
 ```
-After done compiling, you should see an "out" folder, this contains all of your compiled code in JavaScript.  
+After done compiling, you should see an "out" folder. This contains all of your compiled code in JavaScript.  
 
 To publish it as an installable extension for VS Code, you should package it by doing so:
 ```
