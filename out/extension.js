@@ -255,7 +255,7 @@ async function downloadAssembler() {
             await new Promise((resolve, reject) => {
                 (0, fs_1.writeFile)(name, entry.getData(), (error) => {
                     if (error) {
-                        vscode_1.window.showErrorMessage(`Cannot extract the file: ${name}. ${error.message}`);
+                        vscode_1.window.showErrorMessage(`Cannot extract the file: ${name}. ${error.message}. This happens because I messed up the file structure while uploading the pre-releases, sorry! If it doesn't get fixed in a matter of minutes, let me know.`);
                         reject();
                     }
                     resolve();
