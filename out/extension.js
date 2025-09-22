@@ -98,7 +98,6 @@ let assemblerFolder;
 let assemblerPath;
 let compilerPath;
 let isDownloading; // Gets assigned in "downloadAssembler()"
-let firstActivation = true;
 const outputChannel = vscode_1.window.createOutputChannel('The Macroassembler AS');
 async function downloadAssembler() {
     isDownloading = true;
@@ -294,7 +293,6 @@ async function downloadAssembler() {
         return 0;
     });
     isDownloading = false;
-    firstActivation = false;
     return exitCode;
 }
 async function promptEmulatorPath(emulator) {
@@ -337,9 +335,6 @@ async function assemblerChecks() {
         return false;
     }
     if (isDownloading) {
-        if (!firstActivation) {
-            vscode_1.window.showInformationMessage('Hold on until your tools finished downloading!');
-        }
         return new Promise((resolve) => {
             const check = () => {
                 if (isDownloading) {
@@ -813,8 +808,7 @@ async function activate(context) {
         // 	window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
         // 	return;
         // }
-        const projectFolders = vscode_1.workspace.workspaceFolders;
-        if (!projectFolders) {
+        if (!vscode_1.workspace.workspaceFolders) {
             vscode_1.window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
             return;
         }
@@ -1163,15 +1157,8 @@ async function activate(context) {
         vscode_1.commands.executeCommand('vscode.openFolder', vscode_1.Uri.file(newPath), true);
     });
     const redownloadTools = vscode_1.commands.registerCommand('megaenvironment.redownload_tools', async () => {
-        if (isDownloading && !firstActivation) {
+        if (isDownloading) {
             vscode_1.window.showInformationMessage('Please, be patient! Your tools are already downloading.');
-            return;
-        }
-        if (!extensionSettings.quietOperation) {
-            vscode_1.window.showInformationMessage('Re-downloading your build tools...');
-        }
-        // Tools are effectively already downloading if we have started the extension with this command
-        if (firstActivation) {
             return;
         }
         if (await downloadAssembler() !== 0) {

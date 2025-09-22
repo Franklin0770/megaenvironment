@@ -139,7 +139,6 @@ let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
 let isDownloading: boolean; // Gets assigned in "downloadAssembler()"
-let firstActivation = true;
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
 async function downloadAssembler(): Promise<0 | 1 | 2> {
@@ -366,7 +365,6 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 	);
 
 	isDownloading = false;
-	firstActivation = false;
 	return exitCode;
 }
 
@@ -422,10 +420,6 @@ async function assemblerChecks(): Promise<boolean> {
 	}
 
 	if (isDownloading) {
-		if (!firstActivation) {
-			window.showInformationMessage('Hold on until your tools finished downloading!');
-		}
-		
 		return new Promise<boolean>((resolve) => {
 			const check = () => {
 				if (isDownloading) {
@@ -954,9 +948,7 @@ export async function activate(context: ExtensionContext) {
 		// 	return;
 		// }
 
-		const projectFolders = workspace.workspaceFolders;
-
-		if (!projectFolders) {
+		if (!workspace.workspaceFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
@@ -1361,17 +1353,10 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const redownloadTools = commands.registerCommand('megaenvironment.redownload_tools', async () => {
-		if (isDownloading && !firstActivation) {
+		if (isDownloading) {
 			window.showInformationMessage('Please, be patient! Your tools are already downloading.');
 			return;
 		}
-
-		if (!extensionSettings.quietOperation) {
-			window.showInformationMessage('Re-downloading your build tools...');
-		}
-
-		// Tools are effectively already downloading if we have started the extension with this command
-		if (firstActivation) { return; }
 		
 		if (await downloadAssembler() !== 0) { return; }
 
