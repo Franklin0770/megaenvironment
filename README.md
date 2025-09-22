@@ -20,16 +20,33 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 You can check [this tutorial](https://code.visualstudio.com/api) out if you don't know much about VS extensions.
 
 First of all, make sure you have [Node.js](https://nodejs.org/) installed. [Git](https://git-scm.com) is recommended if you want to clone this repository.  
-Then, after installing Node, you must install [Adm-Zip](https://www.npmjs.com/package/adm-zip), a file zipper required for this extension to make backups:
+
+To clone this repository (so you have Git's convenient source control and versioning) in a folder, type this in your terminal:
 ```
-npm install adm-zip
+cd <folder where you want to clone>
+git clone https://github.com/Franklin0770/megaenvironment.git
 ```
-Since Node needs this package's node module, you'll want to issue this command as well:
+Then, after installing Node, you must get the node modules by issuing the following command:
 ```
 cd megaenvironment
-npm i --save-dev @types/adm-zip
+npm install
 ```
-## Some screenshots (so you get the idea)
+This way you have all the packages you need (including VS Code API and [Adm-Zip](https://www.npmjs.com/package/adm-zip)).  
+
+Now that you're almost done, you'll want to compile the extension, so you can run it and do all of the experimentation you want by yourself:
+```
+cd megaenvironment
+npm run compile
+```
+After done compiling, you should see an "out" folder, this contains all of your compiled code in JavaScript.  
+
+To publish it as an installable extension for VS Code, you should package it by doing so:
+```
+cd megaenvironment
+vsce package
+```
+This command will output your freshly packaged VSIX, ready to be installed in VS Code.
+## Some screenshots (so you get the idea, they are outdated, though)
 ![Settings1](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Settings%201.png)
 ![Settings2](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Settings%202.png)
 ![Assembly1](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Assembly%201.png)
