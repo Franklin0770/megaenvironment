@@ -1,499 +1,499 @@
 {
-  "name": "megaenvironment",
-  "displayName": "Mega Driven Environment",
-  "publisher": "Brotherhood0",
-  "description": "Provides integration with The Macroassembler AS, among other features, such as code highlighting.",
-  "version": "0.3.0",
-  "engines": {
-    "vscode": "^1.96.0"
-  },
-  "categories": [ "Programming Languages" ],
-  "main": "./out/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "megaenvironment.assemble",
-        "title": "Assemble",
-        "category": "Build",
-		"when": "megaenvironment.onProject",
-		"icon": "$(tools)"
-      },
-      {
-        "command": "megaenvironment.clean_assemble",
-        "title": "Clean & Assemble",
-        "category": "Build",
-		"when": "megaenvironment.onProject"
-      },
-      {
-        "command": "megaenvironment.run_blastem",
-        "title": "Run Latest ROM with BlastEm",
-        "category": "Execution",
-		"when": "megaenvironment.onProject"
-      },
-      {
-        "command": "megaenvironment.run_regen",
-        "title": "Run Latest ROM with Regen",
-        "category": "Execution",
-		"when": "megaenvironment.onProject",
-		"enablement": "megaenvironment.Regen.compatiblePlatform"
-      },
-      {
-        "command": "megaenvironment.run_clownmdemu",
-        "title": "Run Latest ROM with ClownMDEmu",
-        "category": "Execution",
-		"when": "megaenvironment.onProject"
-      },
-      {
-        "command": "megaenvironment.run_openemu",
-        "title": "Run Latest ROM with OpenEmu",
-        "category": "Execution",
-		"when": "megaenvironment.onProject",
-		"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
-      },
-      {
-        "command": "megaenvironment.assemble_run_blastem",
-        "title": "QuickRun BlastEm",
-        "category": "Test",
-		"when": "megaenvironment.onProject"
-      },
-      {
-        "command": "megaenvironment.assemble_run_regen",
-        "title": "QuickRun Regen",
-        "category": "Test",
-		"when": "megaenvironment.onProject",
-		"enablement": "megaenvironment.Regen.compatiblePlatform"
-      },
-      {
-        "command": "megaenvironment.assemble_run_clownmdemu",
-        "title": "QuickRun ClownMDEmu",
-        "category": "Test",
-		"when": "megaenvironment.onProject"
-      },
-      {
-        "command": "megaenvironment.assemble_run_openemu",
-        "title": "QuickRun OpenEmu",
-        "category": "Test",
-		"when": "megaenvironment.onProject",
-		"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
-      },
-      {
-        "command": "megaenvironment.backup",
-        "title": "Backup Files And Clean Folder",
-        "category": "Cleaning",
-		"when": "megaenvironment.onProject"
-      },
-      {
-        "command": "megaenvironment.cleanup",
-        "title": "Clean Folder",
-        "category": "Cleaning",
-		"when": "megaenvironment.onProject"
-      },
-      {
-        "command": "megaenvironment.open_easy68k",
-        "title": "Open Current Selection In EASy68k",
-        "category": "Debug",
-		"when": "megaenvironment.onProject"
-      },
-	  {
-		"command": "megaenvironment.new_project",
-		"title": "Create New Project"
-	  },
-	  {
-		"command": "megaenvironment.redownload_tools",
-		"title": "Re-download The Assembler"
-	  },
-	  {
-		"command": "megaenvironment.generate_configuration",
-		"title": "Generate configuration file for Run and Debug",
-		"when": "megaenvironment.onProject && megaenvironment.EASy68k.compatiblePlatform"
-	  }
-    ],
-    "configuration": {
-      "title": "Mega Driven Environment",
-      "properties": {
-        "megaenvironment.codeOptions.defaultCPU": {
-          "type": "string",
-          "default": "68000",
-          "description": "The default CPU the assembler should use when it isn't specified in the code. The Mega Drive uses the Motorola 68000 as the main processor."
-        },
-        "megaenvironment.codeOptions.superiorModeWarnings": {
-          "type": "boolean",
-          "default": false,
-          "description": "Setting this means the assembler will issue warnings when a 68k privileged instruction takes place in your code, when you're not using the symbol \"supmode on\" in code."
-        },
-        "megaenvironment.codeOptions.compatibilityMode": {
-          "type": "boolean",
-          "default": false,
-          "description": "Compatibility mode gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the \"compmode on\" symbol, too."
-        },
-        "megaenvironment.codeOptions.signExtensionWarning": {
-          "type": "boolean",
-          "default": false,
-          "description": "Gives a warning when using implicit sign extensions. Only effective with the \"moveq\" instruction in 68K assembly."
-        },
-        "megaenvironment.codeOptions.absoluteJumpsWarning": {
-          "type": "boolean",
-          "default": false,
-          "description": "Gives a warning when a relative jump can be used instead of an absolute jump. Only effective in Z80 assembly."
-        },
-        "megaenvironment.codeOptions.caseSensitiveMode": {
-          "type": "boolean",
-          "default": true,
-          "description": "Check this to make any symbol case-sensitive in your code."
-        },
-        "megaenvironment.buildControl.outputRomName": {
-          "type": "string",
-          "default": "",
-          "description": "The output ROM file name. Leave it blank if you want this to have the same name as the main source code file."
-        },
-        "megaenvironment.buildControl.includeRomDate": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether the output ROM file name should include date and time after the user's name."
-        },
-        "megaenvironment.buildControl.enablePreviousBuilds": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced. The latest build has the highest number."
-        },
-        "megaenvironment.buildControl.previousRomsAmount": {
-          "type": "integer",
-          "default": 10,
-          "description": "The maximum amount of .pre ROMs before it starts replacing the latest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
-          "minimum": 0
-        },
-        "megaenvironment.buildControl.sonicDisassemblySupport": {
-          "type": "boolean",
-          "default": false,
-          "description": "Downloads an alternative version that supports Sonic disassemblies. Highly recommended if you're into Sonic ROM hacking."
-        },
-        "megaenvironment.sourceCodeControl.mainFileName": {
-          "type": "string",
-          "default": "Sonic.68k",
-          "description": "The main source code file name used in the project, where the code gets executed."
-        },
-        "megaenvironment.sourceCodeControl.constantsFileName": {
-          "type": "string",
-          "default": "Constants.asm",
-          "description": "The source code file name of the constants used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
-        },
-        "megaenvironment.sourceCodeControl.variablesFileName": {
-          "type": "string",
-          "default": "Variables.asm",
-          "description": "The source code file name of the variables used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
-        },
-        "megaenvironment.sourceCodeControl.generateCodeListing": {
-          "type": "boolean",
-          "default": true,
-          "description": "Check this if you want a listing file to be generated each time a build is assembled. Useful for debugging."
-        },
-        "megaenvironment.sourceCodeControl.listingFileName": {
-          "type": "string",
-          "default": "",
-          "description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file."
-        },
-        "megaenvironment.sourceCodeControl.generateErrorListing": {
-          "type": "boolean",
-          "default": false,
-          "description": "Check this if you want every warning and error to be redirected in a text file. This will also suppress warnings automatically."
-        },
-        "megaenvironment.sourceCodeControl.errorFileName": {
-          "type": "string",
-          "default": "",
-          "description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file."
-        },
-        "megaenvironment.sourceCodeControl.generateDebugFile": {
-          "type": "string",
-          "enum": [ "None", "MAP", "NoICE", "Atmel" ],
-          "enumDescriptions": [
-            "Choose not to generate any debug files.",
-            "AS-specific MAP format. The information format is comprised of a symbol table and a table describing the assignment of source lines to machine addresses.",
-            "NoICE-compatible command file.",
-            "Atmel format used by the AVR tools."
-          ],
-          "default": "None",
-          "description": "Check this to instruct AS to print a debug file containing the information for the program. The extension depends on the format you're choosing."
-        },
-        "megaenvironment.sourceCodeControl.generateSectionListing": {
-          "type": "boolean",
-          "default": false,
-          "description": "Check this if you want a listing file representing all sections to be issued. Nesting is Pascal-like indentations."
-        },
-        "megaenvironment.sourceCodeControl.generateMacroListing": {
-          "type": "boolean",
-          "default": false,
-          "description": "Check this if you want a listing file representing all macros that don't use \"NOEXPORT\" to be issued. File name is the same as the main source code, with extension \".mac\"."
-        },
-        "megaenvironment.sourceCodeControl.generateSourceListing": {
-          "type": "boolean",
-          "default": false,
-          "description": "Check this if you want a listing file representing the source text processed by the macro processor and conditional assembly. The file extension is \".i\"."
-        },
-        "megaenvironment.sourceCodeControl.cleaningExtensionSelector": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
-            "enumDescriptions": [
-              "Latest ROMs.",
-              "Any previous ROM.",
-              "Code listing files.",
-              "Error listing files.",
-              "MAP formatted debug files.",
-              "NoICE formatted debug files.",
-              "Atmel proprietary debug files.",
-              "Macros not using \"NOEXPORT\" listing files.",
-              "Source listing files."
-            ]
-          },
-          "default": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
-          "description": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do NOT rename your code with these extensions for any reason, or else."
-        },
-        "megaenvironment.sourceCodeControl.currentWorkingFolders": {
-          "type": "array",
-          "default": [ "." ],
-          "items": { "type": "string" },
-          "description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
-        },
-        "megaenvironment.backupOptions.includeBackupDate": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether the output backup file name should include date and time after the user's name."
-        },
-        "megaenvironment.backupOptions.backupFileName": {
-          "type": "string",
-          "default": "",
-          "description": "The name of the backup files. Default name is \"Backup\"."
-        },
-        "megaenvironment.miscellaneous.compactGlobalSymbols": {
-          "type": "boolean",
-          "default": true,
-          "description": "Stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time."
-        },
-        "megaenvironment.miscellaneous.fillValue": {
-          "type": "string",
-          "default": "00",
-          "description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since they tend to skip writing to these areas.",
-          "pattern": "^[0-9A-Fa-f]{1,2}$",
-          "patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
-        },
-        "megaenvironment.miscellaneous.errorLevel": {
-          "type": "integer",
-          "default": 1,
-          "description": "The detail level of warning, error and fatal messages. The higher the value, the more information about a possible error will be printed.",
-          "minimum": 0,
-          "maximum": 2
-        },
-        "megaenvironment.miscellaneous.displayErrorNumber": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether the terminal should display errors along with their number defined by the assembler."
-        },
-        "megaenvironment.miscellaneous.AS-StyledErrors": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether the terminal should display errors using the original AS syntax. You also gain the ability to localize macro-related errors."
-        },
-        "megaenvironment.miscellaneous.lowercaseHexadecimal": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether any hexadecimal value in the various outputs should be lowercase. Primarily for personal preference (and what a taste!)."
-        },
-        "megaenvironment.miscellaneous.suppressWarnings": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether the IDE and the terminal should suppress the assembler warnings."
-        },
-        "megaenvironment.miscellaneous.quietOperation": {
-          "type": "boolean",
-          "default": false,
-          "description": "This development environment can get a bit invasive: turn this on if you want the IDE to suppress information messages."
-        },
-        "megaenvironment.miscellaneous.verboseOperation": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs."
-        },
-        "megaenvironment.miscellaneous.warningsAsErrors": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether the assembler should treat warnings as errors."
-        },
-		"megaenvironment.paths.BlastEm": {
-		  "type": "string",
-		  "default": "",
-		  "description": "Full path to the BlastEm executable."
-		},
-		"megaenvironment.paths.Regen": {
-		  "type": "string",
-		  "default": "",
-		  "description": "Full path to the Regen executable."
-		},
-		"megaenvironment.paths.ClownMDEmu": {
-		  "type": "string",
-		  "default": "",
-		  "description": "Full path to the ClownMDEmu executable."
-		},
-		"megaenvironment.paths.EASy68k": {
-		  "type": "string",
-		  "default": "",
-		  "description": "Full path to the EASy68k executable."	
-		},
-		"megaenvironment.extensionOptions.alwaysActive": {
-		  "type": "boolean",
-		  "default": false,
-		  "description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project."
-		}
-      }
-    },
-	"menus": {
-	  "editor/title": [
-		{
-		  "command": "megaenvironment.assemble",
-		  "group": "navigation@1",
-		  "when": "megaenvironment.onProject"
-	    }
-	  ],
-	  "editor/context": [
-		{
-		  "command": "megaenvironment.open_easy68k",
-		  "group": "navigation@2",
-		  "when": "megaenvironment.EASy68k.compatiblePlatform"
-		}
-	  ],
-	  "editor/title/run": [
-	    {
-		  "command": "megaenvironment.assemble_run_blastem",
-		  "group": "1_runGroup@1",
-		  "when": "megaenvironment.onProject"
-		},
-		{
-		  "command": "megaenvironment.assemble_run_regen",
-		  "group": "1_runGroup@2",
-		  "when": "megaenvironment.onProject"
-		},
-		{
-		  "command": "megaenvironment.assemble_run_clownmdemu",
-		  "group": "1_runGroup@3",
-		  "when": "megaenvironment.onProject"
-		},
-		{
-		  "command": "megaenvironment.assemble_run_openemu",
-		  "group": "1_runGroup@4",
-		  "when": "megaenvironment.onProject"
-		},
-		{
-		  "command": "megaenvironment.clean_assemble",
-		  "group": "2_buildGroup@1",
-		  "when": "megaenvironment.onProject"
-	    }
-      ],
-	  "explorer/context": [
-		{
-  		  "command": "megaenvironment.cleanup",
-  		  "group": "0_fileExplorer@1",
-		  "when": "megaenvironment.onProject"
-		},
-		{
-		  "command": "megaenvironment.backup",
-		  "group": "0_fileExplorer@2",
-		  "when": "megaenvironment.onProject"
-		}
-	  ],
-	  "file/newFile": [
-		{
-		  "command": "megaenvironment.new_project",
-		  "group": "navigation"
-		}
-	  ]
-    },
-	"views": {
-	  "explorer": [
-		{
-		  "id": "run_emulator",
-		  "name": "Run Lastest ROM",
-		  "icon": "play-circle",
-		  "when": "megaenvironment.onProject"
-		}
-	  ]
+	"name": "megaenvironment",
+	"displayName": "Mega Driven Environment",
+	"publisher": "Brotherhood0",
+	"description": "Provides integration with The Macroassembler AS, among other features, such as code highlighting.",
+	"version": "0.3.0",
+	"engines": {
+		"vscode": "^1.96.0"
 	},
-    "languages": [
-      {
-        "id": "m68k-as",
-        "aliases": [ "Macroassembler AS - Motorola 68000" ],
-        "extensions": [ ".68k", ".asm", ".s" ],
-        "configuration": "./configs/as-language-configuration.json"
-      },
-      {
-        "id": "z80-as",
-        "aliases": [
-          "Macroassembler AS - Zilog Z80"
-        ],
-        "extensions": [ ".z80" ],
-        "configuration": "./configs/as-language-configuration.json"
-      },
-      {
-        "id": "m68k-sdisasm",
-        "aliases": [ "Sonic Disassembly - Motorola 68000" ],
-        "extensions": [ ".asm" ]
-      }
-    ],
-    "grammars": [
-      {
-        "language": "m68k-as",
-        "scopeName": "source.m68k-as",
-        "path": "./syntaxes/m68k-as.tmLanguage.json"
-      },
-      {
-        "language": "z80-as",
-        "scopeName": "source.z80-as",
-        "path": "./syntaxes/z80-as.tmLanguage.json"
-      },
-      {
-        "language": "m68k-sdisasm",
-        "scopeName": "source.m68k-sdisasm",
-        "path": "./syntaxes/m68k-sdisasm.tmLanguage.json"
-      }
-    ],
-    "themes": [
-      {
-        "label": "MegaEnvironment Dark",
-        "uiTheme": "vs-dark",
-        "path": "./themes/as.tmTheme.json"
-      },
-      {
-        "label": "MegaEnvironment Sonic Disassembly",
-        "uiTheme": "vs",
-        "path": "./themes/m68k-sdisasm.tmTheme.json"
-      }
-    ]
-  },
-  "activationEvents": [
-    "workspaceContains: *.asm",
+	"categories": [ "Programming Languages" ],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "megaenvironment.assemble",
+				"title": "Assemble",
+				"category": "Build",
+				"when": "megaenvironment.onProject",
+				"icon": "$(tools)"
+			},
+			{
+				"command": "megaenvironment.clean_assemble",
+				"title": "Clean & Assemble",
+				"category": "Build",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.run_blastem",
+				"title": "Run Latest ROM with BlastEm",
+				"category": "Execution",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.run_regen",
+				"title": "Run Latest ROM with Regen",
+				"category": "Execution",
+				"when": "megaenvironment.onProject",
+				"enablement": "megaenvironment.Regen.compatiblePlatform"
+			},
+			{
+				"command": "megaenvironment.run_clownmdemu",
+				"title": "Run Latest ROM with ClownMDEmu",
+				"category": "Execution",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.run_openemu",
+				"title": "Run Latest ROM with OpenEmu",
+				"category": "Execution",
+				"when": "megaenvironment.onProject",
+				"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
+			},
+			{
+				"command": "megaenvironment.assemble_run_blastem",
+				"title": "QuickRun BlastEm",
+				"category": "Test",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.assemble_run_regen",
+				"title": "QuickRun Regen",
+				"category": "Test",
+				"when": "megaenvironment.onProject",
+				"enablement": "megaenvironment.Regen.compatiblePlatform"
+			},
+			{
+				"command": "megaenvironment.assemble_run_clownmdemu",
+				"title": "QuickRun ClownMDEmu",
+				"category": "Test",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.assemble_run_openemu",
+				"title": "QuickRun OpenEmu",
+				"category": "Test",
+				"when": "megaenvironment.onProject",
+				"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
+			},
+			{
+				"command": "megaenvironment.backup",
+				"title": "Backup Files And Clean Folder",
+				"category": "Cleaning",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.cleanup",
+				"title": "Clean Folder",
+				"category": "Cleaning",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.open_easy68k",
+				"title": "Open Current Selection In EASy68k",
+				"category": "Debug",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.new_project",
+				"title": "Create New Project"
+			},
+			{
+				"command": "megaenvironment.redownload_tools",
+				"title": "Re-download The Assembler"
+			},
+			{
+				"command": "megaenvironment.generate_configuration",
+				"title": "Generate configuration file for Run and Debug",
+				"when": "megaenvironment.onProject && megaenvironment.EASy68k.compatiblePlatform"
+			}
+		],
+		"configuration": {
+			"title": "Mega Driven Environment",
+			"properties": {
+				"megaenvironment.codeOptions.defaultCPU": {
+					"type": "string",
+					"default": "68000",
+					"description": "The default CPU the assembler should use when it isn't specified in the code. The Mega Drive uses the Motorola 68000 as the main processor."
+				},
+				"megaenvironment.codeOptions.superiorModeWarnings": {
+					"type": "boolean",
+					"default": false,
+					"description": "Setting this means the assembler will issue warnings when a 68k privileged instruction takes place in your code, when you're not using the symbol \"supmode on\" in code."
+				},
+				"megaenvironment.codeOptions.compatibilityMode": {
+					"type": "boolean",
+					"default": false,
+					"description": "Compatibility mode gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the \"compmode on\" symbol, too."
+				},
+				"megaenvironment.codeOptions.signExtensionWarning": {
+					"type": "boolean",
+					"default": false,
+					"description": "Gives a warning when using implicit sign extensions. Only effective with the \"moveq\" instruction in 68K assembly."
+				},
+				"megaenvironment.codeOptions.absoluteJumpsWarning": {
+					"type": "boolean",
+					"default": false,
+					"description": "Gives a warning when a relative jump can be used instead of an absolute jump. Only effective in Z80 assembly."
+				},
+				"megaenvironment.codeOptions.caseSensitiveMode": {
+					"type": "boolean",
+					"default": true,
+					"description": "Check this to make any symbol case-sensitive in your code."
+				},
+				"megaenvironment.buildControl.outputRomName": {
+					"type": "string",
+					"default": "",
+					"description": "The output ROM file name. Leave it blank if you want this to have the same name as the main source code file."
+				},
+				"megaenvironment.buildControl.includeRomDate": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether the output ROM file name should include date and time after the user's name."
+				},
+				"megaenvironment.buildControl.enablePreviousBuilds": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced. The latest build has the highest number."
+				},
+				"megaenvironment.buildControl.previousRomsAmount": {
+					"type": "integer",
+					"default": 10,
+					"description": "The maximum amount of .pre ROMs before it starts replacing the latest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
+					"minimum": 0
+				},
+				"megaenvironment.buildControl.sonicDisassemblySupport": {
+					"type": "boolean",
+					"default": false,
+					"description": "Downloads an alternative version that supports Sonic disassemblies. Highly recommended if you're into Sonic ROM hacking."
+				},
+				"megaenvironment.sourceCodeControl.mainFileName": {
+					"type": "string",
+					"default": "Sonic.68k",
+					"description": "The main source code file name used in the project, where the code gets executed."
+				},
+				"megaenvironment.sourceCodeControl.constantsFileName": {
+					"type": "string",
+					"default": "Constants.asm",
+					"description": "The source code file name of the constants used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
+				},
+				"megaenvironment.sourceCodeControl.variablesFileName": {
+					"type": "string",
+					"default": "Variables.asm",
+					"description": "The source code file name of the variables used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
+				},
+				"megaenvironment.sourceCodeControl.generateCodeListing": {
+					"type": "boolean",
+					"default": true,
+					"description": "Check this if you want a listing file to be generated each time a build is assembled. Useful for debugging."
+				},
+				"megaenvironment.sourceCodeControl.listingFileName": {
+					"type": "string",
+					"default": "",
+					"description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file."
+				},
+				"megaenvironment.sourceCodeControl.generateErrorListing": {
+					"type": "boolean",
+					"default": false,
+					"description": "Check this if you want every warning and error to be redirected in a text file. This will also suppress warnings automatically."
+				},
+				"megaenvironment.sourceCodeControl.errorFileName": {
+					"type": "string",
+					"default": "",
+					"description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file."
+				},
+				"megaenvironment.sourceCodeControl.generateDebugFile": {
+					"type": "string",
+					"enum": [ "None", "MAP", "NoICE", "Atmel" ],
+					"enumDescriptions": [
+						"Choose not to generate any debug files.",
+						"AS-specific MAP format. The information format is comprised of a symbol table and a table describing the assignment of source lines to machine addresses.",
+						"NoICE-compatible command file.",
+						"Atmel format used by the AVR tools."
+					],
+					"default": "None",
+					"description": "Check this to instruct AS to print a debug file containing the information for the program. The extension depends on the format you're choosing."
+				},
+				"megaenvironment.sourceCodeControl.generateSectionListing": {
+					"type": "boolean",
+					"default": false,
+					"description": "Check this if you want a listing file representing all sections to be issued. Nesting is Pascal-like indentations."
+				},
+				"megaenvironment.sourceCodeControl.generateMacroListing": {
+					"type": "boolean",
+					"default": false,
+					"description": "Check this if you want a listing file representing all macros that don't use \"NOEXPORT\" to be issued. File name is the same as the main source code, with extension \".mac\"."
+				},
+				"megaenvironment.sourceCodeControl.generateSourceListing": {
+					"type": "boolean",
+					"default": false,
+					"description": "Check this if you want a listing file representing the source text processed by the macro processor and conditional assembly. The file extension is \".i\"."
+				},
+				"megaenvironment.sourceCodeControl.cleaningExtensionSelector": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
+						"enumDescriptions": [
+							"Latest ROMs.",
+							"Any previous ROM.",
+							"Code listing files.",
+							"Error listing files.",
+							"MAP formatted debug files.",
+							"NoICE formatted debug files.",
+							"Atmel proprietary debug files.",
+							"Macros not using \"NOEXPORT\" listing files.",
+							"Source listing files."
+						]
+					},
+					"default": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
+					"description": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do NOT rename your code with these extensions for any reason, or else."
+				},
+				"megaenvironment.sourceCodeControl.currentWorkingFolders": {
+					"type": "array",
+					"default": [ "." ],
+					"items": { "type": "string" },
+					"description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
+				},
+				"megaenvironment.backupOptions.includeBackupDate": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether the output backup file name should include date and time after the user's name."
+				},
+				"megaenvironment.backupOptions.backupFileName": {
+					"type": "string",
+					"default": "",
+					"description": "The name of the backup files. Default name is \"Backup\"."
+				},
+				"megaenvironment.miscellaneous.compactGlobalSymbols": {
+					"type": "boolean",
+					"default": true,
+					"description": "Stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time."
+				},
+				"megaenvironment.miscellaneous.fillValue": {
+					"type": "string",
+					"default": "00",
+					"description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since they tend to skip writing to these areas.",
+					"pattern": "^[0-9A-Fa-f]{1,2}$",
+					"patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
+				},
+				"megaenvironment.miscellaneous.errorLevel": {
+					"type": "integer",
+					"default": 1,
+					"description": "The detail level of warning, error and fatal messages. The higher the value, the more information about a possible error will be printed.",
+					"minimum": 0,
+					"maximum": 2
+				},
+				"megaenvironment.miscellaneous.displayErrorNumber": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the terminal should display errors along with their number defined by the assembler."
+				},
+				"megaenvironment.miscellaneous.AS-StyledErrors": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the terminal should display errors using the original AS syntax. You also gain the ability to localize macro-related errors."
+				},
+				"megaenvironment.miscellaneous.lowercaseHexadecimal": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether any hexadecimal value in the various outputs should be lowercase. Primarily for personal preference (and what a taste!)."
+				},
+				"megaenvironment.miscellaneous.suppressWarnings": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the IDE and the terminal should suppress the assembler warnings."
+				},
+				"megaenvironment.miscellaneous.quietOperation": {
+					"type": "boolean",
+					"default": false,
+					"description": "This development environment can get a bit invasive: turn this on if you want the IDE to suppress information messages."
+				},
+				"megaenvironment.miscellaneous.verboseOperation": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs."
+				},
+				"megaenvironment.miscellaneous.warningsAsErrors": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the assembler should treat warnings as errors."
+				},
+				"megaenvironment.paths.BlastEm": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the BlastEm executable."
+				},
+				"megaenvironment.paths.Regen": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the Regen executable."
+				},
+				"megaenvironment.paths.ClownMDEmu": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the ClownMDEmu executable."
+				},
+				"megaenvironment.paths.EASy68k": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the EASy68k executable."	
+				},
+				"megaenvironment.extensionOptions.alwaysActive": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project."
+				}
+			}
+		},
+	"menus": {
+		"editor/title": [
+			{
+				"command": "megaenvironment.assemble",
+				"group": "navigation@1",
+				"when": "megaenvironment.onProject"
+			}
+		],
+		"editor/context": [
+			{
+				"command": "megaenvironment.open_easy68k",
+				"group": "navigation@2",
+				"when": "megaenvironment.EASy68k.compatiblePlatform"
+			}
+		],
+		"editor/title/run": [
+			{
+				"command": "megaenvironment.assemble_run_blastem",
+				"group": "1_runGroup@1",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.assemble_run_regen",
+				"group": "1_runGroup@2",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.assemble_run_clownmdemu",
+				"group": "1_runGroup@3",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.assemble_run_openemu",
+				"group": "1_runGroup@4",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.clean_assemble",
+				"group": "2_buildGroup@1",
+				"when": "megaenvironment.onProject"
+			}
+		],
+		"explorer/context": [
+			{
+				"command": "megaenvironment.cleanup",
+				"group": "0_fileExplorer@1",
+				"when": "megaenvironment.onProject"
+			},
+			{
+				"command": "megaenvironment.backup",
+				"group": "0_fileExplorer@2",
+				"when": "megaenvironment.onProject"
+			}
+		],
+		"file/newFile": [
+			{
+				"command": "megaenvironment.new_project",
+				"group": "navigation"
+			}
+		]
+	},
+	"views": {
+		"explorer": [
+			{
+				"id": "run_emulator",
+				"name": "Run Lastest ROM",
+				"icon": "play-circle",
+				"when": "megaenvironment.onProject"
+			}
+		]
+	},
+	"languages": [
+		{
+			"id": "m68k-as",
+			"aliases": [ "Macroassembler AS - Motorola 68000" ],
+			"extensions": [ ".68k", ".asm", ".s" ],
+			"configuration": "./configs/as-language-configuration.json"
+		},
+		{
+			"id": "z80-as",
+			"aliases": [
+				"Macroassembler AS - Zilog Z80"
+			],
+			"extensions": [ ".z80" ],
+			"configuration": "./configs/as-language-configuration.json"
+		},
+		{
+			"id": "m68k-sdisasm",
+			"aliases": [ "Sonic Disassembly - Motorola 68000" ],
+			"extensions": [ ".asm" ]
+		}
+	],
+		"grammars": [
+			{
+				"language": "m68k-as",
+				"scopeName": "source.m68k-as",
+				"path": "./syntaxes/m68k-as.tmLanguage.json"
+			},
+			{
+				"language": "z80-as",
+				"scopeName": "source.z80-as",
+				"path": "./syntaxes/z80-as.tmLanguage.json"
+			},
+			{
+				"language": "m68k-sdisasm",
+				"scopeName": "source.m68k-sdisasm",
+				"path": "./syntaxes/m68k-sdisasm.tmLanguage.json"
+			}
+		],
+		"themes": [
+			{
+				"label": "MegaEnvironment Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/as.tmTheme.json"
+			},
+			{
+				"label": "MegaEnvironment Sonic Disassembly",
+				"uiTheme": "vs",
+				"path": "./themes/m68k-sdisasm.tmTheme.json"
+			}
+		]
+	},
+	"activationEvents": [
+		"workspaceContains: *.asm",
 	"workspaceContains: *.68k",
 	"workspaceContains: *.s"
-  ],
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
-  },
-  "devDependencies": {
-    "@types/adm-zip": "^0.5.7",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "20.x",
-    "@types/vscode": "^1.96.0",
-    "@typescript-eslint/eslint-plugin": "^8.17.0",
-    "@typescript-eslint/parser": "^8.17.0",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1",
-    "eslint": "^9.16.0",
-    "typescript": "^5.8.3"
-  },
-  "dependencies": {
-    "adm-zip": "^0.5.16"
-  }
+	],
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile && npm run lint",
+		"lint": "eslint src",
+		"test": "vscode-test"
+	},
+	"devDependencies": {
+		"@types/adm-zip": "^0.5.7",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "20.x",
+		"@types/vscode": "^1.96.0",
+		"@typescript-eslint/eslint-plugin": "^8.17.0",
+		"@typescript-eslint/parser": "^8.17.0",
+		"@vscode/test-cli": "^0.0.10",
+		"@vscode/test-electron": "^2.4.1",
+		"eslint": "^9.16.0",
+		"typescript": "^5.8.3"
+	},
+	"dependencies": {
+		"adm-zip": "^0.5.16"
+	}
 }

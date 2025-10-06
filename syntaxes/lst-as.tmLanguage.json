@@ -1,0 +1,145 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "The Macroassembler AS - Listing Files",
+	"scopeName": "source.lst-as",
+	"foldingStartMarker": "^\\s*(?i:macro|if|ifn?(?:def|symexist|used|exist|b)|rept|irpc?|while|function|struct|switch)\\b",
+	"foldingStopMarker": "^\\s*(?i:end(?:if|struct|case|m))\\b",
+	"patterns": [
+		{ "include": "#lst-constants" },
+		{ "include": "#instruction-label-structure" },
+		{ "include": "#instructions" },
+		{ "include": "#sizes" },
+		{ "include": "#autoincrements" },
+		{ "include": "#variables" },
+		{ "include": "#constants" },
+		{ "include": "#comments" },
+		{ "include": "#strings" },
+		{ "include": "#labels" },
+		{ "include": "#symbols" },
+		{ "include": "#operators" },
+		{ "include": "#functions" },
+		{ "include": "#pseudo-instructions" }
+	],
+	"repository": {
+		"lst-constants": {
+			"patterns": [
+				{
+					"name": "constant.line.as",
+					"match": "(\\s+\\K\\d*\\/)?\\s+\\K([0-9a-fA-F]{1,6}) : ((?:[0-9a-fA-F]{1,4} )+|(?:[0-9a-fA-F]{1,4})(?:=-?\\d{1,10}|\\$[0-9a-fA-F]{1,8}|%[01]{1,32}|@[0-7]{1,11}))"
+				}
+			]
+		},
+		"instructions": {
+			"patterns": [
+				{
+					"name": "instruction.mnemonic.as",
+					"match": "\\b(?i:[as]bcd|add[aiqx]?|andi?|as[lr]|b(?:chg|clr|set|tst)|chk|clr|cmp[aim]?|div[su]|[e]?or[i]?|exg|ext|illegal|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|negx?|nop|not|pea|reset|rox?[lr]|rt[ser]|stop|sub[aiqx]?|swap|tas|trapv?|tst|unlk)\\b"
+				},
+				{
+					"name": "instruction.jump.as",
+					"match": "\\b(?i:b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser])\\b"
+				}
+			]
+		},
+		"sizes": {
+			"name": "instruction.size.as",
+			"match": "(?i:\\.[bwls])(?!\\w)"
+		},
+		"autoincrements": {
+			"name": "instruction.autoincrement.as",
+			"match": "(?i:(?<=\\(a[0-7]\\))\\+|\\-(?=\\(a[0-7]\\)))"
+		},
+		"variables": {
+			"name": "variable.register.as",
+			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr)\\b"
+		},
+		"constants": {
+			"patterns": [
+				{
+					"name": "constant.immediate.as",
+					"match": "(?<=\\s+)#(?=[\\w|$%@(])"
+				},
+				{
+					"name": "constant.numeric.as",
+					"match": "(?<![\\w\\)])(?:-?\\d{1,10}|\\$[0-9a-fA-F]{1,8}|%[01]{1,32}|@[0-7]{1,11})(?!\\w)"
+				}
+			]
+		},
+		"comments": {
+			"name": "directive.comment.as",
+			"match": "\\;.*$"
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "directive.string.as",
+					"begin": "\"",
+					"end": "\""
+				},
+				{
+					"name": "directive.string.as",
+					"begin": "'",
+					"end": "'"
+				}
+			]
+		},
+		"labels": {
+			"patterns": [
+				{
+					"name": "directive.label.global.as",
+					"match": "(?:^\\w+:?)|(?:\\s\\w+:)"
+				},
+				{
+					"name": "directive.label.local.as",
+					"match": "(?:^\\.[\\w\\.]+:?)|(?:\\s\\.[\\w\\.]+:)"
+				},
+				{
+					"name": "directive.label.temporary.as",
+					"match": "(?:^\\$\\$[\\w\\.]+:?)|(?:\\s\\$\\$[\\w\\.]+:)"
+				},
+				{
+					"name": "directive.label.nameless.as",
+					"match": "^[+-]$"
+				}
+			]
+		},
+		"operators": {
+			"name": "directive.operator.as",
+			"match": "(?:\\w[\\s\\(]?)?\\K(?::=|==|!=|<=|>=|<>|<<|>>|\\|\\||&&|!!|><|[-+*\\/#^~|&=<>!])"
+		},
+		"functions": {
+			"name": "directive.function.as",
+			"match": "\\b(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bit(?:cnt|pos)|(?:first|last)bit|sgn|abs|to(?:upper|lower)|(?:up|low)string|strlen|substr|charfromstr|strstr|val|exprtype|fsize)\\b"
+		},
+		"symbols": {
+			"name": "directive.symbol.as",
+			"match": "(?<!\\w)(?:TRUE|FALSE|CONSTPI|FLOATMAX|VERSION|ARCHITECTURE|DATE|TIME|MOM(?:CPU(?:NAME)?|FILE|LINE|PASS|SECTION)|[\\.\\$])(?![\\w\\$])"	
+		},
+		"pseudo-instructions": {
+			"name": "directive.pseudo.as",
+			"match": "\\b(?i:set|equ|label|charset|codepage|pushv|popv|r?org|cpu|supmode|padding|segment|(?:de)?phase|save|restore|assume|(?:end)?expect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|page(?:size)?|newpage|macexp_(?:dft|ovr)|listing|title|(?:out)?radix|public|global|forward|shared|b?include|message|warning|error|fatal|read|intsyntax|relaxed|compmode)\\b"
+		},
+		"instruction-label-structure": {
+			"patterns": [
+				{
+					"name": "instruction.label.as",
+					"match": "(?i:\\b((?:db|s)(?:t|f|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])))\\b\\s+(?i:\\b(d[0-7])\\b)\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "variable.register.as" },
+						"3": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"name": "instruction.label.as",
+					"match": "(?i:\\b(b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr))(\\.[swl])?)\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"captures": {
+						"1": { "name": "instruction.jump.as"},
+						"2": { "name": "instruction.size.as" },
+						"3": { "name": "directive.label.jump.as" }
+					}
+				}
+			]
+		}
+	}
+}

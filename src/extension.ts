@@ -1,15 +1,22 @@
 /*
 TODOS:
-- Maybe some MORE asyncing;
-- Fix sonicDisassemblySupport config switch when it couldn't update the assembler
-- Maybe some classes for encapsulation.
+- Maybe some MORE asyncing (Done!);
+- Fix sonicDisassemblySupport config switch loop when it couldn't update the assembler (Done!);
+- Some classes for encapsulation and separation.
 */
 
-import { ExtensionContext, workspace, commands, debug, window, env, Uri, ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment } from 'vscode';
-import { exec } from 'child_process';
-import { existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, unlink, createWriteStream, chmod, statSync } from 'fs';
-import { pipeline } from 'stream';
+import { 
+	ExtensionContext, workspace, commands, debug, window, env, Uri, 
+	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, 
+	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment 
+} from 'vscode'; // Import just what we need
+import {
+	existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, 
+	unlink, createWriteStream, chmod, statSync
+} from 'fs';
 import { join, basename } from 'path';
+import { exec } from 'child_process';
+import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 
 interface ExtensionSettings { // Settings variable declaration
@@ -140,6 +147,7 @@ let assemblerPath: string;
 let compilerPath: string;
 
 let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
+let updatingConfiguration = false;
 
 const outputChannel = window.createOutputChannel('The Macroassembler AS');
 
@@ -421,8 +429,8 @@ async function assemblerChecks(): Promise<boolean> {
 		.then(selection => {
 			if (selection === 'Open Setting') {
 				commands.executeCommand(
-				'workbench.action.openSettings',
-				'megaenvironment.sourceCodeControl.mainFileName'
+					'workbench.action.openSettings',
+					'megaenvironment.sourceCodeControl.mainFileName'
 				);
 			}
 		});
@@ -586,6 +594,8 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 		return -1; // There's more than 1 error anyway
 	}
+
+	// Let's generate the checksum!
 
 	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
@@ -836,6 +846,7 @@ async function cleanProjectFolder() {
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 export async function activate(context: ExtensionContext) {
+	// A small button located at the bottom of the screen to force download the assembler
 	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);
 	runButton.text = "$(cloud-download)";
 	runButton.tooltip = "Re-download The Assembler";
@@ -880,7 +891,7 @@ export async function activate(context: ExtensionContext) {
 	if (!extensionSettings.alwaysActive) {
 		projectCheck();
 	} else {
-		commands.executeCommand("setContext", "megaenvironment.onProject", true);
+		commands.executeCommand('setContext', 'megaenvironment.onProject', true);
 		return;
 	}
 	
@@ -1426,16 +1437,18 @@ async function projectCheck() {
 	
 	if (projectFolders) {
 		if ((await workspace.findFiles('*.asm', undefined, 1)).length > 0) {
-			commands.executeCommand("setContext", "megaenvironment.onProject", true);
+			commands.executeCommand('setContext', 'megaenvironment.onProject', true);
 		} else {
-			commands.executeCommand("setContext", "megaenvironment.onProject", false);
+			commands.executeCommand('setContext', 'megaenvironment.onProject', false);
 		}
 	} else {
-		commands.executeCommand("setContext", "megaenvironment.onProject", false);
+		commands.executeCommand('setContext', 'megaenvironment.onProject', false);
 	}
 }
 
 async function updateConfiguration(event: ConfigurationChangeEvent) {
+	if (updatingConfiguration) { return; } // Prevent loop
+
 	if (event.affectsConfiguration('megaenvironment')) {
 		const config = workspace.getConfiguration('megaenvironment');
 
@@ -1453,12 +1466,15 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 			}
 
 			if (await downloadAssembler() !== 0) {
+				// In case it couldn't update, we need to restore the previous setting value
 				extensionSettings.sonicDisassembly = !extensionSettings.sonicDisassembly;
-				config.update(
+				updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
+				await config.update(
 					'buildControl.sonicDisassemblySupport',
 					extensionSettings.sonicDisassembly,
 					true
 				);
+				updatingConfiguration = false;
 			}
 		} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
 			commands.executeCommand('setContext', 'megaenvironment.onProject', true);
