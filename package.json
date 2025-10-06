@@ -4,10 +4,8 @@
 	"publisher": "Brotherhood0",
 	"description": "Provides integration with The Macroassembler AS, among other features, such as code highlighting.",
 	"version": "0.3.0",
-	"engines": {
-		"vscode": "^1.96.0"
-	},
-	"categories": [ "Programming Languages" ],
+	"engines": { "vscode": "^1.96.0" },
+	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
@@ -161,6 +159,11 @@
 					"default": 10,
 					"description": "The maximum amount of .pre ROMs before it starts replacing the latest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
 					"minimum": 0
+				},
+				"megaenvironment.buildControl.generateChecksum": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Generates a [16-bit Mega Drive-style checksum](https://plutiedev.com/rom-header#checksum) which patches byte $18E and $18F of the ROM header."
 				},
 				"megaenvironment.buildControl.sonicDisassemblySupport": {
 					"type": "boolean",
@@ -339,6 +342,11 @@
 					"default": "",
 					"description": "Full path to the EASy68k executable."	
 				},
+				"megaenvironment.extensionOptions.showChecksumValue": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether the checksum should be shown in the terminal. Useful when you need to hard code it into your ROM to perform the integrity check."
+				},
 				"megaenvironment.extensionOptions.alwaysActive": {
 					"type": "boolean",
 					"default": false,
@@ -346,98 +354,98 @@
 				}
 			}
 		},
-	"menus": {
-		"editor/title": [
-			{
-				"command": "megaenvironment.assemble",
-				"group": "navigation@1",
-				"when": "megaenvironment.onProject"
-			}
-		],
-		"editor/context": [
-			{
-				"command": "megaenvironment.open_easy68k",
-				"group": "navigation@2",
-				"when": "megaenvironment.EASy68k.compatiblePlatform"
-			}
-		],
-		"editor/title/run": [
-			{
-				"command": "megaenvironment.assemble_run_blastem",
-				"group": "1_runGroup@1",
-				"when": "megaenvironment.onProject"
-			},
-			{
-				"command": "megaenvironment.assemble_run_regen",
-				"group": "1_runGroup@2",
-				"when": "megaenvironment.onProject"
-			},
-			{
-				"command": "megaenvironment.assemble_run_clownmdemu",
-				"group": "1_runGroup@3",
-				"when": "megaenvironment.onProject"
-			},
-			{
-				"command": "megaenvironment.assemble_run_openemu",
-				"group": "1_runGroup@4",
-				"when": "megaenvironment.onProject"
-			},
-			{
-				"command": "megaenvironment.clean_assemble",
-				"group": "2_buildGroup@1",
-				"when": "megaenvironment.onProject"
-			}
-		],
-		"explorer/context": [
-			{
-				"command": "megaenvironment.cleanup",
-				"group": "0_fileExplorer@1",
-				"when": "megaenvironment.onProject"
-			},
-			{
-				"command": "megaenvironment.backup",
-				"group": "0_fileExplorer@2",
-				"when": "megaenvironment.onProject"
-			}
-		],
-		"file/newFile": [
-			{
-				"command": "megaenvironment.new_project",
-				"group": "navigation"
-			}
-		]
-	},
-	"views": {
-		"explorer": [
-			{
-				"id": "run_emulator",
-				"name": "Run Lastest ROM",
-				"icon": "play-circle",
-				"when": "megaenvironment.onProject"
-			}
-		]
-	},
-	"languages": [
-		{
-			"id": "m68k-as",
-			"aliases": [ "Macroassembler AS - Motorola 68000" ],
-			"extensions": [ ".68k", ".asm", ".s" ],
-			"configuration": "./configs/as-language-configuration.json"
-		},
-		{
-			"id": "z80-as",
-			"aliases": [
-				"Macroassembler AS - Zilog Z80"
+		"menus": {
+			"editor/title": [
+				{
+					"command": "megaenvironment.assemble",
+					"group": "navigation@1",
+					"when": "megaenvironment.onProject"
+				}
 			],
-			"extensions": [ ".z80" ],
-			"configuration": "./configs/as-language-configuration.json"
+			"editor/context": [
+				{
+					"command": "megaenvironment.open_easy68k",
+					"group": "navigation@2",
+					"when": "megaenvironment.EASy68k.compatiblePlatform"
+				}
+			],
+			"editor/title/run": [
+				{
+					"command": "megaenvironment.assemble_run_blastem",
+					"group": "1_runGroup@1",
+					"when": "megaenvironment.onProject"
+				},
+				{
+					"command": "megaenvironment.assemble_run_regen",
+					"group": "1_runGroup@2",
+					"when": "megaenvironment.onProject"
+				},
+				{
+					"command": "megaenvironment.assemble_run_clownmdemu",
+					"group": "1_runGroup@3",
+					"when": "megaenvironment.onProject"
+				},
+				{
+					"command": "megaenvironment.assemble_run_openemu",
+					"group": "1_runGroup@4",
+					"when": "megaenvironment.onProject"
+				},
+				{
+					"command": "megaenvironment.clean_assemble",
+					"group": "2_buildGroup@1",
+					"when": "megaenvironment.onProject"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "megaenvironment.cleanup",
+					"group": "0_fileExplorer@1",
+					"when": "megaenvironment.onProject"
+				},
+				{
+					"command": "megaenvironment.backup",
+					"group": "0_fileExplorer@2",
+					"when": "megaenvironment.onProject"
+				}
+			],
+			"file/newFile": [
+				{
+					"command": "megaenvironment.new_project",
+					"group": "navigation"
+				}
+			]
 		},
-		{
-			"id": "m68k-sdisasm",
-			"aliases": [ "Sonic Disassembly - Motorola 68000" ],
-			"extensions": [ ".asm" ]
-		}
-	],
+		"views": {
+			"explorer": [
+				{
+					"id": "run_emulator",
+					"name": "Run Lastest ROM",
+					"icon": "play-circle",
+					"when": "megaenvironment.onProject"
+				}
+			]
+		},
+		"languages": [
+			{
+				"id": "m68k-as",
+				"aliases": [ "Macroassembler AS - Motorola 68000" ],
+				"extensions": [ ".68k", ".asm", ".s" ],
+				"configuration": "./configs/as-language-configuration.json"
+			},
+			{
+				"id": "z80-as",
+				"aliases": [
+					"Macroassembler AS - Zilog Z80"
+				],
+				"extensions": [ ".z80" ],
+				"configuration": "./configs/as-language-configuration.json"
+			},
+			{
+				"id": "m68k-sdisasm",
+				"aliases": [ "Sonic Disassembly - Motorola 68000" ],
+				"extensions": [ ".asm" ]
+			}
+		],
 		"grammars": [
 			{
 				"language": "m68k-as",
@@ -470,8 +478,8 @@
 	},
 	"activationEvents": [
 		"workspaceContains: *.asm",
-	"workspaceContains: *.68k",
-	"workspaceContains: *.s"
+		"workspaceContains: *.68k",
+		"workspaceContains: *.s"
 	],
 	"scripts": {
 		"vscode:prepublish": "npm run compile",

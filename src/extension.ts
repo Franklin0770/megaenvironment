@@ -5,14 +5,15 @@ TODOS:
 - Some classes for encapsulation and separation.
 */
 
+// Import just what we need
 import { 
 	ExtensionContext, workspace, commands, debug, window, env, Uri, 
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, 
 	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment 
-} from 'vscode'; // Import just what we need
+} from 'vscode';
 import {
-	existsSync, readFileSync, readdir, writeFile, mkdirSync, rename, 
-	unlink, createWriteStream, chmod, statSync
+	existsSync, writeFile, rename, 
+	unlink, createWriteStream, promises
 } from 'fs';
 import { join, basename } from 'path';
 import { exec } from 'child_process';
@@ -28,6 +29,7 @@ interface ExtensionSettings { // Settings variable declaration
     romDate: boolean;
     prevRoms: boolean;
     prevAmount: number;
+	generateChecksum: boolean;
 	sonicDisassembly: boolean;
     mainName: string;
     constantsName: string;
@@ -57,6 +59,7 @@ interface ExtensionSettings { // Settings variable declaration
     verboseOperation: boolean;
 	warningsAsErrors: boolean;
 
+	showChecksum: boolean;
 	alwaysActive: boolean;
 }
 
@@ -69,6 +72,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
     romDate: true,
     prevRoms: true,
     prevAmount: 10,
+	generateChecksum: true,
 	sonicDisassembly: false,
     mainName: '',
     constantsName: '',
@@ -98,6 +102,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
     verboseOperation: false,
 	warningsAsErrors: false,
 
+	showChecksum: true,
 	alwaysActive: false
 };
 
@@ -112,6 +117,7 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'buildControl.includeRomDate',					target: 'romDate' },
 	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
 	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
+	{ key: 'buildControl.generateChecksum',					target: 'generateChecksum' },
 	// 'buildControl.sonicDisassemblySupport' is handled differently
 	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
 	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
@@ -138,6 +144,7 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
 	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors'},
 
+	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum' },
 	{ key: 'extensionOptions.alwaysActive',					target: 'alwaysActive' }
 ];
 
@@ -149,7 +156,7 @@ let compilerPath: string;
 let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
 let updatingConfiguration = false;
 
-const outputChannel = window.createOutputChannel('The Macroassembler AS');
+const outputChannel = window.createOutputChannel('AS');
 
 async function downloadAssembler(): Promise<0 | 1 | 2> {
 	toolsDownloading = true;
@@ -176,24 +183,22 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 
 			progress.report({ message: 'checking your platform...', increment: 0 });
 
-			let zipName: string;
-
 			switch (process.platform) {
 				case 'win32':
-					zipName = 'windows-x86';
+					var zipName = 'windows-x86';
 					break;
 				case 'darwin':
 					if (process.arch === 'arm64') {
-						zipName ='mac-arm64';
+						var zipName ='mac-arm64';
 					} else {
-						zipName = 'mac-x86_64';
+						var zipName = 'mac-x86_64';
 					}
 					break;
 				case 'linux':
 					if (process.arch === 'x64') {
-						zipName = 'linux-x86_64';
+						var zipName = 'linux-x86_64';
 					} else {
-						zipName = 'linux-arm64';
+						var zipName = 'linux-arm64';
 					}
 					break;
 				default:
@@ -206,16 +211,16 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 			progress.report({ message: 'requesting your assembler version...', increment: 10 });
 
 			const releaseTag = [ 'latest', 'v1.42b_212f' ];
-			let response: Response;
+			
 			try {
-				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
-			} catch (error) {
-				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-					window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error);
+				var response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
+			} catch (error: any) {
+				if (await existsSync(assemblerPath) && existsSync(compilerPath)) {
+					window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error.message);
 					return 1;
 				}
 
-				window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. " + error);
+				window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. " + error.message);
 				return 2;
 			}
 
@@ -258,7 +263,7 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 			progress.report({ message: 'downloading ZIP...', increment: 20 });
 
 			if (!existsSync(assemblerFolder)) {
-				mkdirSync(assemblerFolder, { recursive: true });
+				await promises.mkdir(assemblerFolder, { recursive: true });
 			}
 
 			process.chdir(assemblerFolder);
@@ -295,10 +300,8 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 
 			progress.report({ message: 'extracting ZIP...', increment: 50 });
 
-			let zip: AdmZip;
-
 			try {
-				zip = new AdmZip(zipName);
+				var zip = new AdmZip(zipName);
 			} catch {
 				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
 					window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
@@ -321,52 +324,45 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 				return 2;
 			}
 
+			const { writeFile, chmod, readdir } = promises;
 			const entries = zip.getEntries();
 			// Manual extraction with file permission assignment if it's a Unix system
 			for (const entry of entries) {
 				const name = entry.name;
-				await new Promise<void>((resolve, reject) => {
-					writeFile(name, entry.getData(), (error) => {
-						if (error) {
-							window.showErrorMessage(`Cannot extract the file: ${name}. ${error.message}. This happens because I messed up the file structure while uploading the pre-releases, sorry! If it doesn't get fixed in a matter of minutes, let me know.`);
-							reject();
-						}
-
-						resolve();
-					});
-				});
+				
+				try {
+					writeFile(name, entry.getData());
+				} catch (error: any) {
+					window.showErrorMessage(`Cannot extract the file: ${name}. ${error.message}. This happens because I messed up the file structure while uploading the pre-releases, sorry! If it doesn't get fixed in a matter of minutes, let me know.`);
+				}
 
 				if (process.platform !== 'win32') {
-					chmod(name, 0o755, (error) => {
-						if (error) {
-							window.showErrorMessage(`Cannot get read and write permissions for the file: ${name}. ${error.message}`);
-						}
-					}); // Get permissions (rwx) for Unix-based systems
+					try {
+						await chmod(name, 0o755); // Get permissions (rwx) for Unix-based systems
+					} catch (error: any) {
+						window.showErrorMessage(`Cannot get read and write permissions for the file: ${name}. ${error.message}`);
+					}
 				}
 			}
 
 			progress.report({ message: 'cleaning things up...', increment: 10 });
 
-			await new Promise<void>((resolve, reject) => {
-				readdir('.', (error, files) => {
-					if (!error) {
-						files.forEach(item => {
-							if (item === zipName || !extensionSettings.sonicDisassembly && (item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg')) {
-								unlink(item, (error) => {
-									if (error) {
-										window.showWarningMessage(`Could not remove the temporary file located at ${join(assemblerFolder, item)}. ${error.message}`);
-									}
+			try {
+				const files = await readdir('.');
 
-									resolve();
-								});
+				for (const item of files) {
+					if (item === zipName || !extensionSettings.sonicDisassembly && (item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg')) {
+						unlink(item, (error) => {
+							if (error) {
+								window.showWarningMessage(`Could not remove the temporary file located at ${join(assemblerFolder, item)}. ${error.message}`);
 							}
 						});
-					} else {
-						window.showErrorMessage('Cannot read the assembler folder to cleanup files. ' + error.message);
-						reject();
 					}
-				});
-			});
+				}
+			} catch (error: any) {
+				window.showWarningMessage('Cannot read the assembler folder to cleanup files. ' + error.message);
+				return 1;
+			}
 
 			progress.report({ message: 'done! (This message will almost never be seen...)', increment: 10 });
 
@@ -379,11 +375,10 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 }
 
 async function promptEmulatorPath(emulator: string): Promise<boolean> {
-	let success = true;
 	const config =  workspace.getConfiguration('megaenvironment.paths');
 	const path = config.get<string>(emulator);
 
-	if (existsSync(path!) && statSync(path!).isFile()) { return true; } // The emulator is already there, no need to ask anything
+	if (existsSync(path!) && (await promises.stat(path!)).isFile()) { return true; } // The emulator is already there, no need to ask anything
 
 	const executableExtension = process.platform === 'win32' ? [ 'exe' ] : [ '*' ];
 
@@ -413,7 +408,7 @@ async function promptEmulatorPath(emulator: string): Promise<boolean> {
 		true // true = global setting
 	);
 
-	return success;
+	return true;
 }
 
 async function assemblerChecks(): Promise<boolean> {
@@ -511,6 +506,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	}
 
 	// AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
+
 	const { aslOut, aslErr, code } = await new Promise<{ aslOut: string; aslErr: string; code: number }>((resolve) => {
 		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => {
 			if (!error) {
@@ -563,11 +559,11 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	// Now, to the compiler!
 
-	process.chdir(assemblerFolder); // We can't change the output folder, so this will do
+	process.chdir(assemblerFolder); // We can't change the output folder in P2BIN, so this will do
 
 	// Take only some outputs and the custom exit code with aliases. Unix wants '.', so I'm providing it
 	const { p2binOut, p2binErr, success } = await new Promise<{ p2binOut: string; p2binErr: string; success: boolean }>((resolve) => {
-		exec(`"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`, { encoding: 'ascii' }, (error, stdout, stderr) => {
+		exec(`"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`, { encoding: 'ascii' }, (error, stdout, stderr) => { // The -k switch makes P2BIN automatically remove the program file
 			if (!error) {
 				resolve({ p2binOut: stdout, p2binErr: stderr, success: true });
 			} else {
@@ -597,19 +593,52 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	// Let's generate the checksum!
 
+	if (extensionSettings.generateChecksum) {
+		try {
+			const fileHandler = await promises.open('rom.bin', 'r+');
+
+			const size = (await fileHandler.stat()).size - 0x200;
+			const readBuffer = Buffer.alloc(size);
+			await fileHandler.read(readBuffer, 0, size, 0x200); // Offset: 0, position: 0x200
+
+			const sum = new Uint16Array(1); // The only elegant way to create an unsigned 16-bit variable
+
+			for (let i = 0; i < size - 1; i += 2) {
+				sum[0] += readBuffer.readUInt16BE(i);
+			}
+
+			const writeBuffer = Buffer.alloc(2);
+			writeBuffer.writeUint16BE(sum[0], 0);
+
+			await fileHandler.write(writeBuffer, 0, 2, 0x18E);
+			await fileHandler.close();
+
+			if (extensionSettings.showChecksum) {
+				outputChannel.append('\nChecksum value: 0x' + sum[0].toString(16).toUpperCase());
+			}
+
+		} catch (error: any) {
+			window.showErrorMessage('Cannot patch your ROM with its checksum. ' + error.message);
+			if (extensionSettings.showChecksum) {
+				outputChannel.append('\nChecksum not generated due to error.');
+			}
+
+			return 1;
+		}
+	}
+
 	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
 
 async function assembleROM() {
 	if (await assemblerChecks() === false) { return; }
 
-	let warnings = false;
-
 	switch (await executeAssemblyCommand()) {
 		case 0:
+			var warnings = false;
 			break;
 		case 1:
-			warnings = true;
+			var warnings = true;
 			break;
 		default:
 			return;
@@ -619,80 +648,80 @@ async function assembleROM() {
 
 	process.chdir(projectFolder);
 
-	let items!: string[]; // The function exits if "items" isn't assigned, so it's fine to put "!"
+	const { readdir, unlink, rename } = promises;
 
-	const success = await new Promise<boolean>((resolve) => {
-		readdir('.', (error, files) => {
-			if (!error) {
-				items = files;
-				resolve(true);
-			} else {
-				window.showErrorMessage('Cannot read your project folder to check for previous ROMs. ' + error.message);
-				resolve(false);
+	try {
+		const items = await readdir('.'); // Get all files in the current directory
+
+		// Precompute .pre<number> files once
+		const preFiles = items
+			.filter(f => /\.pre\d+$/.test(f))
+			.map(f => ({
+				name: f,
+				index: parseInt(f.match(/\.pre(\d+)$/)![1])
+			}));
+
+		for (const checkName of items) {
+			// Skip files that don't end with .gen
+			if (!checkName.endsWith('.gen')) { 
+				continue; 
 			}
-		});
-	});
 
-	if (!success) { return; }
-
-	// Checks if there are any files that have the .gen extension. If so, it gets renamed with .pre and a number
-	for (const checkName of items) {
-		if (!checkName.endsWith('.gen')) { continue; } // Indentantions are less clean
-
-		if (!extensionSettings.prevRoms) { // We simply replace the lastest ROM if there's no versioning to do
-			unlink(checkName, (error) => {
-				if (error) {
+			// If no versioning is needed, simply delete the latest .gen
+			if (!extensionSettings.prevRoms) {
+				try {
+					await unlink(checkName);
+				} catch (error: any) {
 					window.showErrorMessage('Cannot remove the previous .gen ROM. ' + error.message);
 				}
-			});
-			break;
-		}
+				break; // Only handle the first .gen file
+			}
 
-		// Collects all .pre<number> files
-		const preFiles = items
-		.filter(f => /\.pre\d+$/.test(f)) // Get .pre files (test() is to make the match happen)
-		.map(f => ({
-			name: f,
-			index: parseInt(f.match(/\.pre(\d+)$/)![1]) // We have to capture the number with Regex using ()
-		})); // Assigns a name and an index to it
+			// Determine the new index for .preX
+			let number = 0;
 
-		let number = 0; // Index
+			if (preFiles.length > 0) {
+				const latest = Math.max(...preFiles.map(f => f.index));
+				const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
 
-		// To handle the .pre0 corner case and skip useless operations, since it doesn't know with what number to start counting
-		if (preFiles.length > 0) {
-			const latest = Math.max(...preFiles.map(f => f.index));
-			const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
-
-			if (latest < extensionSettings.prevAmount - 1 || extensionSettings.prevAmount === 0 ) {
-				number = latest + 1;
-			} else { // Enforce limit
-				if (!extensionSettings.quietOperation) {
-					window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
-				}
-				unlink(oldest.name, (error) => {
-					if (error) {
+				if (latest < extensionSettings.prevAmount - 1 || extensionSettings.prevAmount === 0) {
+					number = latest + 1;
+				} else {
+					if (!extensionSettings.quietOperation) {
+						window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
+					}
+					try {
+						await unlink(oldest.name);
+					} catch (error: any) {
 						window.showErrorMessage('Unable to remove the oldest previous ROM. ' + error.message);
 					}
-				});
-				number = oldest.index; // Reuse the index
+					number = oldest.index; // Reuse the index
+				}
 			}
+
+			// Rename the .gen file to .preX
+			const newName = checkName.substring(0, checkName.length - 4) + `.pre${number}`;
+			try {
+				await rename(checkName, newName);
+				if (!extensionSettings.quietOperation) {
+					window.showInformationMessage(`Latest build exists. Renamed to "${newName}".`);
+				}
+			} catch (error: any) {
+				window.showWarningMessage(`Could not rename the previous ROM. Please, manually rename it to "${newName}". ${error.message}`);
+			}
+
+			break; // Stop after handling the first .gen file
 		}
 
-		// Cut the .gen extension and replace it with .preX
-		const newName = checkName.substring(0, checkName.length - 4) + `.pre${number}`;
-		rename(checkName, newName, (error) => {
-			if (error) {
-				window.showWarningMessage(`Could not rename the previous ROM. Please, manually rename it to "${newName}". ` + error.message);
-			} else if (!extensionSettings.quietOperation) {
-				window.showInformationMessage(`Latest build exists. Renamed to "${newName}".`);
-			}
-		});
-
-		break;
+	} catch (error: any) {
+		window.showErrorMessage('Cannot read your project folder to check for previous ROMs. ' + error.message);
+		return;
 	}
 
 	renameRom(projectFolder, warnings);
-}
+} 
+
+
 
 function renameRom(projectFolder: string, warnings: boolean) {
 	const currentDate = new Date();
@@ -700,13 +729,11 @@ function renameRom(projectFolder: string, warnings: boolean) {
 	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
 	const seconds = currentDate.getSeconds().toString().padStart(2, '0');
 
-	let fileName: string;
-
 	if (extensionSettings.romName !== '') {
-		fileName = extensionSettings.romName;
+		var fileName = extensionSettings.romName;
 	} else {
 		const lastDot = extensionSettings.mainName.lastIndexOf('.');
-		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
+		var fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
 	}
 
 	if (extensionSettings.romDate) {
@@ -771,13 +798,12 @@ async function runTemporaryROM(emulator: string) {
 
 	process.chdir(workspace.workspaceFolders![0].uri.fsPath);
 
-	let warnings = false;
-
 	switch (await executeAssemblyCommand()) {
 		case 0:
+			var warnings = false;
 			break;
 		case 1:
-			warnings = true;
+			var warnings = true;
 			break;
 		default:
 			return;
@@ -846,13 +872,6 @@ async function cleanProjectFolder() {
 // This method is called when the extension is activated
 // An extension is activated the very first time the command is executed
 export async function activate(context: ExtensionContext) {
-	// A small button located at the bottom of the screen to force download the assembler
-	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);
-	runButton.text = "$(cloud-download)";
-	runButton.tooltip = "Re-download The Assembler";
-	runButton.command = "megaenvironment.redownload_tools";
-	runButton.show();
-
 	assemblerFolder = context.globalStorageUri.fsPath;
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerPath = join(assemblerFolder, 'p2bin');
@@ -895,7 +914,14 @@ export async function activate(context: ExtensionContext) {
 		return;
 	}
 	
-	downloadAssembler();
+	await downloadAssembler();
+
+	// A small button located at the bottom of the screen to force download the assembler
+	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);
+	runButton.text = "$(cloud-download)";
+	runButton.tooltip = "Re-download The Assembler";
+	runButton.command = "megaenvironment.redownload_tools";
+	runButton.show();
 
 	//
 	//	Commands
@@ -919,13 +945,12 @@ export async function activate(context: ExtensionContext) {
 
 		cleanProjectFolder();
 
-		let warnings = false;
-
 		switch (await executeAssemblyCommand()) {
 			case 0:
+				var warnings = false;
 				break;
 			case 1:
-				warnings = true;
+				var warnings = true;
 				break;
 			default:
 				return;
@@ -1053,13 +1078,12 @@ export async function activate(context: ExtensionContext) {
 
 		process.chdir(projectFolders![0].uri.fsPath); // Already checked if "projectFolder" exists
 
-		let warnings = false;
-
 		switch (await executeAssemblyCommand()) {
 			case 0:
+				var warnings = false;
 				break;
 			case 1:
-				warnings = true;
+				var warnings = true;
 				break;
 			default:
 				return;
@@ -1071,21 +1095,15 @@ export async function activate(context: ExtensionContext) {
 		const seconds = currentDate.getSeconds().toString().padStart(2, '0');
 		const romPath = join(assemblerFolder, `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`);
 
-		let success = await new Promise<boolean>((resolve) =>  {
-			rename(join(assemblerFolder, 'rom.bin'), romPath, (error) => {
-				if (error) {
-					window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
-					resolve(false);
-				}
+		try {
+			await promises.rename(join(assemblerFolder, 'rom.bin'), romPath);
+		} catch (error: any) {
+			window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
+			return;
+		}
 
-				resolve(true);
-			});
-		});
-
-		if (!success) { return; }
-		
 		// "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
-		success = await new Promise<boolean>((resolve) => { 
+		const success = await new Promise<boolean>((resolve) => { 
 			exec(`open -a OpenEmu -W "${romPath}"`, (error) => {
 				if (error) {
 					window.showErrorMessage('Cannot run the build. ' + error.message);
@@ -1165,37 +1183,34 @@ export async function activate(context: ExtensionContext) {
 			}
 		}
 
+		const { readFile } = promises;
+
 		if (existsSync(constantsLocation)) {
 			if (variablesExists) {
-				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${readFileSync(variablesLocation, 'utf-8')}\n\n; Constants\n\n${readFileSync(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
+				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${await readFile(variablesLocation, 'utf-8')}\n\n; Constants\n\n${await readFile(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
 			} else {
-				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${readFileSync(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
+				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${await readFile(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
 			}
 		} else if (variablesExists) {
-			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${readFileSync(variablesLocation, 'utf-8')}\n\n\tend\tstart`;
+			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${await readFile(variablesLocation, 'utf-8')}\n\n\tend\tstart`;
 		} else {
 			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
 		}
 
-		const success1 = await new Promise<boolean>((resolve) => {
-			writeFile('temp.txt', new TextEncoder().encode(text), (error) => {
-				if (error) {
-					window.showErrorMessage('Unable to create file for testing. ' + error.message);
-					resolve(false);
-				}
 
-				resolve(true);
-			});
-		});
+		try {
+			promises.writeFile('temp.txt', new TextEncoder().encode(text));
+		} catch (error: any) {
+			window.showErrorMessage('Unable to create file for testing. ' + error.message);
+			return;
+		}
 
-		if (!success1) { return; }
-
-		let success2 = true;
+		let success = true;
 		
 		exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>('EASy68k')}" "temp.txt"`, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
-				success2 = false;
+				success = false;
 			}
 
 			['temp.txt', 'temp.L68', 'temp.S68'].map(path => unlink(path, (error) => {
@@ -1205,7 +1220,7 @@ export async function activate(context: ExtensionContext) {
 			}));
 		});
 
-		if (!success2 || extensionSettings.quietOperation) { return; }
+		if (!success || extensionSettings.quietOperation) { return; }
 
 		window.showInformationMessage('Debugging your current selection with EASy68k.');
 	});
@@ -1221,44 +1236,34 @@ export async function activate(context: ExtensionContext) {
 		process.chdir(projectFolders[0].uri.fsPath); // Change current working folder to the project one
 
 		const zip = new AdmZip(); // Create zip archive reference
-		let items!: string[];
-
-		const success = await new Promise<boolean>((resolve) => {
-			readdir('.', (error, files) => {
-				if (!error) {
-					items = files;
-					resolve(true);
-				} else {
-					window.showErrorMessage('Cannot read your project folder to backup files. ' + error.message);
-					resolve(false);
-				}
-			});
-		});
-
-		if (!success) { return; }
-
-		if (!existsSync('Backups')) {
-			window.showInformationMessage('No "Backups" folder found. Fixing.');
-			mkdirSync('Backups');
-		} else {
-			items.filter(u => !u.includes('Backups')); // Remove Backups folder
-		}
-
 		let files = 0;
 
-		items.forEach((item) => {
-			zip.addLocalFile(item);
+		try {
+			const items = await promises.readdir('.');
+			if (!existsSync('Backups')) {
+				window.showInformationMessage('No "Backups" folder found. Fixing.');
+				await promises.mkdir('Backups');
+				
+				for (const item of items) {
+					zip.addLocalFile(item);
 
-			if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
-				unlink(item, (error) => {
-					if (error) {
-						window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error.message}`);
+					if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
+						unlink(item, (error) => {
+							if (error) {
+								window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error.message}`);
+							}
+						});
 					}
-				});
-			}
 
-			files++;
-		});
+					files++;
+				}
+			} else {
+				items.filter(u => !u.includes('Backups')); // Remove Backups folder
+			}
+		} catch (error: any) {
+			window.showErrorMessage('Cannot read your project folder to backup files. ' + error.message);
+			return;
+		}
 
 		const currentDate = new Date();
 		const backupName = extensionSettings.backupName;
@@ -1303,20 +1308,13 @@ export async function activate(context: ExtensionContext) {
 		const newPath = uri[0].fsPath;
 		const extensions = [ '.asm', '.68k', '.s', '.z80', ...extensionSettings.cleaningExtensions ];
 
-		let hasConflictingFiles!: boolean;
-		const success = await new Promise<boolean>((resolve) => {
-			readdir(newPath, (error, files) => {
-				if (!error) {
-					hasConflictingFiles = files.some(item => extensions.some(ext => item.endsWith(ext)));
-					resolve(true);
-				} else {
-					window.showErrorMessage('Cannot read the selected folder to check for existing projects.' + error.message);
-					resolve(false);
-				}
-			});
-		});
-
-		if (!success) { return; }
+		try {
+			const files = await promises.readdir(newPath);
+			var hasConflictingFiles = files.some(item => extensions.some(ext => item.endsWith(ext)));
+		} catch (error: any) {
+			window.showErrorMessage('Cannot read the selected folder to check for existing projects.' + error.message);
+			return;
+		}
 
 		if (hasConflictingFiles) {
 			const selection = await window.showWarningMessage(
@@ -1349,8 +1347,8 @@ export async function activate(context: ExtensionContext) {
 			}
 		});
 
-		mkdirSync(join(newPath, 'Assets'), { recursive: true });
-		mkdirSync(join(newPath, '.vscode'), { recursive: true });
+		promises.mkdir(join(newPath, 'Assets'), { recursive: true });
+		promises.mkdir(join(newPath, '.vscode'), { recursive: true });
 
 		writeFile(join(newPath, '.vscode', 'settings.json'), strings.workspaceSettings, (error) => {
 			if (error) {
@@ -1383,13 +1381,13 @@ export async function activate(context: ExtensionContext) {
 		const projectFolder = projectFolders[0].uri.fsPath;
 		const vscodeFolder = join(projectFolder, '.vscode');
 		if (!existsSync(vscodeFolder)) {
-			mkdirSync(projectFolder);
+			await promises.mkdir(projectFolder);
 		}
 
-		let success = true;
+		let answer = true;
 
 		if (existsSync(join(vscodeFolder, 'launch.json'))) {
-			success = await new Promise<boolean>((resolve) => {
+			answer = await new Promise<boolean>((resolve) => {
 				window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to overwrite it?', 'Yes', 'No')
 				.then((selection) => {
 					if (selection === 'Yes') {
@@ -1401,7 +1399,7 @@ export async function activate(context: ExtensionContext) {
 			});
 		}
 
-		if (!success) { return; }
+		if (!answer) { return; }
 
 		writeFile(join(vscodeFolder, 'launch.json'), strings.launchJson, (error) => {
 			if (error) {
@@ -1456,6 +1454,7 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 			const key = setting.key;
 			if (event.affectsConfiguration(`megaenvironment.${key}`)) {
         		(extensionSettings as any)[setting.target] = config.get(key);
+				return;
 			}
 		}
 		
@@ -1626,7 +1625,7 @@ const strings = {
 		dc.b "                                                "	; Domestic name - 48 bytes
 		dc.b "                                                "	; Overseas name - 48 bytes
 		dc.b "GM-12345678-00"		; Serial number ("xx-yyyyyyyy-zz") - 14 bytes
-		dc.w $0000					; 16-bit checksum - 2 bytes
+		dc.w $0000					; Where this ROM gets patched with a 16-bit checksum - 2 bytes
 		dc.b "J               "		; Device support (e.g. "J" for 3-button controller) - 16 bytes
 		dc.l ROM_Start				; Start address of ROM
 		dc.l ROM_End				; End address of ROM
