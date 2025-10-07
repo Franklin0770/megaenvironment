@@ -183,22 +183,24 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 
 			progress.report({ message: 'checking your platform...', increment: 0 });
 
+			let zipName: string;
+
 			switch (process.platform) {
 				case 'win32':
-					var zipName = 'windows-x86';
+					zipName = 'windows-x86';
 					break;
 				case 'darwin':
 					if (process.arch === 'arm64') {
-						var zipName ='mac-arm64';
+						zipName ='mac-arm64';
 					} else {
-						var zipName = 'mac-x86_64';
+						zipName = 'mac-x86_64';
 					}
 					break;
 				case 'linux':
 					if (process.arch === 'x64') {
-						var zipName = 'linux-x86_64';
+						zipName = 'linux-x86_64';
 					} else {
-						var zipName = 'linux-arm64';
+						zipName = 'linux-arm64';
 					}
 					break;
 				default:
@@ -211,9 +213,11 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 			progress.report({ message: 'requesting your assembler version...', increment: 10 });
 
 			const releaseTag = [ 'latest', 'v1.42b_212f' ];
+
+			let response: Response;
 			
 			try {
-				var response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
+				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
 			} catch (error: any) {
 				if (await existsSync(assemblerPath) && existsSync(compilerPath)) {
 					window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error.message);
@@ -300,8 +304,10 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 
 			progress.report({ message: 'extracting ZIP...', increment: 50 });
 
+			let zip: AdmZip;
+
 			try {
-				var zip = new AdmZip(zipName);
+				zip = new AdmZip(zipName);
 			} catch {
 				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
 					window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
@@ -633,15 +639,14 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 async function assembleROM() {
 	if (await assemblerChecks() === false) { return; }
 
-	switch (await executeAssemblyCommand()) {
-		case 0:
-			var warnings = false;
-			break;
-		case 1:
-			var warnings = true;
-			break;
-		default:
-			return;
+	let warnings = false;
+
+	const result = await executeAssemblyCommand();
+
+	if (result === 1) {
+		warnings = true;
+	} else if (result !== 0) {
+		return;
 	}
 
 	const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
@@ -729,11 +734,13 @@ function renameRom(projectFolder: string, warnings: boolean) {
 	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
 	const seconds = currentDate.getSeconds().toString().padStart(2, '0');
 
+	let fileName: string;
+
 	if (extensionSettings.romName !== '') {
-		var fileName = extensionSettings.romName;
+		fileName = extensionSettings.romName;
 	} else {
 		const lastDot = extensionSettings.mainName.lastIndexOf('.');
-		var fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
+		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
 	}
 
 	if (extensionSettings.romDate) {
@@ -798,15 +805,14 @@ async function runTemporaryROM(emulator: string) {
 
 	process.chdir(workspace.workspaceFolders![0].uri.fsPath);
 
-	switch (await executeAssemblyCommand()) {
-		case 0:
-			var warnings = false;
-			break;
-		case 1:
-			var warnings = true;
-			break;
-		default:
-			return;
+	let warnings = false;
+
+	const result = await executeAssemblyCommand();
+
+	if (result === 1) {
+		warnings = true;
+	} else if (result !== 0) {
+		return;
 	}
 	
 	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
@@ -927,9 +933,7 @@ export async function activate(context: ExtensionContext) {
 	//	Commands
 	//
 
-	const assemble = commands.registerCommand('megaenvironment.assemble', async () => {
-		assembleROM();
-	});
+	const assemble = commands.registerCommand('megaenvironment.assemble', () => assembleROM());
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', async () => {
 		const projectFolders = workspace.workspaceFolders;
@@ -945,33 +949,22 @@ export async function activate(context: ExtensionContext) {
 
 		cleanProjectFolder();
 
-		switch (await executeAssemblyCommand()) {
-			case 0:
-				var warnings = false;
-				break;
-			case 1:
-				var warnings = true;
-				break;
-			default:
-				return;
+		let warnings = false;
+
+		const result = await executeAssemblyCommand();
+
+		if (result === 1) {
+			warnings = true;
+		} else if (result !== 0) {
+			return;
 		}
 
 		renameRom(projectFolder, warnings);
 	});
 
-	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => {
-		findAndRunROM('BlastEm');
-	});
+	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => findAndRunROM('BlastEm'));
 
-	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => {
-		// const platform = process.platform;
-		// if (platform !== 'win32' && platform !== 'linux') {
-		// 	window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
-		// 	return;
-		// }
-
-		findAndRunROM('Regen');
-	});
+	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => findAndRunROM('Regen'));
 
 	const run_ClownMdEmu = commands.registerCommand('megaenvironment.run_clownmdemu', async () => {
 		const platform = process.platform;
@@ -1027,19 +1020,9 @@ export async function activate(context: ExtensionContext) {
 		window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with OpenEmu.`);
 	});
 
-	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', async () => {
-		runTemporaryROM('BlastEm');
-	});
+	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => runTemporaryROM('BlastEm'));
 
-	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', async () => {
-		// const platform = process.platform;
-		// if (platform !== 'win32' && platform !== 'linux') {
-		// 	window.showErrorMessage('This command is not supported in your platform. Regen is only available for Windows and Linux, unfortunately.');
-		// 	return;
-		// }
-		
-		runTemporaryROM('Regen');
-	});
+	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', () => runTemporaryROM('Regen'));
 
 	const assemble_and_run_ClownMDEmu = commands.registerCommand('megaenvironment.assemble_run_clownmdemu', async () => {
 		const platform = process.platform;
@@ -1078,15 +1061,14 @@ export async function activate(context: ExtensionContext) {
 
 		process.chdir(projectFolders![0].uri.fsPath); // Already checked if "projectFolder" exists
 
-		switch (await executeAssemblyCommand()) {
-			case 0:
-				var warnings = false;
-				break;
-			case 1:
-				var warnings = true;
-				break;
-			default:
-				return;
+		let warnings = false;
+
+		const result = await executeAssemblyCommand();
+
+		if (result === 1) {
+			warnings = true;
+		} else if (result !== 0) {
+			return;
 		}
 
 		const currentDate = new Date();
@@ -1142,61 +1124,60 @@ export async function activate(context: ExtensionContext) {
 		// 	return;
 		// }
 
-		const projectFolders = workspace.workspaceFolders;
+		const editor = window.activeTextEditor;
 
-		if (!projectFolders) {
-			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
+		if (!editor) {
+			window.showErrorMessage("It seems you forgot to open any text editor.");
 			return;
+		}
+
+		const projectFolders = workspace.workspaceFolders;
+		process.chdir(assemblerFolder);
+		
+		const selectedText = editor.document.getText(editor.selection);
+		let text: string;
+
+		if (projectFolders) {
+			const projectFolder = projectFolders[0].uri.fsPath;
+				
+			let constantsLocation = '';
+			const constantsName = extensionSettings.constantsName;
+
+			if (constantsName !== '') {
+				constantsLocation = join(projectFolder, constantsName);
+			}
+
+			let variablesExists = false;
+			let variablesLocation = '';
+			const variablesName = extensionSettings.variablesName;
+
+			if (variablesName !== '') {
+				variablesLocation = join(projectFolder, variablesName);
+				if (existsSync(variablesLocation)) {
+					variablesExists = true;
+				}
+			}
+
+			const { readFile } = promises;
+
+			if (existsSync(constantsLocation)) {
+				if (variablesExists) {
+					text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${await readFile(variablesLocation, 'utf-8')}\n\n; Constants\n\n${await readFile(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
+				} else {
+					text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${await readFile(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
+				}
+			} else if (variablesExists) {
+				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${await readFile(variablesLocation, 'utf-8')}\n\n\tend\tstart`;
+			} else {
+				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
+			}
+		} else {
+			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
 		}
 
 		if (await promptEmulatorPath('EASy68k') === false) {
 			return;
 		}
-
-		const editor = window.activeTextEditor;
-
-		if (!editor) {
-			window.showErrorMessage("Seems like you forgot to open any text editor.");
-			return;
-		}
-
-		const projectFolder = projectFolders[0].uri.fsPath;
-		const selectedText = editor.document.getText(editor.selection);
-		process.chdir(assemblerFolder);
-
-		let text: string;
-		let constantsLocation = '';
-		const constantsName = extensionSettings.constantsName;
-
-		if (constantsName !== '') {
-			constantsLocation = join(projectFolder, constantsName);
-		}
-
-		let variablesExists = false;
-		let variablesLocation = '';
-		const variablesName = extensionSettings.variablesName;
-
-		if (variablesName !== '') {
-			variablesLocation = join(projectFolder, variablesName);
-			if (existsSync(variablesLocation)) {
-				variablesExists = true;
-			}
-		}
-
-		const { readFile } = promises;
-
-		if (existsSync(constantsLocation)) {
-			if (variablesExists) {
-				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\torg\t$FF0000\n\n; Variables\n\n${await readFile(variablesLocation, 'utf-8')}\n\n; Constants\n\n${await readFile(constantsLocation, 'utf-8')}\n\n\tend\tstart`;
-			} else {
-				text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n; Constants\n\n${await readFile(constantsLocation, 'utf-8')}\n\n\torg\t$FF0000\n\n\tend\tstart`;
-			}
-		} else if (variablesExists) {
-			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\norg\t$FF0000\n\n; Variables${await readFile(variablesLocation, 'utf-8')}\n\n\tend\tstart`;
-		} else {
-			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
-		}
-
 
 		try {
 			promises.writeFile('temp.txt', new TextEncoder().encode(text));
@@ -1214,7 +1195,7 @@ export async function activate(context: ExtensionContext) {
 			}
 
 			['temp.txt', 'temp.L68', 'temp.S68'].map(path => unlink(path, (error) => {
-				if (error) {
+				if (error && error.code !== 'ENOENT') {
 					window.showErrorMessage(`Could not remove a temporary file for cleanup. You may want to do this by yourself. ${error.message}`);
 				}
 			}));
@@ -1308,9 +1289,11 @@ export async function activate(context: ExtensionContext) {
 		const newPath = uri[0].fsPath;
 		const extensions = [ '.asm', '.68k', '.s', '.z80', ...extensionSettings.cleaningExtensions ];
 
+		let hasConflictingFiles: boolean;
+
 		try {
 			const files = await promises.readdir(newPath);
-			var hasConflictingFiles = files.some(item => extensions.some(ext => item.endsWith(ext)));
+			hasConflictingFiles = files.some(item => extensions.some(ext => item.endsWith(ext)));
 		} catch (error: any) {
 			window.showErrorMessage('Cannot read the selected folder to check for existing projects.' + error.message);
 			return;

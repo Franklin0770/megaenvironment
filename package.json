@@ -434,11 +434,14 @@
 			},
 			{
 				"id": "z80-as",
-				"aliases": [
-					"Macroassembler AS - Zilog Z80"
-				],
+				"aliases": [ "Macroassembler AS - Zilog Z80" ],
 				"extensions": [ ".z80" ],
 				"configuration": "./configs/as-language-configuration.json"
+			},
+			{
+				"id": "lst-as",
+				"aliases": [ "Macroassembler AS - Listing File" ],
+				"extensions": [ ".lst" ]
 			},
 			{
 				"id": "m68k-sdisasm",
@@ -456,6 +459,11 @@
 				"language": "z80-as",
 				"scopeName": "source.z80-as",
 				"path": "./syntaxes/z80-as.tmLanguage.json"
+			},
+			{
+				"language": "lst-as",
+				"scopeName": "source.lst-as",
+				"path": "./syntaxes/lst-as.tmLanguage.json"
 			},
 			{
 				"language": "m68k-sdisasm",

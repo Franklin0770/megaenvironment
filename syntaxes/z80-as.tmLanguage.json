@@ -82,7 +82,7 @@
 		},
 		"functions": {
 			"name": "directive.function.as",
-			"match": "\\b(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bit(?:cnt|pos)|(?:first|last)bit|sgn|abs|to(?:upper|lower)|(?:up|low)string|strlen|substr|charfromstr|strstr|val|exprtype|fsize)\\b"
+			"match": "\\b(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bit(?:cnt|pos)|(?:first|last)bit|sgn|abs|to(?:upper|lower)|(?:up|low)string|strlen|substr|charfromstr|strstr|val|exprtype|fsize|symused)(?=\\(.+\\))\\b"
 		},
 		"symbols": {
 			"name": "directive.symbol.as",
