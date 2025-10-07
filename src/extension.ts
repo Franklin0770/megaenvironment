@@ -1536,6 +1536,8 @@ const strings = {
 	;include "ComplierMacros.asm"
 	;include "CodeMacros.asm"
 
+	org 0
+
 ; 68000 vectors (with its error code in square brackets)
 		dc.l M68K_STACK			; Initial stack pointer value (SP value)
 		dc.l EntryPoint			; Start of program (PC value)
