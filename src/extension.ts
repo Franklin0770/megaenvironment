@@ -19,6 +19,7 @@ import { join, basename } from 'path';
 import { exec } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
+import { setEngine } from 'crypto';
 
 interface ExtensionSettings { // Settings variable declaration
 	defaultCpu: string;
@@ -44,6 +45,7 @@ interface ExtensionSettings { // Settings variable declaration
 	sourceListing: boolean;
 	cleaningExtensions: Array<string>;
 	workingFolders: Array<string>;
+	templateSelector: Array<string>;
 	caseSensitive: boolean;
     backupName: string;
     backupDate: boolean;
@@ -87,6 +89,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	sourceListing: false,
 	cleaningExtensions: [ '.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i' ],
 	workingFolders: [ '.' ],
+	templateSelector: [ '68k vectors', 'ROM header', 'Jump table', 'VDP initialization', 'Controllers initialization', 'Z80 initialization', 'Constants', 'Variables' ],
 	caseSensitive: true,
     backupName: '',
     backupDate: true,
@@ -132,6 +135,7 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
 	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions'},
 	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
+	{ key: 'sourceCodeControl.templateSelector',			target: 'templateSelector'},
 	{ key: 'backupOptions.backupFileName',					target: 'backupName' },
 	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
 	{ key: 'miscellaneous.fillValue',						target: 'fillValue' },
@@ -1309,29 +1313,71 @@ export async function activate(context: ExtensionContext) {
 			if (selection !== 'Sure!') { return; }
 		}
 
-		writeFile(join(newPath, 'Main.68k'), strings.megaDriveHeader, (error) => {
+		const selector = extensionSettings.templateSelector;
+
+		const map: Record<string, string> = {
+			'68k vectors': strings.megaDriveVectors,
+			'ROM header': strings.megaDriveHeader,
+			'Jump table': strings.megaDriveJumpTable,
+			'VDP initialization': strings.megaDriveVDPInitialization,
+			'Controllers initialization': strings.megaDriveJoystickInitialization,
+			'Z80 initialization': strings.megaDriveCoprocessorInitialization
+		};
+
+		let templates = '';
+
+		if (selector.includes('Constants')) {
+			templates += '\tinclude "Constants.asm"\n';
+
+			writeFile(join(newPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
+				if (error) {
+					window.showErrorMessage('Unable to create the constants source file. ' + error.message);
+					return;
+				}
+			});
+		}
+
+		if (selector.includes('Variables')) {
+			templates += '\tinclude "Variables.asm"\n';
+
+			writeFile(join(newPath, 'Variables.asm'), strings.megaDriveVariables, (error) => {
+				if (error) {
+					window.showErrorMessage('Unable to create the variables source file. ' + error.message);
+					return;
+				}
+			});
+		}
+
+		for (const key of selector) {
+			const content = map[key];
+
+			if (content) {
+				templates += content;
+			}
+		}
+
+		if (selector.includes('Z80 initialization')) {
+			writeFile(join(newPath, 'Main.z80'), strings.megaDriveZ80Code, (error) => {
+				if (error) {
+					window.showErrorMessage('Unable to create the Z80 code source file. ' + error.message);
+					return;
+				}
+			});
+
+			templates += '\n\t; Your code goes here\n\n\t; Your resources go here (from "Assets" folder)\n\n\tinclude "Main.z80"\n\nROM_End';
+		} else {
+			templates += '\n\t; Your code goes here\n\n\t; Your resources go here (from "Assets" folder)\n\nROM_End';
+		}
+
+		writeFile(join(newPath, 'Main.68k'), templates, (error) => {
 			if (error) {
 				window.showErrorMessage('Unable to create the main code source file. ' + error.message);
 				return;
 			}
 		});
 
-		writeFile(join(newPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
-			if (error) {
-				window.showErrorMessage('Unable to create the constants source file. ' + error.message);
-				return;
-			}
-		});
-
-		writeFile(join(newPath, 'Variables.asm'), strings.megaDriveVariables, (error) => {
-			if (error) {
-				window.showErrorMessage('Unable to create the variables source file. ' + error.message);
-				return;
-			}
-		});
-
-		promises.mkdir(join(newPath, 'Assets'), { recursive: true });
-		promises.mkdir(join(newPath, '.vscode'), { recursive: true });
+		await promises.mkdir(join(newPath, 'Assets'), { recursive: true });
+		await promises.mkdir(join(newPath, '.vscode'), { recursive: true });
 
 		writeFile(join(newPath, '.vscode', 'settings.json'), strings.workspaceSettings, (error) => {
 			if (error) {
@@ -1528,17 +1574,16 @@ const strings = {
 	]
 }`,
 
-	megaDriveHeader: String.raw
-`ROM_Start
-
-	include "Constants.asm"
-	include "Variables.asm"
-	;include "ComplierMacros.asm"
-	;include "CodeMacros.asm"
+	megaDriveVectors: String.raw
+`
+ROM_Start
 
 	org 0
 
-; 68000 vectors (with its error code in square brackets)
+; ================================================================
+; 68000 vectors (with its error code in square brackets, AAAAAAxx)
+; ================================================================
+
 		dc.l M68K_STACK			; Initial stack pointer value (SP value)
 		dc.l EntryPoint			; Start of program (PC value)
 		dc.l BusError			; Bus error							[1]
@@ -1603,24 +1648,13 @@ const strings = {
 		dc.l UnknownError		; Unused (reserved)					[14]
 		dc.l UnknownError		; Unused (reserved)					[14]
 		dc.l UnknownError		; Unused (reserved)					[14]
-
-; Mega Drive ROM header (reference: https://plutiedev.com/rom-header)
-		dc.b "                "	; System type (e.g. "SEGA MEGA DRIVE ") - 16 bytes
-		dc.b "(C).... YYYY.MMM"	; Copyright, release year and month (e.g. "(C)SEGA 1991.APR") - 16 bytes
-		dc.b "                                                "	; Domestic name - 48 bytes
-		dc.b "                                                "	; Overseas name - 48 bytes
-		dc.b "GM-12345678-00"		; Serial number ("xx-yyyyyyyy-zz") - 14 bytes
-		dc.w $0000					; Where this ROM gets patched with a 16-bit checksum - 2 bytes
-		dc.b "J               "		; Device support (e.g. "J" for 3-button controller) - 16 bytes
-		dc.l ROM_Start				; Start address of ROM
-		dc.l ROM_End				; End address of ROM
-		dc.l $FF0000				; Start address of WRAM
-		dc.l $FFFFFF 				; End address of WRAM
-		dc.b "                                                                " ; padding for reserved space
-		dc.b "JUE"					; Region support - 16 bytes
-		dc.b "             "		; padding for reserved space (you can put a comment if you want!)
-
+`,
+	megaDriveJumpTable: String.raw
+`
+; ========================
 ; Error handler jump table
+; ========================
+
 BusError:
 	move.l	#$AAAAAAA1,d7
 	stop #$2700 ; some emulators might not recognize this instruction
@@ -1689,12 +1723,113 @@ VDP_HBlank:
 
 ; ==========================
 
-EntryPoint:
-	; your code goes here
+EntryPoint:`,
 
-	; your resources go here (from "Assets" folder)
-ROM_End`,
+	megaDriveHeader: String.raw
+`
+; ===================================================================
+; Mega Drive ROM header (reference: https://plutiedev.com/rom-header)
+; ===================================================================
 
+		dc.b "                "										; System type (e.g. "SEGA MEGA DRIVE ") - 16 bytes
+		dc.b "(C).... YYYY.MMM"										; Copyright, release year and month (e.g. "(C)SEGA 1991.APR") - 16 bytes
+		dc.b "                                                "		; Domestic name - 48 bytes
+		dc.b "                                                "		; Overseas name - 48 bytes
+		dc.b "GM-12345678-00"										; Serial number ("xx-yyyyyyyy-zz") - 14 bytes
+		dc.w $0000													; Where this ROM gets patched with a 16-bit checksum - 2 bytes
+		dc.b "J               "										; Device support (e.g. "J" for 3-button controller) - 16 bytes
+		dc.l ROM_Start												; Start address of ROM - 4 bytes
+		dc.l ROM_End												; End address of ROM - 4 bytes
+		dc.l $FF0000												; Start address of WRAM - 4 bytes
+		dc.l $FFFFFF 												; End address of WRAM - 4 bytes
+		dc.b "                                                                " ; padding for reserved space - 64 bytes
+		dc.b "JUE"													; Region support - 16 bytes
+		dc.b "             "										; padding for reserved space (you can put a comment if you want!) - 13 bytes
+`,
+
+	megaDriveVariables: String.raw
+`; --------------------------
+;		Motorola 68000
+; --------------------------
+
+	org M68K_WRAM
+
+; Your 68000 variables go here
+
+; ----------------------
+;		Zilog Z80
+; ----------------------
+
+	org $1000	; away from code and stack
+
+; Your Z80 variables go here
+`,
+
+	megaDriveVDPInitialization: String.raw
+`
+; ============================
+; VDP initialization and setup
+; ============================
+
+; VDP setup reference: https://plutiedev.com/vdp-setup
+
+	lea	(VDP_CTRL),a0
+
+	tst.w 	(a0) ; Testing the VDP control port safely resets it
+	
+; Register reference: https://plutiedev.com/vdp-registers
+
+	move.l  #(VDPREG_MODE1|%00000100)<<16|(VDPREG_MODE2|%01110100),(a0)	; Mode register #1 and Mode register #2
+    move.l  #(VDPREG_MODE3|%00000000)<<16|(VDPREG_MODE4|%10000001),(a0)	; Mode register #3 and Mode Register #4
+    
+; Planes reference: https://segaretro.org/Sega_Mega_Drive/Planes
+
+    move.l  #VDPREG_PLANEA|(VRAM_PLANEA>>10)<<16|(VDPREG_PLANEB|(VRAM_PLANEB>>13)),(a0)	; Plane A and Plane B address
+	move.l  #VDPREG_SPRITE|(VRAM_SPRITE>>9)<<16|(VDPREG_WINDOW|(VRAM_WINDOW>>10)),(a0)	; Sprite and Window address
+    move.w  #VDPREG_HSCROLL|(VRAM_HSCROLL>>10),(a0)										; Horizontal scroll address
+    
+    move.l  #(VDPREG_WINX|$00)<<16|(VDPREG_WINY|$00),(a0)			; Window X split and Window Y split
+    move.l  #(VDPREG_SIZE|%00000001)<<16|(VDPREG_BGCOL|$00),(a0)	; Tilemap size and Background color
+    move.l  #(VDPREG_INCR|$02)<<16|(VDPREG_HRATE|$FF),(a0)			; Autoincrement and HBlank IRQ rate
+`,
+
+	megaDriveJoystickInitialization: String.raw
+`
+; ================================================================
+; Controllers setup (reference: https://plutiedev.com/controllers)
+; ================================================================
+
+	moveq 	#$40,d0
+	move.b	d0,(JOY1_CTRL)
+	move.b	d0,(JOY1_DATA)
+	move.b	d0,(JOY2_CTRL)
+	move.b	d0,(JOY2_DATA)
+`,
+
+	megaDriveCoprocessorInitialization: String.raw
+`
+; =================================================================================
+; Z80 program upload and execution (reference: https://plutiedev.com/using-the-z80)
+; =================================================================================
+
+	lea (Z80_ROM_Start),a0
+	lea (Z80_WRAM),a1
+	lea (Z80_RESET),a2
+	lea (Z80_BUSREQ),a3
+
+	move.w	#$000,a2	; Assert Z80 reset
+	move.w	#$100,a3	; Hold (or request) Z80 bus
+	move.w	#$100,a2	; Deassert Z80 reset
+
+	move.w	#(Z80_ROM_Start-Z80_ROM_End)-1,d0
+
+$$loop:	; Load Z80 into its RAM
+	move.b	(a0)+,(a1)+
+	dbf	d0,$$loop
+
+	move.w	#$100,a2	; Release Z80 reset
+	move.w	#$000,a3	; Release Z80 bus
+`,
 
 	megaDriveConstants: String.raw
 `; M68K: Motorola 68000 related constant
@@ -1787,8 +1922,8 @@ VDPREG_DMASRC_H:  equ $9700  ; DMA source (high)
 
 ; VRAM management (you can change these)
 VRAM_PLANEA:	equ $E000	; Plane A name table address
-VRAM_PLANEB:	equ $FFFF	; Plane B name table address
-VRAM_SPRITE:	equ $FFFF	; Sprite name table address
+VRAM_PLANEB:	equ $C000	; Plane B name table address
+VRAM_SPRITE:	equ $F000	; Sprite name table address
 VRAM_WINDOW:	equ $FFFF	; Window plane name table address
 VRAM_HSCROLL:	equ $FFFF	; Plane x coordinate
 
@@ -1990,21 +2125,16 @@ CH1_4_PAN_PMS_AMS:	equ $B4		; Channel 1/4 Panning, Phase Modulation Sensitivity 
 CH2_5_PAN_PMS_AMS:	equ $B5		; Channel 2/5 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
 CH3_6_PAN_PMS_AMS:	equ $B6		; Channel 3/6 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity`,
 
-	megaDriveVariables: String.raw
-`; --------------------------
-;		Motorola 68000
-; --------------------------
+	megaDriveZ80Code: String.raw
+`	cpu Z80
+	phase 0	; Set label addresses to the start of the Z80 RAM
 
-	org M68K_WRAM
+Z80_ROM_Start
 
-; your 68000 variables go here
+	; Your Z80 code goes here
 
-; ----------------------
-;		Zilog Z80
-; ----------------------
+Z80_ROM_End
 
-	org $1000	; away from code and stack
-
-; your Z80 variables go here
-`
+	dephase	; The rest of the labels are mapped normally
+	cpu 68000`
 };

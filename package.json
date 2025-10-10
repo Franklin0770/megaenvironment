@@ -258,6 +258,15 @@
 					"items": { "type": "string" },
 					"description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
 				},
+				"megaenvironment.sourceCodeControl.templateSelector": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [ "68k vectors", "ROM header", "Jump table", "VDP initialization", "Controllers initialization", "Z80 initialization", "Constants", "Variables" ]
+					},
+					"default": [ "68k vectors", "ROM header", "Jump table", "VDP initialization", "Controllers initialization", "Z80 initialization", "Constants", "Variables" ],
+					"description": "Choose which initialization template gets appended to every new project you create."
+				},
 				"megaenvironment.backupOptions.includeBackupDate": {
 					"type": "boolean",
 					"default": true,
