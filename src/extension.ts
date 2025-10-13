@@ -19,19 +19,27 @@ import { join, basename } from 'path';
 import { exec } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
-import { setEngine } from 'crypto';
 
 interface ExtensionSettings { // Settings variable declaration
 	defaultCpu: string;
 	superiorWarnings: boolean;
+	compatibilityMode: boolean;
 	signWarning: boolean;
 	jumpsWarning: boolean;
+	caseSensitive: boolean;
+	radix: string,
+	relaxedMode: boolean;
+	addSyntax: Array<string>;
+	removeSyntax: Array<string>;
+	underscoreMacroArgs: boolean;
+
     romName: string;
     romDate: boolean;
     prevRoms: boolean;
     prevAmount: number;
 	generateChecksum: boolean;
 	sonicDisassembly: boolean;
+
     mainName: string;
     constantsName: string;
     variablesName: string;
@@ -43,19 +51,23 @@ interface ExtensionSettings { // Settings variable declaration
 	sectionListing: boolean;
 	macroListing: boolean;
 	sourceListing: boolean;
+	listingRadix: string;
+	splitByte: string;
+	listUnknown: boolean;
 	cleaningExtensions: Array<string>;
 	workingFolders: Array<string>;
 	templateSelector: Array<string>;
-	caseSensitive: boolean;
+
     backupName: string;
     backupDate: boolean;
+
 	compactSymbols: boolean;
     fillValue: string;
     errorLevel: number;
+	maximumErrors: string;
 	errorNumber: boolean;
 	asErrors: boolean;
 	lowercaseHex: boolean;
-	compatibilityMode: boolean;
     suppressWarnings: boolean;
     quietOperation: boolean;
     verboseOperation: boolean;
@@ -68,14 +80,23 @@ interface ExtensionSettings { // Settings variable declaration
 let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	defaultCpu: '68000',
 	superiorWarnings: false,
+	compatibilityMode: false,
 	signWarning: false,
 	jumpsWarning: false,
+	caseSensitive: true,
+	radix: '10',
+	relaxedMode: false,
+	addSyntax: [],
+	removeSyntax: [],
+	underscoreMacroArgs: false,
+
     romName: '',
     romDate: true,
     prevRoms: true,
     prevAmount: 10,
 	generateChecksum: true,
 	sonicDisassembly: false,
+
     mainName: '',
     constantsName: '',
     variablesName: '',
@@ -87,19 +108,23 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	sectionListing: false,
 	macroListing: false,
 	sourceListing: false,
+	listingRadix: '16',
+	splitByte: '',
+	listUnknown: false,
 	cleaningExtensions: [ '.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i' ],
 	workingFolders: [ '.' ],
 	templateSelector: [ '68k vectors', 'ROM header', 'Jump table', 'VDP initialization', 'Controllers initialization', 'Z80 initialization', 'Constants', 'Variables' ],
-	caseSensitive: true,
+
     backupName: '',
     backupDate: true,
+
 	compactSymbols: true,
     fillValue: '00',
-    errorLevel: 0,
+    errorLevel: 1,
+	maximumErrors: '',
 	errorNumber: false,
 	asErrors: false,
 	lowercaseHex: false,
-	compatibilityMode: false,
     suppressWarnings: false,
     quietOperation: false,
     verboseOperation: false,
@@ -116,6 +141,11 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning' },
 	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning' },
 	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive' },
+	{ key: 'codeOptions.radix',								target: 'radix' },
+	{ key: 'codeOptions.RELAXEDMode',						target: 'relaxedMode' },
+	{ key: 'codeOptions.addIntegerSyntax',					target: 'addSyntax' },
+	{ key: 'codeOptions.removeIntegerSyntax',				target: 'removeSyntax' },
+	{ key: 'codeOptions.macroArgumentsWithUnderscore',		target: 'underscoreMacroArgs' },
 	{ key: 'buildControl.outputRomName',					target: 'romName' },
 	{ key: 'buildControl.includeRomDate',					target: 'romDate' },
 	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
@@ -133,13 +163,18 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing' },
 	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing' },
 	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
+	{ key: 'sourceCodeControl.radixInListing',				target: 'listingRadix' },
+	{ key: 'sourceCodeControl.byteSplitInListing',			target: 'splitByte' },
+	{ key: 'sourceCodeControl.listUnknownValues',			target: 'listUnknown' },
 	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions'},
 	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
 	{ key: 'sourceCodeControl.templateSelector',			target: 'templateSelector'},
 	{ key: 'backupOptions.backupFileName',					target: 'backupName' },
 	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
+	{ key: 'miscellaneous.compactGlobalSymbols', 			target: 'compactSymbols' },
 	{ key: 'miscellaneous.fillValue',						target: 'fillValue' },
 	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
+	{ key: 'miscellaneous.maximumErrors',					target: 'maximumErrors' },
 	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
 	{ key: 'miscellaneous.AS-StyledErrors',					target: 'asErrors' },
 	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
@@ -147,7 +182,6 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
 	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
 	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors'},
-
 	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum' },
 	{ key: 'extensionOptions.alwaysActive',					target: 'alwaysActive' }
 ];
@@ -223,7 +257,7 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 			try {
 				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
 			} catch (error: any) {
-				if (await existsSync(assemblerPath) && existsSync(compilerPath)) {
+				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
 					window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error.message);
 					return 1;
 				}
@@ -488,7 +522,10 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		[!extensionSettings.superiorWarnings,	' -supmode'],
 		[extensionSettings.compatibilityMode,	' -compmode'],
 		[!extensionSettings.signWarning,		' -wno-implicit-sign-extension'],
-		[extensionSettings.jumpsWarning,		' -wrelative']
+		[extensionSettings.jumpsWarning,		' -wrelative'],
+		[extensionSettings.relaxedMode,			' -relaxed'],
+		[extensionSettings.listUnknown,			' -list-unknown-values'],
+		[extensionSettings.underscoreMacroArgs,	' -underscore-macroargs']
 	];
 
 	for (const [condition, flag] of shortFlags) { // Best way I (and ChatGPT) could have thought to do this
@@ -509,11 +546,45 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	if (extensionSettings.defaultCpu) { command += ' -cpu ' + extensionSettings.defaultCpu; }
 
+	if (extensionSettings.radix !== '10') {
+		command += ' -RADIX ' + extensionSettings.radix;
+	}
+
+	if (extensionSettings.listingRadix !== '16') {
+		command += ' -LISTRADIX ' + extensionSettings.listingRadix;
+	}
+
+	if (extensionSettings.splitByte) {
+		command += ` -SPLITBYTE "${extensionSettings.splitByte}"`;
+	}
+
+	if (extensionSettings.addSyntax.length || extensionSettings.removeSyntax.length) {
+		const parts: string[] = [];
+		const addSyntax = extensionSettings.addSyntax;
+		const removeSyntax = extensionSettings.removeSyntax;
+
+		if (addSyntax.length) {
+			parts.push('+' + addSyntax.join(',+'));
+		}
+
+		if (removeSyntax.length) {
+			parts.push('-' + removeSyntax.join(',-'));
+		}
+
+		command += ' -INTSYNTAX ' + parts.join(',');
+	}
+
+	if (extensionSettings.maximumErrors) {
+		command += ' -maxerrors ' + extensionSettings.maximumErrors;
+	}
+
 	if (extensionSettings.workingFolders.length > 0) {
-		command += ' -i "' + extensionSettings.workingFolders.join('";"') + '"';
+		command += ` -i "${extensionSettings.workingFolders.join('";"')}"`;
 	} else if (extensionSettings.sonicDisassembly) {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Prepare yourself for "include" errors.');
 	}
+
+	console.log(command);
 
 	// AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
 
@@ -1752,7 +1823,7 @@ EntryPoint:`,
 ;		Motorola 68000
 ; --------------------------
 
-	org M68K_WRAM
+	org $FF0000	; Main work RAM address space
 
 ; Your 68000 variables go here
 

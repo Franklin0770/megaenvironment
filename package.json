@@ -139,6 +139,43 @@
 					"default": true,
 					"description": "Check this to make any symbol case-sensitive in your code."
 				},
+				"megaenvironment.codeOptions.radix": {
+					"type": "string",
+					"default": "10",
+					"description": "This option changes the number base (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the \"radix\" symbol).",
+					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
+					"patternErrorMessage": "Has to be between 2 and 36."
+				},
+				"megaenvironment.codeOptions.RELAXEDMode": {
+					"type": "boolean",
+					"default": false,
+					"description": "RELAXED mode allows you to use any syntax possible for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the \"relaxed on\" symbol in code as well."
+				},
+				"megaenvironment.codeOptions.addIntegerSyntax": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"pattern": "^.+(?i:dec|hex|bin|oct)$",
+						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
+					},
+					"default": [],
+					"description": "You can add your custom syntax to the set of notations for integer constants in various number systems. Every entry shall be unique."
+				},
+				"megaenvironment.codeOptions.removeIntegerSyntax": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"pattern": "^.+(?i:dec|hex|bin|oct)$",
+						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
+					},
+					"default": [],
+					"description": "You can add your custom syntax to the set of notations for integer constants in various number systems. Every entry shall be unique."
+				},
+				"megaenvironment.codeOptions.macroArgumentsWithUnderscore": {
+					"type": "boolean",
+					"default": false,
+					"description": "Grants the opportunity to use the underscore character in macro arguments. It can come with side effects."
+				},
 				"megaenvironment.buildControl.outputRomName": {
 					"type": "string",
 					"default": "",
@@ -147,7 +184,7 @@
 				"megaenvironment.buildControl.includeRomDate": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether the output ROM file name should include date and time after the user's name."
+					"description": "Whether the output ROM file name should include date and time after the set name."
 				},
 				"megaenvironment.buildControl.enablePreviousBuilds": {
 					"type": "boolean",
@@ -232,6 +269,25 @@
 					"default": false,
 					"description": "Check this if you want a listing file representing the source text processed by the macro processor and conditional assembly. The file extension is \".i\"."
 				},
+				"megaenvironment.sourceCodeControl.radixInListing": {
+					"type": "string",
+					"default": "16",
+					"description": "You can set the number base (radix) displayed in the code listing file. Default is base 16 (hexadecimal).",
+					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
+					"patternErrorMessage": "Has to be between 2 and 36."
+				},
+				"megaenvironment.sourceCodeControl.byteSplitInListing": {
+					"type": "string",
+					"default": "",
+					"description": "You can set a character of choice to split the numbers found in the code listing file in bytes. Leave it blank to disable this feature.",
+					"pattern": "^.$|^$",
+					"patternErrorMessage": "Must be empty or one character only."
+				},
+				"megaenvironment.sourceCodeControl.listUnknownValues": {
+					"type": "boolean",
+					"default": false,
+					"description": "Check this to include unknown values in the first pass listing, showing them as question marks."
+				},
 				"megaenvironment.sourceCodeControl.cleaningExtensionSelector": {
 					"type": "array",
 					"items": {
@@ -270,7 +326,7 @@
 				"megaenvironment.backupOptions.includeBackupDate": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether the output backup file name should include date and time after the user's name."
+					"description": "Whether the output backup file name should include date and time after the set name."
 				},
 				"megaenvironment.backupOptions.backupFileName": {
 					"type": "string",
@@ -295,6 +351,13 @@
 					"description": "The detail level of warning, error and fatal messages. The higher the value, the more information about a possible error will be printed.",
 					"minimum": 0,
 					"maximum": 2
+				},
+				"megaenvironment.miscellaneous.maximumErrors": {
+					"type": "string",
+					"default": "",
+					"description": "The assembly terminates after the given number of errors. Leave it empty to make it unlimited, which is the default behavior.",
+					"pattern": "^\\d*$",
+					"patternErrorMessage": "Must be a number"
 				},
 				"megaenvironment.miscellaneous.displayErrorNumber": {
 					"type": "boolean",
