@@ -9,7 +9,8 @@ TODOS:
 import { 
 	ExtensionContext, workspace, commands, debug, window, env, Uri, 
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, 
-	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment 
+	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, 
+	ConfigurationTarget
 } from 'vscode';
 import {
 	existsSync, writeFile, rename, 
@@ -135,61 +136,63 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 };
 
 const settingDescriptors = [ // Every setting name and variable to target
-	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu' },
-	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings'},
-	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode'},
-	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning' },
-	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning' },
-	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive' },
-	{ key: 'codeOptions.radix',								target: 'radix' },
-	{ key: 'codeOptions.RELAXEDMode',						target: 'relaxedMode' },
-	{ key: 'codeOptions.addIntegerSyntax',					target: 'addSyntax' },
-	{ key: 'codeOptions.removeIntegerSyntax',				target: 'removeSyntax' },
-	{ key: 'codeOptions.macroArgumentsWithUnderscore',		target: 'underscoreMacroArgs' },
-	{ key: 'buildControl.outputRomName',					target: 'romName' },
-	{ key: 'buildControl.includeRomDate',					target: 'romDate' },
-	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
-	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
-	{ key: 'buildControl.generateChecksum',					target: 'generateChecksum' },
+	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu',				sonicSupport: true },
+	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings',			sonicSupport: true },
+	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode',		sonicSupport: true },
+	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning',				sonicSupport: false },
+	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning',				sonicSupport: false },
+	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive',			sonicSupport: true },
+	{ key: 'codeOptions.radix',								target: 'radix',					sonicSupport: true },
+	{ key: 'codeOptions.RELAXEDMode',						target: 'relaxedMode',				sonicSupport: true },
+	{ key: 'codeOptions.addIntegerSyntax',					target: 'addSyntax',				sonicSupport: false },
+	{ key: 'codeOptions.removeIntegerSyntax',				target: 'removeSyntax',				sonicSupport: false },
+	{ key: 'codeOptions.macroArgumentsWithUnderscore',		target: 'underscoreMacroArgs',		sonicSupport: false },
+	{ key: 'buildControl.outputRomName',					target: 'romName',					sonicSupport: true },
+	{ key: 'buildControl.includeRomDate',					target: 'romDate',					sonicSupport: true },
+	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms',					sonicSupport: true },
+	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount',				sonicSupport: true },
+	{ key: 'buildControl.generateChecksum',					target: 'generateChecksum',			sonicSupport: true },
 	// 'buildControl.sonicDisassemblySupport' is handled differently
-	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
-	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
-	{ key: 'sourceCodeControl.variablesFileName',			target: 'variablesName' },
-	{ key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile' },
-	{ key: 'sourceCodeControl.listingFileName',				target: 'listingName' },
-	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile' },
-	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName' },
-	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile' },
-	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing' },
-	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing' },
-	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
-	{ key: 'sourceCodeControl.radixInListing',				target: 'listingRadix' },
-	{ key: 'sourceCodeControl.byteSplitInListing',			target: 'splitByte' },
-	{ key: 'sourceCodeControl.listUnknownValues',			target: 'listUnknown' },
-	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions'},
-	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
-	{ key: 'sourceCodeControl.templateSelector',			target: 'templateSelector'},
-	{ key: 'backupOptions.backupFileName',					target: 'backupName' },
-	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
-	{ key: 'miscellaneous.compactGlobalSymbols', 			target: 'compactSymbols' },
-	{ key: 'miscellaneous.fillValue',						target: 'fillValue' },
-	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
-	{ key: 'miscellaneous.maximumErrors',					target: 'maximumErrors' },
-	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
-	{ key: 'miscellaneous.AS-StyledErrors',					target: 'asErrors' },
-	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
-	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
-	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
-	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
-	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors'},
-	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum' },
-	{ key: 'extensionOptions.alwaysActive',					target: 'alwaysActive' }
+	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName',					sonicSupport: true },
+	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName',			sonicSupport: true },
+	{ key: 'sourceCodeControl.variablesFileName',			target: 'variablesName',			sonicSupport: true },
+	{ key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile',				sonicSupport: true },
+	{ key: 'sourceCodeControl.listingFileName',				target: 'listingName',				sonicSupport: true },
+	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile',				sonicSupport: true },
+	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName',				sonicSupport: true },
+	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile',				sonicSupport: true },
+	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing',			sonicSupport: true },
+	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing',				sonicSupport: true },
+	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing',			sonicSupport: true },
+	{ key: 'sourceCodeControl.radixInListing',				target: 'listingRadix',				sonicSupport: true },
+	{ key: 'sourceCodeControl.byteSplitInListing',			target: 'splitByte',				sonicSupport: true },
+	{ key: 'sourceCodeControl.listUnknownValues',			target: 'listUnknown',				sonicSupport: false },
+	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions',		sonicSupport: true },
+	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders',			sonicSupport: true },
+	{ key: 'sourceCodeControl.templateSelector',			target: 'templateSelector',			sonicSupport: true },
+	{ key: 'backupOptions.backupFileName',					target: 'backupName',				sonicSupport: true },
+	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate',				sonicSupport: true },
+	{ key: 'miscellaneous.compactGlobalSymbols', 			target: 'compactSymbols',			sonicSupport: true },
+	{ key: 'miscellaneous.fillValue',						target: 'fillValue',				sonicSupport: false },
+	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel',				sonicSupport: true },
+	{ key: 'miscellaneous.maximumErrors',					target: 'maximumErrors',			sonicSupport: true },
+	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber',				sonicSupport: true },
+	{ key: 'miscellaneous.AS-StyledErrors',					target: 'asErrors',					sonicSupport: true },
+	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex',				sonicSupport: true },
+	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings',			sonicSupport: true },
+	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation',			sonicSupport: true },
+	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation',			sonicSupport: true },
+	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors',			sonicSupport: true },
+	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum',				sonicSupport: true },
+	{ key: 'extensionOptions.alwaysActive',					target: 'alwaysActive',				sonicSupport: true }
 ];
 
 // Global variables that get assigned during activation
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
+
+let onProject: boolean;
 
 let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
 let updatingConfiguration = false;
@@ -269,22 +272,20 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 			if (!response.ok || !response.body) {
 				if (response.status === 404) { // The classic "not found"
 					if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-						window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
-						.then(selection => {
-							if (selection === 'Last Resort Guide') {
-								throw new Error('[Not implemented yet]');
-							}
-						});
+						const selection = await window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide');
+
+						if (selection === 'Last Resort Guide') {
+							throw new Error('[Not implemented yet]');
+						}
 
 						return 1;
 					}
 
-					window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
-					.then(selection => {
-						if (selection === 'Last Resort Guide!') {
-							throw new Error('[Not implemented yet]');
-						}
-					});
+					const selection = await window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!');
+
+					if (selection === 'Last Resort Guide!') {
+						throw new Error('[Not implemented yet]');
+					}
 
 					return 2;
 				}
@@ -348,22 +349,20 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 				zip = new AdmZip(zipName);
 			} catch {
 				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-					window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide')
-					.then(selection => {
-						if (selection === 'Last Resort Guide') {
-							throw new Error('[Not implemented yet]');
-						}
-					});
+					const selection = await window.showWarningMessage('Hmm, it appears the download source is deprecated and incorrect, we can stick with what we have, though. Try updating the extension, if possible.', 'Last Resort Guide');
+
+					if (selection === 'Last Resort Guide') {
+						throw new Error('[Not implemented yet]');
+					}
 
 					return 1;
 				}
 
-				window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!')
-				.then(selection => {
-					if (selection === 'Last Resort Guide!') {
-						throw new Error('[Not implemented yet]');
-					}
-				});
+				const selection = await window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!');
+				
+				if (selection === 'Last Resort Guide!') {
+					throw new Error('[Not implemented yet]');
+				}
 
 				return 2;
 			}
@@ -418,6 +417,34 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 	return exitCode;
 }
 
+async function checkForUpdates() {
+	if (!existsSync(join(assemblerFolder, 'Version.txt'))) {
+		await downloadAssembler();
+		return;
+	}
+
+	const file = await promises.readFile(join(assemblerFolder, 'Version.txt'), 'utf-8');
+	const localBuild: number = +file;
+	
+	const url = !extensionSettings.sonicDisassembly ? 'https://raw.githubusercontent.com/Franklin0770/AS-releases/main/Original/Version.txt' : 'https://raw.githubusercontent.com/Franklin0770/AS-releases/main/Fixed/Version.txt';
+
+	const response = await fetch(url);
+	if (!response.ok) {
+		window.showErrorMessage('Failed to fetch version file to check for updates. Make sure you have an Internet connection. If this is a mistake, you can force the download.');
+		return;
+	}
+
+	const onlineBuild: number = +await response.text();
+	
+	if (onlineBuild > localBuild) {
+		if (!extensionSettings.quietOperation) {
+			window.showInformationMessage(`Upgrading from build ${localBuild} to ${onlineBuild}.`);
+		}
+
+		await downloadAssembler();
+	}
+}
+
 async function promptEmulatorPath(emulator: string): Promise<boolean> {
 	const config =  workspace.getConfiguration('megaenvironment.paths');
 	const path = config.get<string>(emulator);
@@ -436,12 +463,11 @@ async function promptEmulatorPath(emulator: string): Promise<boolean> {
 	});
 
 	if (!uri || uri.length === 0) {
-		window.showErrorMessage('Without the path, it would be impossible to localize your emulator and run the ROM. Please, try again!', 'Retry')
-		.then((selection) => {
-			if (selection === 'Retry') {
-				promptEmulatorPath(emulator);
-			}
-		});
+		const selection = await window.showErrorMessage('Without the path, it would be impossible to localize your emulator and run the ROM. Please, try again!', 'Retry');
+
+		if (selection === 'Retry') {
+			promptEmulatorPath(emulator);
+		}
 
 		return false;
 	}
@@ -464,15 +490,14 @@ async function assemblerChecks(): Promise<boolean> {
 	}
 
 	if (!existsSync(join(projectFolders[0].uri.fsPath, extensionSettings.mainName))) {
-		window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Open Setting')
-		.then(selection => {
-			if (selection === 'Open Setting') {
-				commands.executeCommand(
-					'workbench.action.openSettings',
-					'megaenvironment.sourceCodeControl.mainFileName'
-				);
-			}
-		});
+		const selection = await window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Open Setting');
+		
+		if (selection === 'Open Setting') {
+			commands.executeCommand(
+				'workbench.action.openSettings',
+				'megaenvironment.sourceCodeControl.mainFileName'
+			);
+		}
 
 		return false;
 	}
@@ -505,63 +530,68 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, 'rom.p')}" -`;
 	let warnings = false;
+	const settings = extensionSettings;
 
 	const shortFlags: Array<[boolean, string]> = [
-		[extensionSettings.compactSymbols,		'A'],
-		[extensionSettings.listingFile,			'L'],
-		[extensionSettings.caseSensitive,		'U'],
-		[!!extensionSettings.errorLevel,		'x'.repeat(extensionSettings.errorLevel)],
-		[extensionSettings.errorNumber,			'n'],
-		[extensionSettings.lowercaseHex,		'h'],
-		[extensionSettings.suppressWarnings,	'w'],
-		[extensionSettings.sectionListing,		's'],
-		[extensionSettings.macroListing,		'M'],
-		[extensionSettings.sourceListing,		'P'],
-		[extensionSettings.warningsAsErrors,	' -Werror'],
-		[!extensionSettings.asErrors, 			' -gnuerrors'],
-		[!extensionSettings.superiorWarnings,	' -supmode'],
-		[extensionSettings.compatibilityMode,	' -compmode'],
-		[!extensionSettings.signWarning,		' -wno-implicit-sign-extension'],
-		[extensionSettings.jumpsWarning,		' -wrelative'],
-		[extensionSettings.relaxedMode,			' -relaxed'],
-		[extensionSettings.listUnknown,			' -list-unknown-values'],
-		[extensionSettings.underscoreMacroArgs,	' -underscore-macroargs']
+		[settings.compactSymbols,		'A'],
+		[settings.listingFile,			'L'],
+		[settings.caseSensitive,		'U'],
+		[!!settings.errorLevel,			'x'.repeat(settings.errorLevel)],
+		[settings.errorNumber,			'n'],
+		[settings.lowercaseHex,			'h'],
+		[settings.suppressWarnings,		'w'],
+		[settings.sectionListing,		's'],
+		[settings.macroListing,			'M'],
+		[settings.sourceListing,		'P'],
+		[settings.warningsAsErrors,		' -Werror'],
+		[!settings.asErrors, 			' -gnuerrors'],
+		[!settings.superiorWarnings,	' -supmode'],
+		[settings.compatibilityMode,	' -compmode'],
+		[settings.signWarning,			' -wimplicit-sign-extension'], // In the manual this switch is named differently (huh)
+		[settings.jumpsWarning,			' -wrelative'],
+		[settings.relaxedMode,			' -relaxed'],
+		[settings.listUnknown,			' -list-unknown-values'],
+		[settings.underscoreMacroArgs,	' -underscore-macroargs']
 	];
 
 	for (const [condition, flag] of shortFlags) { // Best way I (and ChatGPT) could have thought to do this
 		if (condition) { command += flag; }
 	}
 
-	if (extensionSettings.errorFile) {
-		if (extensionSettings.errorName !== '') {
-			command += ' -E ' + extensionSettings.errorName + '.log';
+	// Some other flags that have different behavior, not just booleans
+
+	if (settings.listingName) {
+		command += ' -OLIST ' + settings.listingName + '.lst';
+	}
+
+	if (settings.errorFile) {
+		if (settings.errorName !== '') {
+			command += ' -E ' + settings.errorName + '.log';
 		} else {
 			command += ' -E ';
 		}
 	}
+	
+	if (settings.debugFile !== 'None') { command += ' -g ' + settings.debugFile; }
 
-	// Some other flags that have different behavior, not just booleans
+	if (settings.defaultCpu) { command += ' -cpu ' + settings.defaultCpu; }
 
-	if (extensionSettings.debugFile !== 'None') { command += ' -g ' + extensionSettings.debugFile; }
-
-	if (extensionSettings.defaultCpu) { command += ' -cpu ' + extensionSettings.defaultCpu; }
-
-	if (extensionSettings.radix !== '10') {
-		command += ' -RADIX ' + extensionSettings.radix;
+	if (settings.radix !== '10') {
+		command += ' -RADIX ' + settings.radix;
 	}
 
-	if (extensionSettings.listingRadix !== '16') {
-		command += ' -LISTRADIX ' + extensionSettings.listingRadix;
+	if (settings.listingRadix !== '16') {
+		command += ' -LISTRADIX ' + settings.listingRadix;
 	}
 
-	if (extensionSettings.splitByte) {
-		command += ` -SPLITBYTE "${extensionSettings.splitByte}"`;
+	if (settings.splitByte) {
+		command += ` -SPLITBYTE "${settings.splitByte}"`;
 	}
 
-	if (extensionSettings.addSyntax.length || extensionSettings.removeSyntax.length) {
+	if (settings.addSyntax.length || settings.removeSyntax.length) {
 		const parts: string[] = [];
-		const addSyntax = extensionSettings.addSyntax;
-		const removeSyntax = extensionSettings.removeSyntax;
+		const addSyntax = settings.addSyntax;
+		const removeSyntax = settings.removeSyntax;
 
 		if (addSyntax.length) {
 			parts.push('+' + addSyntax.join(',+'));
@@ -574,13 +604,13 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		command += ' -INTSYNTAX ' + parts.join(',');
 	}
 
-	if (extensionSettings.maximumErrors) {
-		command += ' -maxerrors ' + extensionSettings.maximumErrors;
+	if (settings.maximumErrors) {
+		command += ' -maxerrors ' + settings.maximumErrors;
 	}
 
-	if (extensionSettings.workingFolders.length > 0) {
-		command += ` -i "${extensionSettings.workingFolders.join('";"')}"`;
-	} else if (extensionSettings.sonicDisassembly) {
+	if (settings.workingFolders.length > 0) {
+		command += ` -i "${settings.workingFolders.join('";"')}"`;
+	} else if (settings.sonicDisassembly) {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Prepare yourself for "include" errors.');
 	}
 
@@ -601,11 +631,11 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	outputChannel.append(aslOut);
 
 	if (code === 0) {
-		if (extensionSettings.verboseOperation) {
+		if (settings.verboseOperation) {
 			outputChannel.show();
 		}
 
-		if (aslErr !== '' && !extensionSettings.suppressWarnings) {
+		if (aslErr !== '' && !settings.suppressWarnings) {
 			outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
 			outputChannel.appendLine(aslErr);
 			outputChannel.appendLine('============================================================');
@@ -614,7 +644,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	} else {
 		let errorLocation = 'log file';
 
-		if (!extensionSettings.errorFile) {
+		if (!settings.errorFile) {
 			outputChannel.appendLine('\n==================== ASSEMBLER ERRORS ====================\n');
 			outputChannel.append(aslErr);
 			outputChannel.show();
@@ -642,9 +672,15 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	process.chdir(assemblerFolder); // We can't change the output folder in P2BIN, so this will do
 
+	if (!settings.sonicDisassembly) {
+		command = `"${compilerPath}" rom.p -l 0x${settings.fillValue} -k`;
+	} else {
+		command = `"${compilerPath}" rom.p -o rom.bin`;
+	}
+	
 	// Take only some outputs and the custom exit code with aliases. Unix wants '.', so I'm providing it
 	const { p2binOut, p2binErr, success } = await new Promise<{ p2binOut: string; p2binErr: string; success: boolean }>((resolve) => {
-		exec(`"${compilerPath}" rom.p -l 0x${extensionSettings.fillValue} -k`, { encoding: 'ascii' }, (error, stdout, stderr) => { // The -k switch makes P2BIN automatically remove the program file
+		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => { // The -k switch makes P2BIN automatically remove the program file
 			if (!error) {
 				resolve({ p2binOut: stdout, p2binErr: stderr, success: true });
 			} else {
@@ -657,7 +693,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	outputChannel.append('\n' + p2binOut);
 
 	if (success) {
-		if (p2binErr !== '' && extensionSettings.suppressWarnings) {
+		if (p2binErr !== '' && settings.suppressWarnings) {
 			outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
 			outputChannel.appendLine(p2binErr);
 			outputChannel.appendLine('===========================================================');
@@ -674,7 +710,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	// Let's generate the checksum!
 
-	if (extensionSettings.generateChecksum) {
+	if (settings.generateChecksum) {
 		try {
 			const fileHandler = await promises.open('rom.bin', 'r+');
 
@@ -694,13 +730,13 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 			await fileHandler.write(writeBuffer, 0, 2, 0x18E);
 			await fileHandler.close();
 
-			if (extensionSettings.showChecksum) {
+			if (settings.showChecksum) {
 				outputChannel.append('\nChecksum value: 0x' + sum[0].toString(16).toUpperCase());
 			}
 
 		} catch (error: any) {
 			window.showErrorMessage('Cannot patch your ROM with its checksum. ' + error.message);
-			if (extensionSettings.showChecksum) {
+			if (settings.showChecksum) {
 				outputChannel.append('\nChecksum not generated due to error.');
 			}
 
@@ -909,12 +945,11 @@ async function runTemporaryROM(emulator: string) {
 		if (extensionSettings.quietOperation) { return; }
 		window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
 	} else {
-		window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal')
-		.then(selection => {
-			if (selection === 'Show Terminal') {
-				outputChannel.show();
-			}
-		});
+		const selection = await window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal');
+
+		if (selection === 'Show Terminal') {
+			outputChannel.show();
+		}
 	}
 }
 
@@ -992,15 +1027,16 @@ export async function activate(context: ExtensionContext) {
 		projectCheck();
 	} else {
 		commands.executeCommand('setContext', 'megaenvironment.onProject', true);
+		onProject = true;
 		return;
 	}
-	
-	await downloadAssembler();
+
+	await checkForUpdates();
 
 	// A small button located at the bottom of the screen to force download the assembler
 	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);
 	runButton.text = "$(cloud-download)";
-	runButton.tooltip = "Re-download The Assembler";
+	runButton.tooltip = "Re-download the Assembler";
 	runButton.command = "megaenvironment.redownload_tools";
 	runButton.show();
 
@@ -1044,12 +1080,12 @@ export async function activate(context: ExtensionContext) {
 	const run_ClownMdEmu = commands.registerCommand('megaenvironment.run_clownmdemu', async () => {
 		const platform = process.platform;
 		if (platform !== 'win32' && platform !== 'linux') {
-			window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
-			.then(selection => {
-				if (selection === 'Visit Site') {
-					env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
-				}
-			});
+			const selection = await window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site');
+			
+			if (selection === 'Visit Site') {
+				env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
+			}
+
 			return;
 		}
 
@@ -1102,12 +1138,12 @@ export async function activate(context: ExtensionContext) {
 	const assemble_and_run_ClownMDEmu = commands.registerCommand('megaenvironment.assemble_run_clownmdemu', async () => {
 		const platform = process.platform;
 		if (platform !== 'win32' && platform !== 'linux') {
-			window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site')
-			.then(selection => {
-				if (selection === 'Visit Site') {
-					env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
-				}
-			});
+			const selection = await window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site');
+
+			if (selection === 'Visit Site') {
+				env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
+			}
+
 			return;
 		}
 
@@ -1184,12 +1220,11 @@ export async function activate(context: ExtensionContext) {
 			if (extensionSettings.quietOperation) { return; }
 			window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}, running it with OpenEmu. (Oh yes!)`);
 		} else {
-			window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal')
-			.then(selection => {
-				if (selection === 'Show Terminal') {
-					outputChannel.show();
-				}
-			});
+			const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal');
+
+			if (selection === 'Show Terminal') {
+				outputChannel.show();
+			}
 		}
 	});
 
@@ -1376,7 +1411,7 @@ export async function activate(context: ExtensionContext) {
 
 		if (hasConflictingFiles) {
 			const selection = await window.showWarningMessage(
-				'Looks like this folder already contains a project! If you continue, these files might be replaced. Do you wish to proceed?',
+				'Looks like this folder already contains a project! If you continue, some files might get overwritten. Do you wish to proceed?',
 				'Sure!',
 				'No, take me back'
 			);
@@ -1385,15 +1420,6 @@ export async function activate(context: ExtensionContext) {
 		}
 
 		const selector = extensionSettings.templateSelector;
-
-		const map: Record<string, string> = {
-			'68k vectors': strings.megaDriveVectors,
-			'ROM header': strings.megaDriveHeader,
-			'Jump table': strings.megaDriveJumpTable,
-			'VDP initialization': strings.megaDriveVDPInitialization,
-			'Controllers initialization': strings.megaDriveJoystickInitialization,
-			'Z80 initialization': strings.megaDriveCoprocessorInitialization
-		};
 
 		let templates = '';
 
@@ -1406,7 +1432,26 @@ export async function activate(context: ExtensionContext) {
 					return;
 				}
 			});
+		} else {
+			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are applied by code templates.', 'Open Setting', 'Ignore');
+
+			if (selection === 'Open Setting') {
+				commands.executeCommand(
+					'workbench.action.openSettings',
+					'megaenvironment.sourceCodeControl.templateSelector'
+				);
+				return;
+			}
 		}
+
+		const map: Record<string, string> = {
+			'68k vectors': strings.megaDriveVectors,
+			'ROM header': strings.megaDriveHeader,
+			'Jump table': strings.megaDriveJumpTable,
+			'VDP initialization': strings.megaDriveVDPInitialization,
+			'Controllers initialization': strings.megaDriveJoystickInitialization,
+			'Z80 initialization': strings.megaDriveCoprocessorInitialization
+		};
 
 		if (selector.includes('Variables')) {
 			templates += '\tinclude "Variables.asm"\n';
@@ -1484,22 +1529,13 @@ export async function activate(context: ExtensionContext) {
 			await promises.mkdir(projectFolder);
 		}
 
-		let answer = true;
-
 		if (existsSync(join(vscodeFolder, 'launch.json'))) {
-			answer = await new Promise<boolean>((resolve) => {
-				window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to overwrite it?', 'Yes', 'No')
-				.then((selection) => {
-					if (selection === 'Yes') {
-						resolve(true);
-					} else {
-						resolve(false);
-					}
-				});
-			});
+			const selection = await window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to replace it?', 'Yes', 'No');
+			
+			if (selection !== 'Yes') {
+				return;
+			}
 		}
-
-		if (!answer) { return; }
 
 		writeFile(join(vscodeFolder, 'launch.json'), strings.launchJson, (error) => {
 			if (error) {
@@ -1536,48 +1572,95 @@ async function projectCheck() {
 	if (projectFolders) {
 		if ((await workspace.findFiles('*.asm', undefined, 1)).length > 0) {
 			commands.executeCommand('setContext', 'megaenvironment.onProject', true);
+			onProject = true;
 		} else {
 			commands.executeCommand('setContext', 'megaenvironment.onProject', false);
+			onProject = false;
 		}
 	} else {
 		commands.executeCommand('setContext', 'megaenvironment.onProject', false);
+		onProject = false;
 	}
 }
 
 async function updateConfiguration(event: ConfigurationChangeEvent) {
-	if (updatingConfiguration) { return; } // Prevent loop
+	if (!event.affectsConfiguration('megaenvironment') || updatingConfiguration) { return; }
 
-	if (event.affectsConfiguration('megaenvironment')) {
-		const config = workspace.getConfiguration('megaenvironment');
+	const config = workspace.getConfiguration('megaenvironment');
 
-		for (const setting of settingDescriptors) {
-			const key = setting.key;
-			if (event.affectsConfiguration(`megaenvironment.${key}`)) {
-        		(extensionSettings as any)[setting.target] = config.get(key);
-				return;
+	for (const setting of settingDescriptors) {
+		const key = setting.key;
+
+		if (!event.affectsConfiguration(`megaenvironment.${key}`)) { continue; }
+
+		if (!setting.sonicSupport && extensionSettings.sonicDisassembly) {
+			window.showErrorMessage('Sorry, this setting is not available in the Sonic disassembly version.');
+			const inspected = config.inspect<any>(key);
+
+			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
+			if (onProject) {
+				await config.update(key, inspected?.defaultValue, ConfigurationTarget.Workspace);
+			} else {
+				await config.update(key, inspected?.defaultValue, ConfigurationTarget.Global);
+			}
+			updatingConfiguration = false;
+
+			return;
+		}
+
+		(extensionSettings as any)[setting.target] = config.get(key);
+	}
+	
+	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
+		const settings = extensionSettings;
+		settings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
+
+		if (!settings.quietOperation) {
+			window.showInformationMessage('Swapping versions...');
+		}
+
+		if (settings.sonicDisassembly) {
+			let settingsModified = false;
+
+			for (const setting of settingDescriptors) { // Reset the incompatible settings if they were changed
+				if (!setting.sonicSupport) {
+					const key = setting.key;
+					const inspected = config.inspect<any>(key);
+					const defaultValue = inspected?.defaultValue;
+
+					updatingConfiguration = true;
+					// If the value is undefined it means it hasn't been touched, so we should check for that as well
+					if (inspected?.workspaceValue !== undefined && inspected?.workspaceValue !== defaultValue) {
+						await config.update(key, defaultValue, false);
+						settingsModified = true;
+					} else if (inspected?.globalLanguageValue !== undefined && inspected?.globalValue !== defaultValue) {
+						await config.update(key, defaultValue, true);
+						settingsModified = true;
+					} 
+					updatingConfiguration = false;
+				}
+			}
+
+			if (settingsModified && !settings.quietOperation) {
+				window.showInformationMessage('Some settings were set to their default value due to incompatibilities with the Sonic disassembly version.');
 			}
 		}
-		
-		if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
-			extensionSettings.sonicDisassembly = config.get<boolean>('buildControl.sonicDisassemblySupport', false);
-			if (!extensionSettings.quietOperation) {
-				window.showInformationMessage('Swapping versions...');
-			}
 
-			if (await downloadAssembler() !== 0) {
-				// In case it couldn't update, we need to restore the previous setting value
-				extensionSettings.sonicDisassembly = !extensionSettings.sonicDisassembly;
-				updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
-				await config.update(
-					'buildControl.sonicDisassemblySupport',
-					extensionSettings.sonicDisassembly,
-					true
-				);
-				updatingConfiguration = false;
-			}
-		} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
-			commands.executeCommand('setContext', 'megaenvironment.onProject', true);
+		if (await downloadAssembler() !== 0) {
+			// In case it couldn't update, we need to restore the previous setting value
+			settings.sonicDisassembly = !settings.sonicDisassembly;
+			
+			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
+			await config.update(
+				'buildControl.sonicDisassemblySupport',
+				settings.sonicDisassembly,
+				true
+			);
+			updatingConfiguration = false;
 		}
+	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
+		commands.executeCommand('setContext', 'megaenvironment.onProject', true);
+		onProject = true;
 	}
 }
 
@@ -1680,13 +1763,13 @@ ROM_Start
 		dc.l UnknownError		; Unused (reserved)					[14]
 		dc.l UnknownError		; Unused (reserved)					[14]
 		dc.l SpuriousException	; Spurious exception				[11]
-		dc.l IRQLevel			; IRQ level 1						[12]
-		dc.l IRQLevel			; IRQ level 2						[12]
-		dc.l IRQLevel			; IRQ level 3 						[12]
+		dc.l InterruptRequest	; IRQ level 1						[12]
+		dc.l InterruptRequest	; IRQ level 2						[12]
+		dc.l InterruptRequest	; IRQ level 3 						[12]
 		dc.l VDP_HBlank			; IRQ level 4 (horizontal retrace)
-		dc.l IRQLevel			; IRQ level 5						[12]
+		dc.l InterruptRequest	; IRQ level 5						[12]
 		dc.l VDP_VBlank			; IRQ level 6 (vertical retrace)
-		dc.l IRQLevel			; IRQ level 7						[12]
+		dc.l InterruptRequest	; IRQ level 7						[12]
 		dc.l TRAPException		; TRAP #00 exception				[13]
 		dc.l TRAPException		; TRAP #01 exception				[13]
 		dc.l TRAPException		; TRAP #02 exception				[13]
@@ -1770,7 +1853,7 @@ SpuriousException:
 	move.l	#$AAAAAA11,d7
 	stop #$2700
 
-IRQLevel:
+InterruptRequest:
 	move.l	#$AAAAAA12,d7
 	stop #$2700
 
@@ -1823,7 +1906,7 @@ EntryPoint:`,
 ;		Motorola 68000
 ; --------------------------
 
-	org $FF0000	; Main work RAM address space
+	org M68K_RAM	; Main work RAM address space
 
 ; Your 68000 variables go here
 

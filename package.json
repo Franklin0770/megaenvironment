@@ -205,7 +205,7 @@
 				"megaenvironment.buildControl.sonicDisassemblySupport": {
 					"type": "boolean",
 					"default": false,
-					"description": "Downloads an alternative version that supports Sonic disassemblies. Highly recommended if you're into Sonic ROM hacking."
+					"description": "Downloads an alternative version that supports Sonic disassemblies. Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being outdated."
 				},
 				"megaenvironment.sourceCodeControl.mainFileName": {
 					"type": "string",
