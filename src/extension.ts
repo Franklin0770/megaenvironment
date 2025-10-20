@@ -714,12 +714,14 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		try {
 			const fileHandler = await promises.open('rom.bin', 'r+');
 
-			const size = (await fileHandler.stat()).size - 0x200;
+			const size = (await fileHandler.stat()).size - 0x200; // Need to subtract the skipped values
 			const readBuffer = Buffer.alloc(size);
 			await fileHandler.read(readBuffer, 0, size, 0x200); // Offset: 0, position: 0x200
 
 			const sum = new Uint16Array(1); // The only elegant way to create an unsigned 16-bit variable
 
+			// Even though we are adding 2 to the index due to words being read,
+			// the file size is always even (due to the 68k architecture), so no worries about misalignment
 			for (let i = 0; i < size - 1; i += 2) {
 				sum[0] += readBuffer.readUInt16BE(i);
 			}
@@ -727,13 +729,12 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 			const writeBuffer = Buffer.alloc(2);
 			writeBuffer.writeUint16BE(sum[0], 0);
 
-			await fileHandler.write(writeBuffer, 0, 2, 0x18E);
+			await fileHandler.write(writeBuffer, 0, 2, 0x18E); // Patch by writing the value to the ROM
 			await fileHandler.close();
 
 			if (settings.showChecksum) {
 				outputChannel.append('\nChecksum value: 0x' + sum[0].toString(16).toUpperCase());
 			}
-
 		} catch (error: any) {
 			window.showErrorMessage('Cannot patch your ROM with its checksum. ' + error.message);
 			if (settings.showChecksum) {
@@ -1636,7 +1637,7 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 					} else if (inspected?.globalLanguageValue !== undefined && inspected?.globalValue !== defaultValue) {
 						await config.update(key, defaultValue, true);
 						settingsModified = true;
-					} 
+					}
 					updatingConfiguration = false;
 				}
 			}
