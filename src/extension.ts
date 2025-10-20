@@ -199,12 +199,12 @@ let updatingConfiguration = false;
 
 const outputChannel = window.createOutputChannel('AS');
 
-async function downloadAssembler(): Promise<0 | 1 | 2> {
+async function downloadAssembler(force: boolean): Promise<boolean> {
 	toolsDownloading = true;
 	// A progress indicator that shows in the Status Bar at the bottom
 	// Every report there's an increment value. If it adds up to 100 the indicator will disappear
-	// Returns 0 if there are no errors, 1 if there's an error but execution can continue, 2 if there's an error and execution can't continue
-	const exitCode = await window.withProgress(
+	let shouldContinue: boolean;
+	await window.withProgress(
 		{
 			location: ProgressLocation.Window,
 			title: !extensionSettings.sonicDisassembly ? "Original assembler" : "Sonic's assembler",
@@ -215,41 +215,74 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 				window.showErrorMessage("Operation was cancelled! You can retry if you didn't mean to stop the download.", 'Re-attempt Download')
 				.then((selection) => {
 					if (selection === 'Re-attempt Download') {
-						downloadAssembler();
+						downloadAssembler(true);
 					}
 				});
 
-				return 2;
+				shouldContinue = true;
+				return;
 			});
 
-			progress.report({ message: 'checking your platform...', increment: 0 });
+			progress.report({ message: 'checking for updates...', increment: 0 });
 
+			let folderName: string;
 			let zipName: string;
 
 			switch (process.platform) {
 				case 'win32':
-					zipName = 'windows-x86';
+					folderName = 'Windows_x86';
+					zipName = 'windows-x86.zip';
 					break;
 				case 'darwin':
 					if (process.arch === 'arm64') {
-						zipName ='mac-arm64';
+						folderName = 'macOS_arm64';
+						zipName = 'mac-arm64.zip';
 					} else {
-						zipName = 'mac-x86_64';
+						folderName = 'macOS_x86_64';
+						zipName = 'mac-x86_64.zip';
 					}
 					break;
 				case 'linux':
 					if (process.arch === 'x64') {
-						zipName = 'linux-x86_64';
+						folderName = 'Linux_x86_64';
+						zipName = 'linux-x86_64.zip';
 					} else {
-						zipName = 'linux-arm64';
+						folderName = 'Linux_arm64';
+						zipName = 'linux-arm64.zip';
 					}
 					break;
 				default:
 					window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
-					return 2;
+					shouldContinue = false;
+					return;
 			}
 
-			zipName += '.zip';
+			const type = +extensionSettings.sonicDisassembly;
+
+			if (!force && existsSync(join(assemblerFolder, 'version.txt'))) {
+				const versionTag = [ 'Original', 'Fixed' ];
+				const file = await promises.readFile(join(assemblerFolder, 'version.txt'), 'ascii');
+				const localBuild = +file;
+
+				console.log('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + versionTag[type] + '/' + folderName + '/version.txt');
+				
+				const response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + versionTag[type] + '/' + folderName + '/version.txt');
+				if (!response.ok) {
+					window.showErrorMessage(`Failed to fetch version file to check for updates. Make sure you have an Internet connection. If this is a mistake, you can force the download. Error code: ${response.status} ${response.statusText}`);
+					shouldContinue = false;
+				}
+
+				const onlineBuild = +await response.text();
+				
+				if (localBuild >= onlineBuild) {
+					shouldContinue = true;
+					return; // No need for updates
+				}
+
+				if (!extensionSettings.quietOperation) {
+					window.showInformationMessage(`Upgrading from build ${localBuild} to ${onlineBuild}.`);
+				}
+			}
 
 			progress.report({ message: 'requesting your assembler version...', increment: 10 });
 
@@ -258,15 +291,17 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 			let response: Response;
 			
 			try {
-				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[+extensionSettings.sonicDisassembly] + '/' + zipName);
+				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[type] + '/' + zipName);
 			} catch (error: any) {
 				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
 					window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error.message);
-					return 1;
+					shouldContinue = true;
+					return;
 				}
 
 				window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. " + error.message);
-				return 2;
+				shouldContinue = false;
+				return;
 			}
 
 			if (!response.ok || !response.body) {
@@ -278,7 +313,8 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 							throw new Error('[Not implemented yet]');
 						}
 
-						return 1;
+						shouldContinue = true;
+						return;
 					}
 
 					const selection = await window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!');
@@ -287,10 +323,9 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 						throw new Error('[Not implemented yet]');
 					}
 
-					return 2;
+					shouldContinue = false;
+					return;
 				}
-
-				// We need some additional management here
 
 				window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
 
@@ -300,7 +335,8 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 					}
 				});
 
-				return 2;
+				shouldContinue = false;
+				return;
 			}
 
 			progress.report({ message: 'downloading ZIP...', increment: 20 });
@@ -312,12 +348,12 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 			process.chdir(assemblerFolder);
 			const fileStream = createWriteStream(zipName);
 
-			const exitCode = await new Promise<0 | 1 | 2>((resolve) => { 
+			const exitCode = await new Promise<boolean>((resolve) => { 
 				let retries = 1;
 				const retry = () => {
 					pipeline(response.body as ReadableStream<any>, fileStream, (error) => {
 						if (!error) {
-							resolve(0);
+							resolve(true);
 						} else {
 							if (retries <= 3) {
 								progress.report({ message: `downloading ZIP... (take number ${retries})`, increment: 0 });
@@ -326,10 +362,10 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 							} else {
 								if (existsSync(assemblerPath) && existsSync(compilerPath)) {
 									window.showWarningMessage('Even though it turned out to be impossible to download the assembler, we still have the previous version we can use! ' + error.message);
-									resolve(1);
+									resolve(true);
 								} else {
 									window.showErrorMessage('After multiple tries, it turned out to be impossible to download the assembler. Make sure you have a fast enough Internet connection. ' + error.message);
-									resolve(2);
+									resolve(false);
 								}
 							}
 						}
@@ -339,9 +375,12 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 				retry(); // This is where it starts
 			});
 
-			if (exitCode !== 0) { return exitCode; }
+			if (!exitCode) {
+				shouldContinue = false;
+				return;
+			}
 
-			progress.report({ message: 'extracting ZIP...', increment: 50 });
+			progress.report({ message: 'extracting ZIP...', increment: 60 });
 
 			let zip: AdmZip;
 
@@ -355,7 +394,8 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 						throw new Error('[Not implemented yet]');
 					}
 
-					return 1;
+					shouldContinue = true;
+					return;
 				}
 
 				const selection = await window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. If there aren't any available updates then sorry, I might have discontinued this extension!", 'Last Resort Guide!');
@@ -364,7 +404,8 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 					throw new Error('[Not implemented yet]');
 				}
 
-				return 2;
+				shouldContinue = false;
+				return;
 			}
 
 			const { writeFile, chmod, readdir } = promises;
@@ -388,8 +429,6 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 				}
 			}
 
-			progress.report({ message: 'cleaning things up...', increment: 10 });
-
 			try {
 				const files = await readdir('.');
 
@@ -404,45 +443,19 @@ async function downloadAssembler(): Promise<0 | 1 | 2> {
 				}
 			} catch (error: any) {
 				window.showWarningMessage('Cannot read the assembler folder to cleanup files. ' + error.message);
-				return 1;
+				shouldContinue = true;
+				return;
 			}
 
 			progress.report({ message: 'done! (This message will almost never be seen...)', increment: 10 });
 
-			return 0;
+			shouldContinue = true;
+			return;
 		}
 	);
 
 	toolsDownloading = false;
-	return exitCode;
-}
-
-async function checkForUpdates() {
-	if (!existsSync(join(assemblerFolder, 'Version.txt'))) {
-		await downloadAssembler();
-		return;
-	}
-
-	const file = await promises.readFile(join(assemblerFolder, 'Version.txt'), 'utf-8');
-	const localBuild: number = +file;
-	
-	const url = !extensionSettings.sonicDisassembly ? 'https://raw.githubusercontent.com/Franklin0770/AS-releases/main/Original/Version.txt' : 'https://raw.githubusercontent.com/Franklin0770/AS-releases/main/Fixed/Version.txt';
-
-	const response = await fetch(url);
-	if (!response.ok) {
-		window.showErrorMessage('Failed to fetch version file to check for updates. Make sure you have an Internet connection. If this is a mistake, you can force the download.');
-		return;
-	}
-
-	const onlineBuild: number = +await response.text();
-	
-	if (onlineBuild > localBuild) {
-		if (!extensionSettings.quietOperation) {
-			window.showInformationMessage(`Upgrading from build ${localBuild} to ${onlineBuild}.`);
-		}
-
-		await downloadAssembler();
-	}
+	return shouldContinue!;
 }
 
 async function promptEmulatorPath(emulator: string): Promise<boolean> {
@@ -1031,7 +1044,7 @@ export async function activate(context: ExtensionContext) {
 		return;
 	}
 
-	await checkForUpdates();
+	if (await downloadAssembler(false) === false) { return; }
 
 	// A small button located at the bottom of the screen to force download the assembler
 	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);
@@ -1511,7 +1524,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 		
-		if (await downloadAssembler() !== 0 || extensionSettings.quietOperation) { return; }
+		if (await downloadAssembler(true) === false || extensionSettings.quietOperation) { return; }
 
 		window.showInformationMessage('Build tools successfully re-downloaded.');
 	});
@@ -1646,7 +1659,7 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 			}
 		}
 
-		if (await downloadAssembler() !== 0) {
+		if (await downloadAssembler(true) === false) {
 			// In case it couldn't update, we need to restore the previous setting value
 			settings.sonicDisassembly = !settings.sonicDisassembly;
 			
