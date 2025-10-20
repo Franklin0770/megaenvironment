@@ -74,6 +74,7 @@ interface ExtensionSettings { // Settings variable declaration
     verboseOperation: boolean;
 	warningsAsErrors: boolean;
 
+	checkUpdates: boolean;
 	showChecksum: boolean;
 	alwaysActive: boolean;
 }
@@ -131,6 +132,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
     verboseOperation: false,
 	warningsAsErrors: false,
 
+	checkUpdates: true,
 	showChecksum: true,
 	alwaysActive: false
 };
@@ -183,6 +185,7 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation',			sonicSupport: true },
 	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation',			sonicSupport: true },
 	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors',			sonicSupport: true },
+	{ key: 'extensionOptions.checkForUpdates',				target: 'checkUpdates',				sonicSupport: true },
 	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum',				sonicSupport: true },
 	{ key: 'extensionOptions.alwaysActive',					target: 'alwaysActive',				sonicSupport: true }
 ];
@@ -261,17 +264,24 @@ async function downloadAssembler(force: boolean): Promise<boolean> {
 
 			if (!force && existsSync(join(assemblerFolder, 'version.txt'))) {
 				const versionTag = [ 'Original', 'Fixed' ];
-				const file = await promises.readFile(join(assemblerFolder, 'version.txt'), 'ascii');
-				const localBuild = +file;
+				let response: Response;
 
-				console.log('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + versionTag[type] + '/' + folderName + '/version.txt');
-				
-				const response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + versionTag[type] + '/' + folderName + '/version.txt');
-				if (!response.ok) {
-					window.showErrorMessage(`Failed to fetch version file to check for updates. Make sure you have an Internet connection. If this is a mistake, you can force the download. Error code: ${response.status} ${response.statusText}`);
+				try {
+					response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + versionTag[type] + '/' + folderName + '/version.txt');
+				} catch (error: any) {
+					window.showErrorMessage("Failed to get version to check for updates and we can't continue since there's no previously downloaded versions. Make sure you have an Internet connection. If this is a mistake, you can force the download. " + error);
 					shouldContinue = false;
+					return;
+				}
+				
+				if (!response.ok) {
+					window.showErrorMessage(`Failed to get version to check for updates. Make sure you have a stable Internet connection. If this is a mistake, you can force the download. Error code: ${response.status} ${response.statusText}`);
+					shouldContinue = false;
+					return;
 				}
 
+				const file = await promises.readFile(join(assemblerFolder, 'version.txt'), 'ascii');
+				const localBuild = +file;
 				const onlineBuild = +await response.text();
 				
 				if (localBuild >= onlineBuild) {
@@ -1045,7 +1055,7 @@ export async function activate(context: ExtensionContext) {
 		return;
 	}
 
-	if (await downloadAssembler(false) === false) { return; }
+	if (extensionSettings.checkUpdates && await downloadAssembler(false) === false) { return; }
 
 	// A small button located at the bottom of the screen to force download the assembler
 	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);

@@ -414,6 +414,11 @@
 					"default": "",
 					"description": "Full path to the EASy68k executable."	
 				},
+				"megaenvironment.extensionOptions.checkForUpdates": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically check for new updates each time the extension activates. There could be important fixes, so leaving it on is advised."
+				},
 				"megaenvironment.extensionOptions.showChecksumValue": {
 					"type": "boolean",
 					"default": true,
