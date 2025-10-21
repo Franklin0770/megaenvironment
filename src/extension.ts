@@ -425,7 +425,7 @@ async function downloadAssembler(force: boolean): Promise<boolean> {
 				const name = entry.name;
 				
 				try {
-					writeFile(name, entry.getData());
+					await writeFile(name, entry.getData());
 				} catch (error: any) {
 					window.showErrorMessage(`Cannot extract the file: ${name}. ${error.message}. This happens because I messed up the file structure while uploading the pre-releases, sorry! If it doesn't get fixed in a matter of minutes, let me know.`);
 				}
@@ -485,15 +485,7 @@ async function promptEmulatorPath(emulator: string): Promise<boolean> {
 		openLabel: 'Select'
 	});
 
-	if (!uri || uri.length === 0) {
-		const selection = await window.showErrorMessage('Without the path, it would be impossible to localize your emulator and run the ROM. Please, try again!', 'Retry');
-
-		if (selection === 'Retry') {
-			promptEmulatorPath(emulator);
-		}
-
-		return false;
-	}
+	if (!uri || uri.length === 0) { return false; }
 
 	await config.update(
 		emulator,
@@ -539,8 +531,7 @@ async function assemblerChecks(): Promise<boolean> {
 		});
 	}
 
-	// Fallback in case the Promise breaks
-	return true;
+	return true; // Fallback in case the Promise breaks
 }
 
 // Assembles and compiles a ROM
@@ -570,7 +561,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		[!settings.asErrors, 			' -gnuerrors'],
 		[!settings.superiorWarnings,	' -supmode'],
 		[settings.compatibilityMode,	' -compmode'],
-		[settings.signWarning,			' -wimplicit-sign-extension'], // In the manual this switch is named differently (huh)
+		[settings.signWarning,			' -wimplicit-sign-extension'],
 		[settings.jumpsWarning,			' -wrelative'],
 		[settings.relaxedMode,			' -relaxed'],
 		[settings.listUnknown,			' -list-unknown-values'],
@@ -599,25 +590,19 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	if (settings.defaultCpu) { command += ' -cpu ' + settings.defaultCpu; }
 
-	if (settings.radix !== '10') {
-		command += ' -RADIX ' + settings.radix;
-	}
+	if (settings.radix !== '10') { command += ' -RADIX ' + settings.radix; }
 
-	if (settings.listingRadix !== '16') {
-		command += ' -LISTRADIX ' + settings.listingRadix;
-	}
+	if (settings.listingRadix !== '16') { command += ' -LISTRADIX ' + settings.listingRadix; }
 
-	if (settings.splitByte) {
-		command += ` -SPLITBYTE "${settings.splitByte}"`;
-	}
+	if (settings.splitByte) { command += ` -SPLITBYTE "${settings.splitByte}"`; }
 
-	if (settings.addSyntax.length || settings.removeSyntax.length) {
+	if (settings.addSyntax.length || settings.removeSyntax.length) { // If we filled at least one setting
 		const parts: string[] = [];
 		const addSyntax = settings.addSyntax;
 		const removeSyntax = settings.removeSyntax;
 
 		if (addSyntax.length) {
-			parts.push('+' + addSyntax.join(',+'));
+			parts.push('+' + addSyntax.join(',+')); // Add syntax with + so AS knows what to do
 		}
 
 		if (removeSyntax.length) {
@@ -627,9 +612,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		command += ' -INTSYNTAX ' + parts.join(',');
 	}
 
-	if (settings.maximumErrors) {
-		command += ' -maxerrors ' + settings.maximumErrors;
-	}
+	if (settings.maximumErrors) { command += ' -maxerrors ' + settings.maximumErrors; }
 
 	if (settings.workingFolders.length > 0) {
 		command += ` -i "${settings.workingFolders.join('";"')}"`;
@@ -696,14 +679,14 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	process.chdir(assemblerFolder); // We can't change the output folder in P2BIN, so this will do
 
 	if (!settings.sonicDisassembly) {
-		command = `"${compilerPath}" rom.p -l 0x${settings.fillValue} -k`;
+		command = `"${compilerPath}" rom.p -l 0x${settings.fillValue} -k`; // The -k switch makes P2BIN automatically remove the program file
 	} else {
 		command = `"${compilerPath}" rom.p -o rom.bin`;
 	}
 	
 	// Take only some outputs and the custom exit code with aliases. Unix wants '.', so I'm providing it
 	const { p2binOut, p2binErr, success } = await new Promise<{ p2binOut: string; p2binErr: string; success: boolean }>((resolve) => {
-		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => { // The -k switch makes P2BIN automatically remove the program file
+		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => {
 			if (!error) {
 				resolve({ p2binOut: stdout, p2binErr: stderr, success: true });
 			} else {
@@ -720,7 +703,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 			outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
 			outputChannel.appendLine(p2binErr);
 			outputChannel.appendLine('===========================================================');
-			return 1; // There's more than 1 warning anyway
+			warnings = true;
 		}
 	} else {
 		outputChannel.appendLine('\n==================== COMPILER ERRORS ====================\n');
@@ -803,9 +786,7 @@ async function assembleROM() {
 
 		for (const checkName of items) {
 			// Skip files that don't end with .gen
-			if (!checkName.endsWith('.gen')) { 
-				continue; 
-			}
+			if (!checkName.endsWith('.gen')) {  continue; }
 
 			// If no versioning is needed, simply delete the latest .gen
 			if (!extensionSettings.prevRoms) {
@@ -820,7 +801,7 @@ async function assembleROM() {
 			// Determine the new index for .preX
 			let number = 0;
 
-			if (preFiles.length > 0) {
+			if (preFiles.length > 0) { // Generate an infinite number of build if the user has set this setting to 0
 				const latest = Math.max(...preFiles.map(f => f.index));
 				const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
 
