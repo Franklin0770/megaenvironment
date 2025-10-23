@@ -13,10 +13,10 @@ import {
 	ConfigurationTarget
 } from 'vscode';
 import {
-	existsSync, writeFile, rename, 
-	unlink, createWriteStream, promises
+	existsSync, writeFile, unlink,
+	createWriteStream, promises
 } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, relative, sep } from 'path';
 import { exec } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
@@ -194,6 +194,8 @@ const settingDescriptors = [ // Every setting name and variable to target
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
+
+let romPath: string;
 
 let onProject: boolean;
 
@@ -537,12 +539,13 @@ async function assemblerChecks(): Promise<boolean> {
 // Assembles and compiles a ROM
 // 0 if successful, 1 if successful with warnings and -1 if there's an error or a fatal one
 // If the number is negative we shall not proceed (this case only -1)
-async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
+async function executeAssemblyCommand(temporary: boolean, emulator: string): Promise<boolean> {
 	// We proceed with the assembler, which creates the program file
 	outputChannel.clear();
-	process.chdir(workspace.workspaceFolders![0].uri.fsPath); // We already checked if "workspaceFolders" exists. This is why I put "!"
+	const projectFolder = workspace.workspaceFolders![0].uri.fsPath; // We already checked if "workspaceFolders" exists. This is why I put "!"
+	process.chdir(projectFolder); // To enable AS' working folders in the project properly
 
-	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, 'rom.p')}" -`;
+	let command = `"${assemblerPath}" "${extensionSettings.mainName}" -o "${join(assemblerFolder, "code.p")}" -`;
 	let warnings = false;
 	const settings = extensionSettings;
 
@@ -671,17 +674,38 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 				break;
 		}
 
-		return -1; // Can't proceed with compiling, there's no program file
+		return false; // Can't proceed with compiling, there's no program file
+	}
+
+	process.chdir(assemblerFolder);
+
+	let fileName = projectFolder + sep;
+
+	const currentDate = new Date();
+	const hours = currentDate.getHours().toString().padStart(2, '0');
+	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
+	const seconds = currentDate.getSeconds().toString().padStart(2, '0');
+
+	if (temporary) {
+		fileName += `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`;
+		romPath = fileName;
+	} else {
+		// If the user has specified a custom ROM name then use it. If not, trim the extension of the source code file name
+		fileName += extensionSettings.romName ? extensionSettings.romName : basename(extensionSettings.mainName, '.asm');
+
+		if (extensionSettings.romDate) {
+			fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${hours}.${minutes}.${seconds}`;
+		}
+
+		fileName += '.gen';
 	}
 
 	// Now, to the compiler!
 
-	process.chdir(assemblerFolder); // We can't change the output folder in P2BIN, so this will do
-
 	if (!settings.sonicDisassembly) {
-		command = `"${compilerPath}" rom.p -l 0x${settings.fillValue} -k`; // The -k switch makes P2BIN automatically remove the program file
+		command = `"${compilerPath}" code.p "${fileName}" -l 0x${settings.fillValue} -k`; // The -k switch makes P2BIN automatically remove the program file
 	} else {
-		command = `"${compilerPath}" rom.p -o rom.bin`;
+		command = `"${compilerPath}" code.p -o "${fileName}"`;
 	}
 	
 	// Take only some outputs and the custom exit code with aliases. Unix wants '.', so I'm providing it
@@ -711,14 +735,74 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 		window.showErrorMessage('The compiler has thrown an unknown error. Check the terminal for more details.');
 
-		return -1; // There's more than 1 error anyway
+		return false;
 	}
+
+	// This anonymous function applies versioning, by renaming the .gen file to .pre.
+	// If the .pre file is already present, then we proceed to rename the .gen
+	(async () => {
+		try {
+			const { unlink, rename } = promises;
+			const file = [ relative(projectFolder, fileName), undefined ];
+			const genFile = (await workspace.findFiles('*.gen', file[+extensionSettings.prevRoms], 1))[0];
+
+			if (!genFile) { return; } // If it didn't find anything we better get away from here
+			
+			const genPath = genFile.fsPath;
+
+			if (!extensionSettings.prevRoms) { // If no versioning is needed, simply delete the latest .gen
+				await unlink(genPath);
+				return;
+			}
+
+			const preUris = await workspace.findFiles('*.pre*');
+			const preFiles = preUris
+				.map(uri => uri.fsPath)
+				.filter(f => /\.pre\d+$/.test(f))
+				.map(f => ({
+					name: basename(f),
+					index: parseInt(f.match(/\.pre(\d+)$/)![1])
+				}));
+
+			let number = 0; // Determine the new index for .preX
+
+			if (preFiles.length > 0) { // Simply skip this process if there aren't any previous ROMs to rename
+				const latest = Math.max(...preFiles.map(f => f.index));
+				const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
+
+				// If we haven't reached the ROM limit yet, or if we have to generate an infinite number of ROMs because the user has set the setting to 0
+				if (latest < extensionSettings.prevAmount - 1 || extensionSettings.prevAmount === 0) {
+					number = latest + 1;
+				} else {
+					if (!extensionSettings.quietOperation) {
+						window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
+					}
+
+					try {
+						await unlink(oldest.name);
+					} catch (error: any) {
+						window.showErrorMessage('Unable to remove the oldest previous ROM. ' + error.message);
+					}
+
+					number = oldest.index; // Reuse the index
+				}
+			}
+
+			const newName = genPath.substring(0, genPath.length - 3) + `pre${number}`; // Rename the .gen file to .preX
+			await rename(genPath, newName);
+			if (!extensionSettings.quietOperation) {
+				window.showInformationMessage(`Latest build exists. Renamed to "${relative(projectFolder, newName)}".`);
+			}
+		} catch (error: any) {
+			window.showErrorMessage('Could not rename the previous ROM. Please, manually rename it. ' + error.message);
+		}	
+	})();
 
 	// Let's generate the checksum!
 
 	if (settings.generateChecksum) {
 		try {
-			const fileHandler = await promises.open('rom.bin', 'r+');
+			const fileHandler = await promises.open(fileName, 'r+');
 
 			const size = (await fileHandler.stat()).size - 0x200; // Need to subtract the skipped values
 			const readBuffer = Buffer.alloc(size);
@@ -747,144 +831,35 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 				outputChannel.append('\nChecksum not generated due to error.');
 			}
 
-			return 1;
+			return true;
 		}
 	}
 
-	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
-}
+	if (temporary) {
+		if (!warnings) {
+			if (extensionSettings.quietOperation) { return true; }
+			window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
+		} else {
+			const selection = await window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal');
 
-async function assembleROM() {
-	if (await assemblerChecks() === false) { return; }
-
-	let warnings = false;
-
-	const result = await executeAssemblyCommand();
-
-	if (result === 1) {
-		warnings = true;
-	} else if (result !== 0) {
-		return;
-	}
-
-	const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
-
-	process.chdir(projectFolder);
-
-	const { readdir, unlink, rename } = promises;
-
-	try {
-		const items = await readdir('.'); // Get all files in the current directory
-
-		// Precompute .pre<number> files once
-		const preFiles = items
-			.filter(f => /\.pre\d+$/.test(f))
-			.map(f => ({
-				name: f,
-				index: parseInt(f.match(/\.pre(\d+)$/)![1])
-			}));
-
-		for (const checkName of items) {
-			// Skip files that don't end with .gen
-			if (!checkName.endsWith('.gen')) {  continue; }
-
-			// If no versioning is needed, simply delete the latest .gen
-			if (!extensionSettings.prevRoms) {
-				try {
-					await unlink(checkName);
-				} catch (error: any) {
-					window.showErrorMessage('Cannot remove the previous .gen ROM. ' + error.message);
-				}
-				break; // Only handle the first .gen file
-			}
-
-			// Determine the new index for .preX
-			let number = 0;
-
-			if (preFiles.length > 0) { // Generate an infinite number of build if the user has set this setting to 0
-				const latest = Math.max(...preFiles.map(f => f.index));
-				const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
-
-				if (latest < extensionSettings.prevAmount - 1 || extensionSettings.prevAmount === 0) {
-					number = latest + 1;
-				} else {
-					if (!extensionSettings.quietOperation) {
-						window.showInformationMessage(`Limit of previous ROMs reached. Replacing the oldest version "${oldest.name}".`);
-					}
-					try {
-						await unlink(oldest.name);
-					} catch (error: any) {
-						window.showErrorMessage('Unable to remove the oldest previous ROM. ' + error.message);
-					}
-					number = oldest.index; // Reuse the index
-				}
-			}
-
-			// Rename the .gen file to .preX
-			const newName = checkName.substring(0, checkName.length - 4) + `.pre${number}`;
-			try {
-				await rename(checkName, newName);
-				if (!extensionSettings.quietOperation) {
-					window.showInformationMessage(`Latest build exists. Renamed to "${newName}".`);
-				}
-			} catch (error: any) {
-				window.showWarningMessage(`Could not rename the previous ROM. Please, manually rename it to "${newName}". ${error.message}`);
-			}
-
-			break; // Stop after handling the first .gen file
-		}
-
-	} catch (error: any) {
-		window.showErrorMessage('Cannot read your project folder to check for previous ROMs. ' + error.message);
-		return;
-	}
-
-	renameRom(projectFolder, warnings);
-} 
-
-
-
-function renameRom(projectFolder: string, warnings: boolean) {
-	const currentDate = new Date();
-	const hours = currentDate.getHours().toString().padStart(2, '0');
-	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-	const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-
-	let fileName: string;
-
-	if (extensionSettings.romName !== '') {
-		fileName = extensionSettings.romName;
-	} else {
-		const lastDot = extensionSettings.mainName.lastIndexOf('.');
-		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
-	}
-
-	if (extensionSettings.romDate) {
-		fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${hours}.${minutes}.${seconds}`;
-	}
-
-	// Renames and moves the rom.bin file outside assemblerFolder since P2BIN doesn't have a switch to change the output file name for some reason
-	rename(join(assemblerFolder, 'rom.bin'), `${join(projectFolder, fileName)}.gen`, (error) => {
-		if (error) {
-			if (error.code !== 'ENOENT') {
-				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error.message}`);
-			} else {
-				window.showErrorMessage('Cannot rename your ROM, there might be a problem with the compiler. ' + error.message);
-			}
-		}
-	});
-
-	if (!warnings) {
-		if (extensionSettings.quietOperation) { return; }
-		window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
-	} else {
-		window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal')
-		.then(selection => {
 			if (selection === 'Show Terminal') {
 				outputChannel.show();
 			}
-		});
+		}
 	}
+	if (!warnings) {
+		if (!extensionSettings.quietOperation) {
+			window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
+		}
+	} else {
+		const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal');
+
+		if (selection === 'Show Terminal') {
+			outputChannel.show();
+		}
+	}
+
+	return true;
 }
 
 async function findAndRunROM(emulator: string) {
@@ -917,45 +892,21 @@ async function findAndRunROM(emulator: string) {
 }
 
 async function runTemporaryROM(emulator: string) {
-	if (!await assemblerChecks() || !await promptEmulatorPath(emulator)) { return; }
-
-	process.chdir(workspace.workspaceFolders![0].uri.fsPath);
-
-	let warnings = false;
-
-	const result = await executeAssemblyCommand();
-
-	if (result === 1) {
-		warnings = true;
-	} else if (result !== 0) {
-		return;
-	}
+	if (!await assemblerChecks() || !await promptEmulatorPath(emulator) || !await executeAssemblyCommand(true, emulator)) { return; }
 	
-	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${join(assemblerFolder, "rom.bin")}"`, (error) => {
+	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${romPath}"`, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the build. ' + error.message);
 			return;
 		}
 
-		unlink(join(assemblerFolder, 'rom.bin'), (error) => {
+		unlink(romPath, (error) => {
 			if (error) {
 				window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
 				return;
 			}
 		});
 	});
-	
-	const currentDate = new Date();
-	if (!warnings) {
-		if (extensionSettings.quietOperation) { return; }
-		window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
-	} else {
-		const selection = await window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal');
-
-		if (selection === 'Show Terminal') {
-			outputChannel.show();
-		}
-	}
 }
 
 async function cleanProjectFolder() {
@@ -1049,7 +1000,10 @@ export async function activate(context: ExtensionContext) {
 	//	Commands
 	//
 
-	const assemble = commands.registerCommand('megaenvironment.assemble', () => assembleROM());
+	const assemble = commands.registerCommand('megaenvironment.assemble', async () => {
+		if (await assemblerChecks() === false) { return; }
+		await executeAssemblyCommand(false, undefined!); // We aren't going to use the emulator name anyway
+	});
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', async () => {
 		const projectFolders = workspace.workspaceFolders;
@@ -1065,17 +1019,7 @@ export async function activate(context: ExtensionContext) {
 
 		cleanProjectFolder();
 
-		let warnings = false;
-
-		const result = await executeAssemblyCommand();
-
-		if (result === 1) {
-			warnings = true;
-		} else if (result !== 0) {
-			return;
-		}
-
-		renameRom(projectFolder, warnings);
+		await executeAssemblyCommand(false, undefined!); // We aren't going to use the emulator name anyway
 	});
 
 	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => findAndRunROM('BlastEm'));
@@ -1175,30 +1119,7 @@ export async function activate(context: ExtensionContext) {
 
 		if (await assemblerChecks() === false) { return; }
 
-		process.chdir(projectFolders![0].uri.fsPath); // Already checked if "projectFolder" exists
-
-		let warnings = false;
-
-		const result = await executeAssemblyCommand();
-
-		if (result === 1) {
-			warnings = true;
-		} else if (result !== 0) {
-			return;
-		}
-
-		const currentDate = new Date();
-		const hours = currentDate.getHours().toString().padStart(2, '0');
-		const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-		const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-		const romPath = join(assemblerFolder, `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`);
-
-		try {
-			await promises.rename(join(assemblerFolder, 'rom.bin'), romPath);
-		} catch (error: any) {
-			window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
-			return;
-		}
+		if (!await executeAssemblyCommand(true, 'OpenEmu')) { return; }
 
 		// "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
 		const success = await new Promise<boolean>((resolve) => { 
@@ -1211,26 +1132,6 @@ export async function activate(context: ExtensionContext) {
 				resolve(true);
 			});
 		});
-
-		if (!success) { return; }
-
-		unlink(join(assemblerFolder, 'rom.bin'), (error) => {
-			if (error) {
-				window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
-				return;
-			}
-		});
-
-		if (!warnings) {
-			if (extensionSettings.quietOperation) { return; }
-			window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}, running it with OpenEmu. (Oh yes!)`);
-		} else {
-			const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal');
-
-			if (selection === 'Show Terminal') {
-				outputChannel.show();
-			}
-		}
 	});
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', async () => {
