@@ -4,8 +4,14 @@
 	"publisher": "Brotherhood0",
 	"description": "Provides integration with The Macroassembler AS, among other features, such as code highlighting.",
 	"version": "0.3.0",
-	"engines": { "vscode": "^1.96.0" },
-	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
+	"engines": {
+		"vscode": "^1.96.0"
+	},
+	"categories": [
+		"Programming Languages",
+		"Themes",
+		"Debuggers"
+	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
@@ -13,84 +19,83 @@
 				"command": "megaenvironment.assemble",
 				"title": "Assemble",
 				"category": "Build",
-				"when": "megaenvironment.onProject",
-				"icon": "$(tools)"
+				"icon": "$(tools)",
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.clean_assemble",
 				"title": "Clean & Assemble",
 				"category": "Build",
-				"when": "megaenvironment.onProject"
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.run_blastem",
 				"title": "Run Latest ROM with BlastEm",
 				"category": "Execution",
-				"when": "megaenvironment.onProject"
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.run_regen",
 				"title": "Run Latest ROM with Regen",
 				"category": "Execution",
-				"when": "megaenvironment.onProject",
-				"enablement": "megaenvironment.Regen.compatiblePlatform"
+				"enablement": "megaenvironment.Regen.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.run_clownmdemu",
 				"title": "Run Latest ROM with ClownMDEmu",
 				"category": "Execution",
-				"when": "megaenvironment.onProject"
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.run_openemu",
 				"title": "Run Latest ROM with OpenEmu",
 				"category": "Execution",
-				"when": "megaenvironment.onProject",
-				"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
+				"enablement": "megaenvironment.OpenEmu.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.assemble_run_blastem",
 				"title": "QuickRun BlastEm",
 				"category": "Test",
-				"when": "megaenvironment.onProject"
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.assemble_run_regen",
 				"title": "QuickRun Regen",
 				"category": "Test",
-				"when": "megaenvironment.onProject",
-				"enablement": "megaenvironment.Regen.compatiblePlatform"
+				"enablement": "megaenvironment.Regen.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.assemble_run_clownmdemu",
 				"title": "QuickRun ClownMDEmu",
 				"category": "Test",
-				"when": "megaenvironment.onProject"
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.assemble_run_openemu",
 				"title": "QuickRun OpenEmu",
 				"category": "Test",
-				"when": "megaenvironment.onProject",
-				"enablement": "megaenvironment.OpenEmu.compatiblePlatform"
+				"enablement": "megaenvironment.OpenEmu.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.backup",
 				"title": "Backup Files And Clean Folder",
 				"category": "Cleaning",
-				"when": "megaenvironment.onProject"
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.cleanup",
 				"title": "Clean Folder",
 				"category": "Cleaning",
-				"when": "megaenvironment.onProject"
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"command": "megaenvironment.open_easy68k",
 				"title": "Open Current Selection In EASy68k",
-				"category": "Debug",
-				"when": "megaenvironment.onProject"
+				"category": "Debug"
 			},
 			{
 				"command": "megaenvironment.new_project",
@@ -103,7 +108,7 @@
 			{
 				"command": "megaenvironment.generate_configuration",
 				"title": "Generate configuration file for Run and Debug",
-				"when": "megaenvironment.onProject && megaenvironment.EASy68k.compatiblePlatform"
+				"when": "megaenvironment.shouldActivate && megaenvironment.EASy68k.compatiblePlatform"
 			}
 		],
 		"configuration": {
@@ -112,17 +117,17 @@
 				"megaenvironment.codeOptions.defaultCPU": {
 					"type": "string",
 					"default": "68000",
-					"description": "The default CPU the assembler should use when it isn't specified in the code. The Mega Drive uses the Motorola 68000 as the main processor."
+					"markdownDescription": "The default [CPU](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_3_) the assembler uses when it isn't specified in the code (by issuing its symbol). The Mega Drive uses the Motorola 68000 as the main processor."
 				},
 				"megaenvironment.codeOptions.superiorModeWarnings": {
 					"type": "boolean",
 					"default": false,
-					"description": "Setting this means the assembler will issue warnings when a 68k privileged instruction takes place in your code, when you're not using the symbol \"supmode on\" in code."
+					"markdownDescription": "Setting this means the assembler will issue warnings when a [68k privileged instruction](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_4_) takes place in your code, when you're not using the symbol \"supmode on\" in code."
 				},
 				"megaenvironment.codeOptions.compatibilityMode": {
 					"type": "boolean",
 					"default": false,
-					"description": "Compatibility mode gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the \"compmode on\" symbol, too."
+					"markdownDescription": "[Compatibility mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_8_) gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the \"compmode on\" symbol, too."
 				},
 				"megaenvironment.codeOptions.signExtensionWarning": {
 					"type": "boolean",
@@ -142,14 +147,14 @@
 				"megaenvironment.codeOptions.radix": {
 					"type": "string",
 					"default": "10",
-					"description": "This option changes the number base (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the \"radix\" symbol).",
+					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the \"radix\" symbol).",
 					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
-					"patternErrorMessage": "Has to be between 2 and 36."
+					"patternErrorMessage": "Has to be between 2 and 36"
 				},
 				"megaenvironment.codeOptions.RELAXEDMode": {
 					"type": "boolean",
 					"default": false,
-					"description": "RELAXED mode allows you to use any syntax possible for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the \"relaxed on\" symbol in code as well."
+					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any syntax possible for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the \"relaxed on\" symbol in code as well."
 				},
 				"megaenvironment.codeOptions.addIntegerSyntax": {
 					"type": "array",
@@ -159,7 +164,7 @@
 						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
 					},
 					"default": [],
-					"description": "You can add your custom syntax to the set of notations for integer constants in various number systems. Every entry shall be unique."
+					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems. Every entry shall be unique."
 				},
 				"megaenvironment.codeOptions.removeIntegerSyntax": {
 					"type": "array",
@@ -169,12 +174,12 @@
 						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
 					},
 					"default": [],
-					"description": "You can add your custom syntax to the set of notations for integer constants in various number systems. Every entry shall be unique."
+					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems. Every entry shall be unique."
 				},
 				"megaenvironment.codeOptions.macroArgumentsWithUnderscore": {
 					"type": "boolean",
 					"default": false,
-					"description": "Grants the opportunity to use the underscore character in macro arguments. It can come with side effects."
+					"markdownDescription": "Grants the opportunity to use the underscore character in [macro arguments](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_SectMacros). It can come with side effects."
 				},
 				"megaenvironment.buildControl.outputRomName": {
 					"type": "string",
@@ -194,7 +199,7 @@
 				"megaenvironment.buildControl.previousRomsAmount": {
 					"type": "integer",
 					"default": 10,
-					"description": "The maximum amount of .pre ROMs before it starts replacing the latest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
+					"description": "The maximum amount of .pre ROMs before it starts replacing the oldest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
 					"minimum": 0
 				},
 				"megaenvironment.buildControl.generateChecksum": {
@@ -205,22 +210,24 @@
 				"megaenvironment.buildControl.sonicDisassemblySupport": {
 					"type": "boolean",
 					"default": false,
-					"description": "Downloads an alternative version that supports Sonic disassemblies. Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being outdated."
+					"markdownDescription": "Downloads an [alternative version](https://github.com/flamewing/asl-releases) that supports [Sonic disassemblies](https://github.com/sonicretro). Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being older."
 				},
 				"megaenvironment.sourceCodeControl.mainFileName": {
 					"type": "string",
 					"default": "Sonic.68k",
-					"description": "The main source code file name used in the project, where the code gets executed."
+					"description": "The main source code file name used in the project, where the code gets executed.",
+					"pattern": "^.+$",
+					"patternErrorMessage": "Cannot be empty"
 				},
 				"megaenvironment.sourceCodeControl.constantsFileName": {
 					"type": "string",
 					"default": "Constants.asm",
-					"description": "The source code file name of the constants used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
+					"description": "The source code file name of the constants used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it."
 				},
 				"megaenvironment.sourceCodeControl.variablesFileName": {
 					"type": "string",
 					"default": "Variables.asm",
-					"description": "The source code file name of the variables used in the project. Used when EASy68k opens up. Leave it blank if you aren't providing it."
+					"description": "The source code file name of the variables used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it."
 				},
 				"megaenvironment.sourceCodeControl.generateCodeListing": {
 					"type": "boolean",
@@ -274,14 +281,14 @@
 					"default": "16",
 					"description": "You can set the number base (radix) displayed in the code listing file. Default is base 16 (hexadecimal).",
 					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
-					"patternErrorMessage": "Has to be between 2 and 36."
+					"patternErrorMessage": "Has to be between 2 and 36"
 				},
 				"megaenvironment.sourceCodeControl.byteSplitInListing": {
 					"type": "string",
 					"default": "",
 					"description": "You can set a character of choice to split the numbers found in the code listing file in bytes. Leave it blank to disable this feature.",
 					"pattern": "^.$|^$",
-					"patternErrorMessage": "Must be empty or one character only."
+					"patternErrorMessage": "Must be empty or one character only"
 				},
 				"megaenvironment.sourceCodeControl.listUnknownValues": {
 					"type": "boolean",
@@ -306,21 +313,39 @@
 						]
 					},
 					"default": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
-					"description": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do NOT rename your code with these extensions for any reason, or else."
+					"markdownDescription": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do **NOT** rename your code with these extensions for any reason, or else your code can be permanently deleted!"
 				},
 				"megaenvironment.sourceCodeControl.currentWorkingFolders": {
 					"type": "array",
 					"default": [ "." ],
 					"items": { "type": "string" },
-					"description": "The directories where the assembler will look for resources (when using \"include\" or \"binclude\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
+					"markdownDescription": "The directories where the assembler will look for resources (when using \"[include](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_2_)\" or \"[binclude](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_3_)\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
 				},
 				"megaenvironment.sourceCodeControl.templateSelector": {
 					"type": "array",
 					"items": {
 						"type": "string",
-						"enum": [ "68k vectors", "ROM header", "Jump table", "VDP initialization", "Controllers initialization", "Z80 initialization", "Constants", "Variables" ]
+						"enum": [
+							"68k vectors",
+							"ROM header",
+							"Jump table",
+							"VDP initialization",
+							"Controllers initialization",
+							"Z80 initialization",
+							"Constants",
+							"Variables"
+						]
 					},
-					"default": [ "68k vectors", "ROM header", "Jump table", "VDP initialization", "Controllers initialization", "Z80 initialization", "Constants", "Variables" ],
+					"default": [
+						"68k vectors",
+						"ROM header",
+						"Jump table",
+						"VDP initialization",
+						"Controllers initialization",
+						"Z80 initialization",
+						"Constants",
+						"Variables"
+					],
 					"description": "Choose which initialization template gets appended to every new project you create."
 				},
 				"megaenvironment.backupOptions.includeBackupDate": {
@@ -331,7 +356,7 @@
 				"megaenvironment.backupOptions.backupFileName": {
 					"type": "string",
 					"default": "",
-					"description": "The name of the backup files. Default name is \"Backup\"."
+					"description": "The name of the backup files. Default name is \"Backup\" when left blank."
 				},
 				"megaenvironment.miscellaneous.compactGlobalSymbols": {
 					"type": "boolean",
@@ -362,7 +387,7 @@
 				"megaenvironment.miscellaneous.displayErrorNumber": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the terminal should display errors along with their number defined by the assembler."
+					"markdownDescription": "Whether the terminal should display errors along with their [internal error number](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_ChapErrMess) defined by the assembler."
 				},
 				"megaenvironment.miscellaneous.AS-StyledErrors": {
 					"type": "boolean",
@@ -412,7 +437,12 @@
 				"megaenvironment.paths.EASy68k": {
 					"type": "string",
 					"default": "",
-					"description": "Full path to the EASy68k executable."	
+					"description": "Full path to the EASy68k executable."
+				},
+				"megaenvironment.paths.outputPathWithoutWorkspace": {
+					"type": "string",
+					"default": "",
+					"description": "The default path where the output files get generated when there isn't an opened workspace."
 				},
 				"megaenvironment.extensionOptions.checkForUpdates": {
 					"type": "boolean",
@@ -427,7 +457,7 @@
 				"megaenvironment.extensionOptions.alwaysActive": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project."
+					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project or don't have an assembly file open. Changes take effect when you restart the extension."
 				}
 			}
 		},
@@ -436,7 +466,7 @@
 				{
 					"command": "megaenvironment.assemble",
 					"group": "navigation@1",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				}
 			],
 			"editor/context": [
@@ -450,39 +480,39 @@
 				{
 					"command": "megaenvironment.assemble_run_blastem",
 					"group": "1_runGroup@1",
-					"when": "megaenvironment.onProject"
-				},
-				{
-					"command": "megaenvironment.assemble_run_regen",
-					"group": "1_runGroup@2",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				},
 				{
 					"command": "megaenvironment.assemble_run_clownmdemu",
+					"group": "1_runGroup@2",
+					"when": "megaenvironment.shouldActivate"
+				},
+				{
+					"command": "megaenvironment.assemble_run_regen",
 					"group": "1_runGroup@3",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				},
 				{
 					"command": "megaenvironment.assemble_run_openemu",
 					"group": "1_runGroup@4",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				},
 				{
 					"command": "megaenvironment.clean_assemble",
 					"group": "2_buildGroup@1",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				}
 			],
 			"explorer/context": [
 				{
 					"command": "megaenvironment.cleanup",
 					"group": "0_fileExplorer@1",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				},
 				{
 					"command": "megaenvironment.backup",
 					"group": "0_fileExplorer@2",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				}
 			],
 			"file/newFile": [
@@ -498,32 +528,31 @@
 					"id": "run_emulator",
 					"name": "Run Lastest ROM",
 					"icon": "play-circle",
-					"when": "megaenvironment.onProject"
+					"when": "megaenvironment.shouldActivate"
 				}
 			]
 		},
 		"languages": [
 			{
 				"id": "m68k-as",
-				"aliases": [ "Macroassembler AS - Motorola 68000" ],
-				"extensions": [ ".68k", ".asm", ".s" ],
+				"aliases": [ "AS - Motorola 68000" ],
+				"extensions": [ "68k", "asm" ],
 				"configuration": "./configs/as-language-configuration.json"
 			},
 			{
 				"id": "z80-as",
-				"aliases": [ "Macroassembler AS - Zilog Z80" ],
-				"extensions": [ ".z80" ],
+				"aliases": [ "AS - Zilog Z80" ],
+				"extensions": [ "z80" ],
 				"configuration": "./configs/as-language-configuration.json"
 			},
 			{
 				"id": "lst-as",
-				"aliases": [ "Macroassembler AS - Listing File" ],
-				"extensions": [ ".lst" ]
+				"aliases": [ "AS - Listing File" ],
+				"extensions": [ "lst" ]
 			},
 			{
 				"id": "m68k-sdisasm",
-				"aliases": [ "Sonic Disassembly - Motorola 68000" ],
-				"extensions": [ ".asm" ]
+				"aliases": [ "Sonic Disassembly - Motorola 68000" ]
 			}
 		],
 		"grammars": [
@@ -552,20 +581,18 @@
 			{
 				"label": "MegaEnvironment Dark",
 				"uiTheme": "vs-dark",
-				"path": "./themes/as.tmTheme.json"
+				"path": "./themes/as.tmTheme.json",
+				"when": "megaenvironment.shouldActivate"
 			},
 			{
 				"label": "MegaEnvironment Sonic Disassembly",
 				"uiTheme": "vs",
-				"path": "./themes/m68k-sdisasm.tmTheme.json"
+				"path": "./themes/m68k-sdisasm.tmTheme.json",
+				"when": "megaenvironment.shouldActivate"
 			}
 		]
 	},
-	"activationEvents": [
-		"workspaceContains: *.asm",
-		"workspaceContains: *.68k",
-		"workspaceContains: *.s"
-	],
+	"activationEvents": [ "onStartupFinished" ],
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "tsc -p ./",
@@ -587,6 +614,7 @@
 		"typescript": "^5.8.3"
 	},
 	"dependencies": {
-		"adm-zip": "^0.5.16"
+		"adm-zip": "^0.5.16",
+		"punycode": "^2.3.1"
 	}
 }
