@@ -50,7 +50,7 @@
 		{
 			"scope": "constant.numeric.as",
 			"settings": {
-				"foreground": "#c68f21"
+				"foreground": "#c7853a"
 			}
 		},
 		{
@@ -69,7 +69,7 @@
 		{
 			"scope": "directive.label.global.as",
 			"settings": {
-				"foreground": "#d6d143"
+				"foreground": "#dad550"
 			}
 		},
 		{
@@ -118,6 +118,37 @@
 			"scope": "directive.pseudo.as",
 			"settings": {
 				"foreground": "#9268B3"
+			}
+		},
+		{
+			"scope": "line.pass.as",
+			"settings": {
+				"foreground": "#637bac"
+			}
+		},
+		{
+			"scope": "line.codeLine.as",
+			"settings": {
+				"foreground": "#a95c59"
+			}
+		},
+		{
+			"scope": "line.address.as",
+			"settings": {
+				"foreground": "#89ac8c"
+			}
+		},
+		{
+			"scope": "line.value.as",
+			"settings": {
+				"foreground": "#b76748"
+			}
+		},
+		{
+			"scope": "constant.header.as",
+			"settings": {
+				"foreground": "#ffffff50",
+				"fontStyle": "underline"
 			}
 		}
 	]

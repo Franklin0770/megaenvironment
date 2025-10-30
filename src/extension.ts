@@ -21,7 +21,8 @@ import { exec } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 
-interface ExtensionSettings { // Settings variable declaration
+// Settings variable declaration (some of them are not here since they get read once)
+interface ExtensionSettings {
 	defaultCpu: string;
 	superiorWarnings: boolean;
 	compatibilityMode: boolean;
@@ -139,7 +140,8 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	showChecksum: true
 };
 
-const settingDescriptors = [ // Every setting name and variable to target
+// Every setting name and variable to target, with a flag to indicate whether the Sonic assembler supports it or not
+const settingDescriptors = [
 	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu',				sonicSupport: true },
 	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings',			sonicSupport: true },
 	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode',		sonicSupport: true },
@@ -188,6 +190,7 @@ const settingDescriptors = [ // Every setting name and variable to target
 	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation',			sonicSupport: true },
 	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors',			sonicSupport: true },
 	{ key: 'paths.outputPathWithoutWorkspace',				target: 'singleFileOutput',			sonicsupport: true },
+	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
 	{ key: 'extensionOptions.checkForUpdates',				target: 'checkUpdates',				sonicSupport: true },
 	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum',				sonicSupport: true }
 ];
@@ -196,8 +199,9 @@ const settingDescriptors = [ // Every setting name and variable to target
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
-let sourceCodeFolder: string;
 
+// Gets assigned in "projectCheck()"
+let sourceCodeFolder: string;
 let onProject: boolean;
 
 let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
@@ -207,12 +211,13 @@ const outputChannel = window.createOutputChannel('AS');
 
 async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 	toolsDownloading = true;
-	// A progress indicator that shows in the Status Bar at the bottom
-	// Every report there's an increment value. If it adds up to 100 the indicator will disappear
+	// A progress indicator that shows in the Status Bar at the bottom.
+	// Returns 0 if successfull, 1 if there was an error but the code can continue, -1 if the code can't continue due to an error.
+	// Every report there's an increment value. If it adds up to 100 the indicator will disappear.
 	const exitCode = await window.withProgress(
 		{
 			location: ProgressLocation.Window,
-			title: !extensionSettings.sonicDisassembly ? "Original assembler" : "Sonic's assembler",
+			title: !extensionSettings.sonicDisassembly ? 'Original assembler' : "Sonic's assembler",
 			cancellable: true
 		},
 		async (progress, token) => {
@@ -287,16 +292,14 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 				const localBuild = +file;
 				const onlineBuild = +await response.text();
 				
-				if (localBuild >= onlineBuild) {
-					return 0; // No need for updates
-				}
+				if (localBuild >= onlineBuild) { return 0; } // No need for updates
 
 				if (!extensionSettings.quietOperation) {
 					window.showInformationMessage(`Upgrading from build ${localBuild} to ${onlineBuild}.`);
 				}
 			}
 
-			progress.report({ message: 'requesting your assembler version...', increment: 10 });
+			progress.report({ message: 'requesting your assembler version...', increment: 20 });
 
 			const releaseTag = [ 'latest', 'latest_fixed' ];
 
@@ -374,7 +377,7 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 
 			if (!exitCode) { return -1; }
 
-			progress.report({ message: 'extracting ZIP...', increment: 60 });
+			progress.report({ message: 'extracting ZIP...', increment: 50 });
 
 			let zip: AdmZip;
 
@@ -514,7 +517,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		if (existsSync(outputPath) && (await promises.stat(outputPath)).isDirectory()) { return true; } // We already know where to put the assembled files
 
 		const uri = await window.showOpenDialog({
-			title: 'Select the output folder to put your files',
+			title: 'Select the output folder to put your ROMs',
 			canSelectFolders: true,
 			canSelectFiles: false,
 			canSelectMany: false,
@@ -715,7 +718,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		command = `"${compilerPath}" code.p -o rom.bin`;
 	}
 	
-	// Take only some outputs and the custom exit code with aliases. Unix wants '.', so I'm providing it
+	// Take only some outputs and the custom exit code with aliases
 	const { p2binOut, p2binErr, success } = await new Promise<{ p2binOut: string; p2binErr: string; success: boolean }>((resolve) => {
 		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => {
 			if (!error) {
@@ -753,6 +756,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 			const size = (await fileHandler.stat()).size - 0x200; // Need to subtract the skipped values
 
+			// If the file isn't big enough to support the checksum feature
 			if (size <= 0) {
 				outputChannel.append('\nChecksum not generated due to absence of headers.');
 				await fileHandler.close();
@@ -802,7 +806,7 @@ async function assembleROM() {
 	if (result === 1) {
 		warnings = true;
 	} else if (result !== 0) {
-		return;
+		return; // If it couldn't compile a ROM we'd better get out of here
 	}
 
 	// If we are in a workspace (project) the output folder is the same as the source code one, else we have to take the user's custom one
@@ -872,9 +876,9 @@ async function assembleROM() {
 				}
 			}
 
-			const newName = checkName.substring(0, checkName.length - 4) + `.pre${number}`; // Rename the .gen file to .preX
+			const newName = checkName.substring(0, checkName.length - 4) + `.pre${number}`; // Replace the .gen extension to .preX
 			try {
-				await rename(checkName, newName);
+				await rename(checkName, newName); // Rename files to apply versioning
 				if (!extensionSettings.quietOperation) {
 					window.showInformationMessage(`Latest build exists. Renamed to "${basename(newName)}".`);
 				}
@@ -884,15 +888,15 @@ async function assembleROM() {
 
 			break; // Stop after handling the first .gen file
 		}
-
 	} catch (error: any) {
 		window.showErrorMessage('Cannot read your project folder to check for previous ROMs. ' + error.message);
 		return;
 	}
 
 	renameRom(outputPath, warnings);
-} 
+}
 
+// After versioning, we can rename the lastest ROM from "rom.bin" to whatever we need
 function renameRom(outputPath: string, warnings: boolean) {
 	const currentDate = new Date();
 	const hours = currentDate.getHours().toString().padStart(2, '0');
@@ -901,12 +905,12 @@ function renameRom(outputPath: string, warnings: boolean) {
 
 	let fileName: string;
 
-	if (extensionSettings.romName !== '') {
+	if (extensionSettings.romName !== '') { // If the user has set a custom name use it
 		fileName = extensionSettings.romName;
-	} else if (onProject) {
+	} else if (onProject) { // If not, strip the extension from path if we're in a project
 		const lastDot = extensionSettings.mainName.lastIndexOf('.');
 		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
-	} else {
+	} else { // If we aren't in a project, use the file name of the document
 		const name = window.activeTextEditor!.document.fileName;
 		fileName = basename(name, name.substring(name.length - 4, name.length));
 	}
@@ -915,7 +919,7 @@ function renameRom(outputPath: string, warnings: boolean) {
 		fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${hours}.${minutes}.${seconds}`;
 	}
 
-	// Renames and moves the rom.bin file outside assemblerFolder
+	// Renames and moves the "rom.bin" file outside "assemblerFolder"
 	rename(join(assemblerFolder, 'rom.bin'), `${join(outputPath, fileName)}.gen`, (error) => {
 		if (error) {
 			if (error.code !== 'ENOENT') {
@@ -939,6 +943,7 @@ function renameRom(outputPath: string, warnings: boolean) {
 	}
 }
 
+// Only works with workspaces, because it searches the project folder for ROMs to run with an emulator
 async function findAndRunROM(emulator: string) {
 	if (!workspace.workspaceFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
@@ -968,6 +973,7 @@ async function findAndRunROM(emulator: string) {
 	window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with ${emulator}.`);
 }
 
+// From QuickRun commands. It doesn't rename the ROM outside the assembler folder, then it gets deleted automatically after execution
 async function runTemporaryROM(emulator: string) {
 	if (!await assemblerChecks(true) || !await promptEmulatorPath(emulator)) { return; }
 
@@ -1007,6 +1013,7 @@ async function runTemporaryROM(emulator: string) {
 	}
 }
 
+// Cleans the project folder or the output folder when in standalone mode by matching the extensions
 async function cleanProjectFolder() {
 	let items: string[];
 
@@ -1049,7 +1056,7 @@ async function cleanProjectFolder() {
 }
 
 // This method is called when the extension is activated
-// An extension is activated the very first time the command is executed
+// This extension gets activated when it detects a project or when the user is using a contributed language
 export async function activate(context: ExtensionContext) {
 	if (!projectCheck()) { return; }
 
@@ -1351,7 +1358,7 @@ export async function activate(context: ExtensionContext) {
 			}
 
 			// EASy68k can leave some files when we execute the code with the simulator
-			['temp.txt', 'temp.L68', 'temp.S68'].map(path => unlink(path, (error) => {
+			[ 'temp.txt', 'temp.L68', 'temp.S68' ].map(path => unlink(path, (error) => {
 				if (error && error.code !== 'ENOENT') {
 					window.showErrorMessage(`Could not remove a temporary file for cleanup. You may want to do this by yourself. ${error.message}`);
 				}
@@ -1468,7 +1475,7 @@ export async function activate(context: ExtensionContext) {
 				}
 			});
 		} else {
-			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are applied by code templates.', 'Open Setting', 'Ignore');
+			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are in use by code templates.', 'Open Setting', 'Ignore');
 
 			if (selection === 'Open Setting') {
 				commands.executeCommand(
@@ -1598,23 +1605,24 @@ async function projectCheck(): Promise<boolean> {
 	const projectFolders = workspace.workspaceFolders;
 	const editor = window.activeTextEditor;
 	
-	if (projectFolders && (await workspace.findFiles('*.{68k,z80,asm}', undefined, 1)).length > 0) {
+	if (projectFolders && (await workspace.findFiles('*.{68k,z80,asm}', undefined, 1)).length > 0) { // If it finds a project with the right files
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = true;
 		sourceCodeFolder = projectFolders[0].uri.fsPath;
 		return true;
-	} else if ((editor && ['m68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection'].includes(editor.document.languageId))) {
+	} else if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the contributed languages
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = false;
 		sourceCodeFolder = dirname(editor.document.fileName);
 		return true;
 	}
 
-	commands.executeCommand('setContext', 'megaenvironment.shouldActivate', false);
+	commands.executeCommand('setContext', 'megaenvironment.shouldActivate', false); // If we didn't find anything, we have no reason to activate, so
 	onProject = false;
 	return false;
 }
 
+// Updates "settingsDescriptors" each time a setting is changed
 async function updateConfiguration(event: ConfigurationChangeEvent) {
 	if (!event.affectsConfiguration('megaenvironment') || updatingConfiguration) { return; }
 
@@ -1642,7 +1650,8 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 
 		(extensionSettings as any)[setting.target] = configuration.get(key);
 	}
-	
+
+	// This setting requires different management (downloading the right assembler version each time it gets changed)
 	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
 		const settings = extensionSettings;
 		settings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
@@ -1682,7 +1691,7 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 			// In case it couldn't update, we need to restore the previous setting value
 			settings.sonicDisassembly = !settings.sonicDisassembly;
 			
-			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
+			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event (generating an infinite loop)
 			await configuration.update(
 				'buildControl.sonicDisassemblySupport',
 				settings.sonicDisassembly,

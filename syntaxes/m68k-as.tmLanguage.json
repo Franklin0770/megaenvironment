@@ -125,7 +125,7 @@
 					"name": "instruction.label.as",
 					"match": "(?i:\\b(b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr))(\\.[swl])?)\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
 					"captures": {
-						"1": { "name": "instruction.jump.as"},
+						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "instruction.size.as" },
 						"3": { "name": "directive.label.jump.as" }
 					}
