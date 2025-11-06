@@ -24,7 +24,7 @@
 		{
 			"scope": "instruction.autoincrement.as",
 			"settings": {
-				"foreground": "#DDDDDD"
+				"foreground": "#dddddd"
 			}
 		},
 		{
@@ -50,7 +50,7 @@
 		{
 			"scope": "constant.numeric.as",
 			"settings": {
-				"foreground": "#c7853a"
+				"foreground": "#cb823d"
 			}
 		},
 		{
@@ -75,13 +75,13 @@
 		{
 			"scope": "directive.label.local.as",
 			"settings": {
-				"foreground": "#ccc969"
+				"foreground": "#d4d17d"
 			}
 		},
 		{
 			"scope": "directive.label.temporary.as",
 			"settings": {
-				"foreground": "#c0be82"
+				"foreground": "#cdcc9b"
 			}
 		},
 		{

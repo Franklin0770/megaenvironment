@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "The Macroassembler AS - Zilog Z80",
+	"name": "AS - Zilog Z80",
 	"scopeName": "source.z80-as",
 	"foldingStartMarker": "^\\s*(?i:macro|if|ifn?(?:def|symexist|used|exist|b)|rept|irpc?|while|function|struct|switch)\\b",
 	"foldingStopMarker": "^\\s*(?i:end(?:if|struct|case|m))\\b",

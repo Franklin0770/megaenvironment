@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "The Macroassembler AS - Listing Files",
+	"name": "AS - Listing Files",
 	"scopeName": "source.lst-as",
 	"foldingStartMarker": "^\\s*(?i:macro|if|ifn?(?:def|symexist|used|exist|b)|rept|irpc?|while|function|struct|switch)\\b",
 	"foldingStopMarker": "^\\s*(?i:end(?:if|struct|case|m))\\b",
@@ -34,7 +34,7 @@
 				},
 				{
 					"name": "constant.header.as",
-					"match": "^\\x0C.+$"
+					"match": "^\\x0C? AS.+$"
 				}
 			]
 		},
@@ -96,19 +96,15 @@
 			"patterns": [
 				{
 					"name": "directive.label.global.as",
-					"match": "(?:^\\w+:?)|(?:\\s\\w+:)"
+					"match": "(?<!\\S)\\s\\w+:"
 				},
 				{
 					"name": "directive.label.local.as",
-					"match": "(?:^\\.[\\w\\.]+:?)|(?:\\s\\.[\\w\\.]+:)"
+					"match": "(?:\\s\\.[\\w\\.]+:)"
 				},
 				{
 					"name": "directive.label.temporary.as",
-					"match": "(?:^\\$\\$[\\w\\.]+:?)|(?:\\s\\$\\$[\\w\\.]+:)"
-				},
-				{
-					"name": "directive.label.nameless.as",
-					"match": "^[+-]$"
+					"match": "(?:\\s\\$\\$[\\w\\.]+:)"
 				}
 			]
 		},
@@ -131,20 +127,18 @@
 		"instruction-label-structure": {
 			"patterns": [
 				{
-					"name": "instruction.label.as",
-					"match": "(?i:\\b((?:db|s)(?:t|f|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])))\\b\\s+(?i:\\b(d[0-7])\\b)\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
-					"captures": {
-						"1": { "name": "instruction.jump.as" },
-						"2": { "name": "variable.register.as" },
-						"3": { "name": "directive.label.jump.as" }
-					}
-				},
-				{
-					"name": "instruction.label.as",
 					"match": "(?i:\\b(b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr))(\\.[swl])?)\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "instruction.size.as" },
+						"3": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"match": "(?i:\\b((?:db|s)(?:t|f|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])))\\b\\s+(?i:\\b(d[0-7])\\b)\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "variable.register.as" },
 						"3": { "name": "directive.label.jump.as" }
 					}
 				}

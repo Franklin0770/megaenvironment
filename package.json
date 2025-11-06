@@ -2,11 +2,9 @@
 	"name": "megaenvironment",
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
-	"description": "Provides integration with The Macroassembler AS, among other features, such as code highlighting.",
+	"description": "Provides complete integration with The Macroassembler AS, among other features, such as versioning and code highlighting.",
 	"version": "0.3.0",
-	"engines": {
-		"vscode": "^1.96.0"
-	},
+	"engines": { "vscode": "^1.96.0" },
 	"categories": [
 		"Programming Languages",
 		"Themes",
@@ -422,27 +420,32 @@
 				"megaenvironment.paths.BlastEm": {
 					"type": "string",
 					"default": "",
-					"description": "Full path to the BlastEm executable."
+					"description": "Full path to the BlastEm executable.",
+					"ignoreSync": true
 				},
 				"megaenvironment.paths.Regen": {
 					"type": "string",
 					"default": "",
-					"description": "Full path to the Regen executable."
+					"description": "Full path to the Regen executable.",
+					"ignoreSync": true
 				},
 				"megaenvironment.paths.ClownMDEmu": {
 					"type": "string",
 					"default": "",
-					"description": "Full path to the ClownMDEmu executable."
+					"description": "Full path to the ClownMDEmu executable.",
+					"ignoreSync": true
 				},
 				"megaenvironment.paths.EASy68k": {
 					"type": "string",
 					"default": "",
-					"description": "Full path to the EASy68k executable."
+					"description": "Full path to the EASy68k executable.",
+					"ignoreSync": true
 				},
 				"megaenvironment.paths.outputPathWithoutWorkspace": {
 					"type": "string",
 					"default": "",
-					"description": "The default path where the output files get generated when there isn't an opened workspace."
+					"description": "The default path where the output files get generated when there isn't an opened workspace.",
+					"ignoreSync": true
 				},
 				"megaenvironment.extensionOptions.checkForUpdates": {
 					"type": "boolean",

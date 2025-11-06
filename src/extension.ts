@@ -21,6 +21,8 @@ import { exec } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 
+import PcmProcessing from './PCM Processing';
+
 // Settings variable declaration (some of them are not here since they get read once)
 interface ExtensionSettings {
 	defaultCpu: string;
@@ -576,6 +578,10 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	let command = `"${assemblerPath}" "${sourceCode}" -o "${join(assemblerFolder, 'code.p')}" -`;
 	let warnings = false;
 
+	if (settings.sonicDisassembly) {
+		command += 'c';
+	}
+
 	const shortFlags: Array<[boolean, string]> = [
 		[settings.compactSymbols,		'A'],
 		[settings.listingFile,			'L'],
@@ -650,6 +656,10 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
 	}
 
+	if (settings.sonicDisassembly) {
+		command += ' -shareout "' + join(assemblerFolder, 'code.h') + '"';
+	}
+
 	console.log(command);
 
 	// AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
@@ -712,11 +722,11 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	process.chdir(assemblerFolder);
 
-	if (!settings.sonicDisassembly) {
-		command = `"${compilerPath}" code.p rom.bin -l 0x${settings.fillValue} -k`; // The -k switch makes P2BIN automatically remove the program file
-	} else {
-		command = `"${compilerPath}" code.p -o rom.bin`;
-	}
+	command = !settings.sonicDisassembly
+		? `"${compilerPath}" code.p rom.bin -l 0x${settings.fillValue} -k`
+		: `"${compilerPath}" -p=${settings.fillValue} -z=0,kosinski,Size_of_DAC_driver_guess,after code.p rom.bin code.h`;
+	
+	console.log(command);
 	
 	// Take only some outputs and the custom exit code with aliases
 	const { p2binOut, p2binErr, success } = await new Promise<{ p2binOut: string; p2binErr: string; success: boolean }>((resolve) => {
@@ -798,6 +808,15 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 async function assembleROM() {
 	if (!await assemblerChecks(false)) { return; }
+
+	if (extensionSettings.sonicDisassembly) {
+		try {
+			await (new PcmProcessing).generateAudioFiles();
+		} catch (error: any) {
+			window.showErrorMessage(error);
+			return false;
+		}
+	}
 
 	let warnings = false;
 
@@ -1107,16 +1126,16 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	// A small button located at the bottom of the screen to force download the assembler
-	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 0);
-	runButton.text = "$(cloud-download)";
-	runButton.tooltip = "Re-download the Assembler";
-	runButton.command = "megaenvironment.redownload_tools";
+	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 10);
+	runButton.name = 'Force Assembler Download';
+	runButton.text = '$(cloud-download)';
+	runButton.tooltip = 'Re-download the Assembler';
+	runButton.command = 'megaenvironment.redownload_tools';
 	runButton.show();
 
 	context.subscriptions.push(redownloadTools, runButton);
 
 	if (extensionSettings.checkUpdates && await downloadAssembler(false) === -1) { return; }
-
 
 	//
 	//	Commands
@@ -1295,7 +1314,7 @@ export async function activate(context: ExtensionContext) {
 		const editor = window.activeTextEditor;
 
 		if (!editor) {
-			window.showErrorMessage("It seems you forgot to open any text editor.");
+			window.showErrorMessage('It seems you forgot to open any text editor.');
 			return;
 		}
 
@@ -1561,9 +1580,7 @@ export async function activate(context: ExtensionContext) {
 		if (existsSync(join(vscodeFolder, 'launch.json'))) {
 			const selection = await window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to replace it?', 'Yes', 'No');
 			
-			if (selection !== 'Yes') {
-				return;
-			}
+			if (selection !== 'Yes') { return; }
 		}
 
 		writeFile(join(vscodeFolder, 'launch.json'), strings.launchJson, (error) => {
@@ -1638,7 +1655,7 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 			const defaultValue = configuration.inspect<any>(key)!.defaultValue;
 
 			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
-			if (workspace.workspaceFolders) {
+			if (onProject) {
 				await configuration.update(key, defaultValue, ConfigurationTarget.Workspace);
 			} else {
 				await configuration.update(key, defaultValue, ConfigurationTarget.Global);
