@@ -48,7 +48,7 @@
 			"patterns": [
 				{
 					"name": "constant.immediate.as",
-					"match": "(?<=\\s+)#(?=[\\w|$%@(])"
+					"match": "(?<=\\s+)#(?=[\\w|$%@('\"])"
 				},
 				{
 					"name": "constant.numeric.as",

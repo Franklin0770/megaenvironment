@@ -1,6 +1,6 @@
-import { promises } from 'fs';
+import { existsSync, promises } from 'fs';
 import { join, basename, relative } from 'path';
-import { workspace } from 'vscode';
+import { workspace, Progress } from 'vscode';
 
 export default class PcmProcessing {
 	private static sampleRate: number;
@@ -72,7 +72,7 @@ export default class PcmProcessing {
 		}
 
 		if (PcmProcessing.sampleRate > 32000) {
-			throw new Error();
+			throw new Error('The YM2612 supports up to 32 kHz sample rate, yours is higher');
 		}
 
 		if (bitDepth !== 8 && bitDepth !== 16 && bitDepth !== 24) {
@@ -143,53 +143,69 @@ export default class PcmProcessing {
 		return new Uint8Array(output);
 	}
 
-	public async generateAudioFiles() {
+	public async generateAudioFiles(progress: Progress<{ message?: string; increment?: number }>) {
+		progress.report({ message: 'Converting audio files...', increment: 5 });
+
 		const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
-		const pcmFolderRelative = join('sound', 'dac', 'pcm');
-		const dpcmFolderRelative = join('sound', 'dac', 'dpcm');
-		const pcmFolder = join(projectFolder, pcmFolderRelative);
-		const dpcmFolder = join(projectFolder, dpcmFolderRelative);
+		const pcmFolder = join(projectFolder, join('sound', 'dac', 'pcm'));
+		const dpcmFolder = join(projectFolder, join('sound', 'dac', 'dpcm'));
 
 		const pcmWavFiles = (await workspace.findFiles('sound/dac/pcm/*.wav')).map(uri => relative(pcmFolder, uri.fsPath));
 		const dpcmWavFiles = (await workspace.findFiles('sound/dac/dpcm/*.wav')).map(uri => relative(dpcmFolder, uri.fsPath));
 
+		const incrementValue = 25 / (pcmWavFiles.length + dpcmWavFiles.length);
+
 		await Promise.all(pcmWavFiles.map(async fileName => {
+			progress.report({ increment: incrementValue });
+
 			const file = await promises.readFile(join(pcmFolder, fileName));
 			const pcmData = PcmProcessing.convertFileToPcmData(file);
 
 			const baseName = basename(fileName, '.wav');
+			const generatedFolder = join(pcmFolder, 'generated');
+			const pcmPath = join(generatedFolder, baseName + '.pcm');
 
 			const incFile = String.raw
 `; Auto generated with MegaEnvironment
 
 .sample_rate = ${PcmProcessing.sampleRate}
 .size = ${pcmData.length}
-	binclude "${join(pcmFolderRelative, fileName)}"`;
+	binclude "${relative(projectFolder, pcmPath)}"`;
 
-			const generatedFolder = join(pcmFolder, 'generated');
 			await promises.writeFile(join(generatedFolder, baseName + '.inc'), incFile);
-			await promises.writeFile(join(generatedFolder, baseName + '.pcm'), pcmData);
+			await promises.writeFile(pcmPath, pcmData);
 		}));
 
-		const deltas = await promises.readFile(join(dpcmFolder, 'deltas.bin'));
+		const deltasPath = join(dpcmFolder, 'deltas.bin');
+
+		let deltas: Uint8Array;
+
+		if (existsSync(deltasPath)) {
+			deltas = await promises.readFile(deltasPath);
+		} else {
+			deltas = new Uint8Array([ 0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0xFF, 0xFE, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0 ]);
+		}
 
 		await Promise.all(dpcmWavFiles.map(async fileName => {
+			progress.report({ increment: incrementValue });
+
 			const file = await promises.readFile(join(dpcmFolder, fileName));
 			const pcmData = PcmProcessing.convertFileToPcmData(file);
 			const dpcmData = PcmProcessing.convertPcmToAdpcm(pcmData, deltas);
 
 			const baseName = basename(fileName, '.wav');
+			const generatedFolder = join(dpcmFolder, 'generated');
+			const dpcmPath = join(generatedFolder, baseName + '.dpcm');
 
 			const incFile = String.raw
 `; Auto generated with MegaEnvironment
 
 .sample_rate = ${PcmProcessing.sampleRate}
-.size = ${pcmData.length}
-	binclude "${join(dpcmFolderRelative, fileName)}"`;
+.size = ${dpcmData.length}
+	binclude "${relative(projectFolder, dpcmPath)}"`;
 
-			const generatedFolder = join(dpcmFolder, 'generated');
 			await promises.writeFile(join(generatedFolder, baseName + '.inc'), incFile);
-			await promises.writeFile(join(generatedFolder, baseName + '.dpcm'), dpcmData);
+			await promises.writeFile(dpcmPath, dpcmData);
 		}));
 	}
 }

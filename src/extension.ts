@@ -10,14 +10,14 @@ import {
 	ExtensionContext, workspace, commands, debug, window, env, Uri, 
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, 
 	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, 
-	ConfigurationTarget
+	ConfigurationTarget, Progress
 } from 'vscode';
 import {
 	existsSync, writeFile, rename, 
 	unlink, createWriteStream, promises
 } from 'fs';
 import { join, basename, dirname } from 'path';
-import { exec } from 'child_process';
+import { ChildProcess, exec, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 
@@ -209,6 +209,8 @@ let onProject: boolean;
 let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
 let updatingConfiguration = false;
 
+let activeAssembler: ChildProcess | null;
+
 const outputChannel = window.createOutputChannel('AS');
 
 async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
@@ -293,10 +295,12 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 				const file = await promises.readFile(join(assemblerFolder, 'version.txt'), 'ascii');
 				const localBuild = +file;
 				const onlineBuild = +await response.text();
+				const asMsgExists = existsSync(join(assemblerFolder, 'as.msg')); // This is a way to know if we have the sonic disassembly version installed
+				const differentVersion = (asMsgExists && !extensionSettings.sonicDisassembly) || (!asMsgExists && extensionSettings.sonicDisassembly);
 				
-				if (localBuild >= onlineBuild) { return 0; } // No need for updates
+				if (localBuild >= onlineBuild && !differentVersion) { return 0; } // No need for updates
 
-				if (!extensionSettings.quietOperation) {
+				if (!extensionSettings.quietOperation && !differentVersion) {
 					window.showInformationMessage(`Upgrading from build ${localBuild} to ${onlineBuild}.`);
 				}
 			}
@@ -453,7 +457,7 @@ async function promptEmulatorPath(emulator: string): Promise<boolean> {
 	const executableExtension = process.platform === 'win32' ? [ 'exe' ] : [ '*' ];
 
 	const uri = await window.showOpenDialog({
-		title: 'Select the executable of your emulator',
+		title: 'Select the executable of ' + emulator,
 		canSelectFolders: false,
 		canSelectFiles: true,
 		canSelectMany: false,
@@ -482,9 +486,9 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		}
 
 		if (!existsSync(join(sourceCodeFolder, extensionSettings.mainName))) {
-			const selection = await window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Open Setting');
+			const selection = await window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Change Setting');
 			
-			if (selection === 'Open Setting') {
+			if (selection === 'Change Setting') {
 				commands.executeCommand(
 					'workbench.action.openSettings',
 					'megaenvironment.sourceCodeControl.mainFileName'
@@ -565,10 +569,22 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 // Assembles and compiles a ROM
 // 0 if successful, 1 if successful with warnings and -1 if there's an error or a fatal one
 // If the number is negative we shall not proceed (this case only -1)
-async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
+async function executeAssemblyCommand(progress: Progress<{ message?: string; increment?: number }>): Promise<0 | 1 | -1> {
 	// We proceed with the assembler, which creates the program file
 	outputChannel.clear();
 	const settings = extensionSettings;
+	const sonicDisassembly = settings.sonicDisassembly;
+
+	if (sonicDisassembly && onProject) {
+		try {
+			await (new PcmProcessing).generateAudioFiles(progress);
+		} catch (error: any) {
+			window.showErrorMessage('Cannot convert WAV files. ' + error.message);
+			return -1;
+		}
+	}
+
+	progress.report({ increment: !sonicDisassembly ? 15 : 0, message: 'Assembling...' }); // 0, 30
 
 	// We already checked if "workspaceFolders" or "activeTextEditor" exists. This is why I put "!"
 	const sourceCode = onProject ? settings.mainName : window.activeTextEditor!.document.fileName;
@@ -578,9 +594,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	let command = `"${assemblerPath}" "${sourceCode}" -o "${join(assemblerFolder, 'code.p')}" -`;
 	let warnings = false;
 
-	if (settings.sonicDisassembly) {
-		command += 'c';
-	}
+	if (sonicDisassembly) { command += 'c'; }
 
 	const shortFlags: Array<[boolean, string]> = [
 		[settings.compactSymbols,		'A'],
@@ -652,11 +666,11 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	if (settings.workingFolders.length > 0) {
 		command += ` -i "${settings.workingFolders.join('";"')}"`;
-	} else if (settings.sonicDisassembly) {
+	} else if (sonicDisassembly) {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
 	}
 
-	if (settings.sonicDisassembly) {
+	if (sonicDisassembly) {
 		command += ' -shareout "' + join(assemblerFolder, 'code.h') + '"';
 	}
 
@@ -664,17 +678,34 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	// AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
 
-	const { aslOut, aslErr, code } = await new Promise<{ aslOut: string; aslErr: string; code: number }>((resolve) => {
-		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => {
-			if (!error) {
-				resolve({ aslOut: stdout, aslErr: stderr, code: 0 });
-			} else {
-				resolve({ aslOut: stdout ?? 'No output provided.', aslErr: stderr ?? 'No error provided.', code: error.code ?? -1 });
-			}
+	let aslErr = '';
+
+	const { code } = await new Promise<{ code: number }>((resolve) => {
+		if (activeAssembler) {
+			resolve({ code: -2 });
+		}
+
+		activeAssembler = spawn(command, { shell: true });
+
+		activeAssembler.stdout!.on('data', (data) => {
+			outputChannel.append(data.toString());
+		});
+
+		activeAssembler.stderr!.on('data', (data) => {
+			aslErr += data.toString();
+		});
+		
+		activeAssembler.on('close', (code) => {
+			activeAssembler = null;
+			resolve({ code: code ?? 0 });
+		});
+
+		activeAssembler.on('error', (error: any) => {
+			outputChannel.appendLine(error.message);
+			activeAssembler = null;
+			resolve({ code: -1 });
 		});
 	});
-
-	outputChannel.append(aslOut);
 
 	if (code === 0) {
 		if (settings.verboseOperation) {
@@ -707,7 +738,11 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 				break;
 
 			case 255:
-				window.showErrorMessage(`Looks like some files are missing because I messed up the structure, sorry! If this doesn't get fixed in a few days, please let me know!`);
+				window.showErrorMessage("Looks like some files are missing because I messed up the structure, sorry! If this doesn't get fixed in a few days, please let me know!");
+				break;
+
+			case -2:
+				window.showErrorMessage("Please wait! You're already assembling something.");
 				break;
 
 			default:
@@ -718,29 +753,44 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 		return -1; // Can't proceed with compiling, there's no program file
 	}
 
+	progress.report({ increment: !sonicDisassembly ? 50 : 40, message: 'Compiling...' }); // 10, 30
+
 	// Now, to the compiler!
 
 	process.chdir(assemblerFolder);
 
-	command = !settings.sonicDisassembly
+	command = !sonicDisassembly
 		? `"${compilerPath}" code.p rom.bin -l 0x${settings.fillValue} -k`
 		: `"${compilerPath}" -p=${settings.fillValue} -z=0,kosinski,Size_of_DAC_driver_guess,after code.p rom.bin code.h`;
+
+	let p2binErr = '';
 	
 	console.log(command);
-	
-	// Take only some outputs and the custom exit code with aliases
-	const { p2binOut, p2binErr, success } = await new Promise<{ p2binOut: string; p2binErr: string; success: boolean }>((resolve) => {
-		exec(command, { encoding: 'ascii' }, (error, stdout, stderr) => {
-			if (!error) {
-				resolve({ p2binOut: stdout, p2binErr: stderr, success: true });
-			} else {
-				const longMessage = 'No output provided. Perhaps, according to my calculations, this is the rarest message you can get, so go play for the lottery until you can. Thank me later!';
-				resolve({ p2binOut: stdout ?? longMessage, p2binErr: stderr ?? 'No error provided.', success: false });
-			}
+
+	const { success } = await new Promise<{ success: boolean }>((resolve) => {
+		activeAssembler = spawn(command, { shell: true });
+
+		if (!sonicDisassembly) {
+			activeAssembler.stdout!.on('data', (data) => {
+				outputChannel.append('\n' + data.toString());
+			});
+		}
+
+		activeAssembler.stderr!.on('data', (data) => {
+			p2binErr += data.toString();
+		});
+		
+		activeAssembler.on('close', () => {
+			activeAssembler = null;
+			resolve({ success: true });
+		});
+
+		activeAssembler.on('error', (error: any) => {
+			outputChannel.appendLine(error.message);
+			activeAssembler = null;
+			resolve({ success: false });
 		});
 	});
-
-	outputChannel.append('\n' + p2binOut);
 
 	if (success) {
 		if (p2binErr !== '' && settings.suppressWarnings) {
@@ -760,6 +810,8 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 	// Let's generate the checksum!
 
+	progress.report({ increment: !sonicDisassembly ? 30 : 20, message: 'Generating checksum...' }); // 60, 70
+
 	if (settings.generateChecksum) {
 		try {
 			const fileHandler = await promises.open('rom.bin', 'r+');
@@ -768,7 +820,7 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 
 			// If the file isn't big enough to support the checksum feature
 			if (size <= 0) {
-				outputChannel.append('\nChecksum not generated due to absence of headers.');
+				outputChannel.append('\nChecksum not calculated due to ROM being too small.');
 				await fileHandler.close();
 				return (+warnings) as 0 | 1;
 			}
@@ -806,27 +858,35 @@ async function executeAssemblyCommand(): Promise<0 | 1 | -1> {
 	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
 
-async function assembleROM() {
+async function assembleROM(progress: Progress<{ message?: string; increment?: number }>) {
+	progress.report({ message: 'Checking folders...' });
+
 	if (!await assemblerChecks(false)) { return; }
 
-	if (extensionSettings.sonicDisassembly) {
+	const sonicDisassembly = extensionSettings.sonicDisassembly;
+
+	if (sonicDisassembly) {
 		try {
-			await (new PcmProcessing).generateAudioFiles();
+			await (new PcmProcessing).generateAudioFiles(progress);
 		} catch (error: any) {
 			window.showErrorMessage(error);
 			return false;
 		}
 	}
 
+	progress.report({ increment: !sonicDisassembly ? 10 : 0, message: 'Assembling...' }); // 0, 30
+
 	let warnings = false;
 
-	const result = await executeAssemblyCommand();
+	const result = await executeAssemblyCommand(progress);
 
 	if (result === 1) {
 		warnings = true;
 	} else if (result !== 0) {
 		return; // If it couldn't compile a ROM we'd better get out of here
 	}
+	
+	progress.report({ message: 'Versioning...', increment: 10 });
 
 	// If we are in a workspace (project) the output folder is the same as the source code one, else we have to take the user's custom one
 	const outputPath = onProject ? sourceCodeFolder : extensionSettings.singleFileOutput;
@@ -912,11 +972,11 @@ async function assembleROM() {
 		return;
 	}
 
-	renameRom(outputPath, warnings);
+	renameRom(outputPath, warnings, progress);
 }
 
 // After versioning, we can rename the lastest ROM from "rom.bin" to whatever we need
-function renameRom(outputPath: string, warnings: boolean) {
+function renameRom(outputPath: string, warnings: boolean, progress: Progress<{ message?: string; increment?: number; }>) {
 	const currentDate = new Date();
 	const hours = currentDate.getHours().toString().padStart(2, '0');
 	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
@@ -949,6 +1009,8 @@ function renameRom(outputPath: string, warnings: boolean) {
 		}
 	});
 
+	progress.report({ increment: 10 }); // 90, 90
+
 	if (!warnings) {
 		if (extensionSettings.quietOperation) { return; }
 		window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
@@ -960,6 +1022,23 @@ function renameRom(outputPath: string, warnings: boolean) {
 			}
 		});
 	}
+}
+
+async function assembleROMWithProgress() {
+	window.withProgress(
+		{
+			location: ProgressLocation.Window,
+			cancellable: true
+		},
+		async (progress, token) => {
+			token.onCancellationRequested(() => {
+				activeAssembler!.kill('SIGKILL');
+				activeAssembler = null;
+			});
+
+			await assembleROM(progress);
+		}
+	);
 }
 
 // Only works with workspaces, because it searches the project folder for ROMs to run with an emulator
@@ -993,12 +1072,14 @@ async function findAndRunROM(emulator: string) {
 }
 
 // From QuickRun commands. It doesn't rename the ROM outside the assembler folder, then it gets deleted automatically after execution
-async function runTemporaryROM(emulator: string) {
+async function runTemporaryROM(emulator: string, progress: Progress<{ message?: string; increment?: number; }>) {
+	progress.report({ message: 'Checking folders...' });
+
 	if (!await assemblerChecks(true) || !await promptEmulatorPath(emulator)) { return; }
 
 	let warnings = false;
 
-	const result = await executeAssemblyCommand();
+	const result = await executeAssemblyCommand(progress);
 
 	if (result === 1) {
 		warnings = true;
@@ -1018,6 +1099,8 @@ async function runTemporaryROM(emulator: string) {
 			}
 		});
 	});
+
+	progress.report({ increment: !extensionSettings.sonicDisassembly ? 85 : 70 }); // 15, 30
 	
 	const currentDate = new Date();
 	if (!warnings) {
@@ -1030,6 +1113,24 @@ async function runTemporaryROM(emulator: string) {
 			outputChannel.show();
 		}
 	}
+}
+
+async function runTemporaryROMWithProgress(emulator: string) {
+	window.withProgress(
+		{
+			location: ProgressLocation.Window,
+			cancellable: true
+		},
+		async (progress, token) => 
+		{
+			token.onCancellationRequested(() => {
+				activeAssembler!.kill('SIGKILL');
+				activeAssembler = null;
+			});
+
+			await runTemporaryROM(emulator, progress);
+		}
+	);
 }
 
 // Cleans the project folder or the output folder when in standalone mode by matching the extensions
@@ -1141,22 +1242,37 @@ export async function activate(context: ExtensionContext) {
 	//	Commands
 	//
 
-	const assemble = commands.registerCommand('megaenvironment.assemble', () => assembleROM());
+	const assemble = commands.registerCommand('megaenvironment.assemble', () => assembleROMWithProgress());
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', async () => {
-		cleanProjectFolder();
+		window.withProgress(
+			{
+				location: ProgressLocation.Window,
+				cancellable: true
+			},
+			async (progress, token) => {
+				token.onCancellationRequested(() => {
+					activeAssembler!.kill('SIGKILL');
+					activeAssembler = null;
+				});
+				
+				progress.report({ message: 'Cleaning folder...' });
 
-		let warnings = false;
+				await cleanProjectFolder();
 
-		const result = await executeAssemblyCommand();
+				let warnings = false;
 
-		if (result === 1) {
-			warnings = true;
-		} else if (result !== 0) {
-			return;
-		}
+				const result = await executeAssemblyCommand(progress);
 
-		renameRom(sourceCodeFolder, warnings);
+				if (result === 1) {
+					warnings = true;
+				} else if (result !== 0) {
+					return;
+				}
+
+				renameRom(sourceCodeFolder, warnings, progress);
+			}
+		);
 	});
 
 	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => findAndRunROM('BlastEm'));
@@ -1217,9 +1333,9 @@ export async function activate(context: ExtensionContext) {
 		window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with OpenEmu.`);
 	});
 
-	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => runTemporaryROM('BlastEm'));
+	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => runTemporaryROMWithProgress('BlastEm'));
 
-	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', () => runTemporaryROM('Regen'));
+	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', () => runTemporaryROMWithProgress('Regen'));
 
 	const assemble_and_run_ClownMDEmu = commands.registerCommand('megaenvironment.assemble_run_clownmdemu', async () => {
 		const platform = process.platform;
@@ -1233,76 +1349,106 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		runTemporaryROM('ClownMDEmu');
+		window.withProgress(
+			{
+				location: ProgressLocation.Window,
+				cancellable: true
+			},
+			async (progress, token) => {
+				token.onCancellationRequested(() => {
+					activeAssembler!.kill('SIGKILL');
+					activeAssembler = null;
+				});
+
+				await runTemporaryROM('ClownMDEmu', progress);
+			}
+		);
 	});
 
 	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', async () => {
-		// if (process.platform !== 'darwin') {
-		// 	window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
-		// 	return;
-		// }
+		window.withProgress(
+			{
+				location: ProgressLocation.Window,
+				cancellable: true
+			},
+			async (progress, token) => {
+				// if (process.platform !== 'darwin') {
+				// 	window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
+				// 	return;
+				// }
 
-		if (!existsSync('/Applications/OpenEmu.app')) {
-			window.showErrorMessage("Looks like you haven't installed OpenEmu yet. Make sure it's located in the \"\\Applications\" folder when installed, or else it won't run properly.");
-			return;
-		}
+				token.onCancellationRequested(() => {
+					activeAssembler!.kill('SIGKILL');
+					activeAssembler = null;
+				});
 
-		if (!await assemblerChecks(true)) { return; }
+				progress.report({ message: 'Checking folders...' });
 
-		let warnings = false;
-
-		const result = await executeAssemblyCommand();
-
-		if (result === 1) {
-			warnings = true;
-		} else if (result !== 0) {
-			return;
-		}
-
-		const currentDate = new Date();
-		const hours = currentDate.getHours().toString().padStart(2, '0');
-		const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-		const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-		const romPath = join(assemblerFolder, `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`);
-
-		try {
-			await promises.rename(join(assemblerFolder, 'rom.bin'), romPath);
-		} catch (error: any) {
-			window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
-			return;
-		}
-
-		// "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
-		const success = await new Promise<boolean>((resolve) => { 
-			exec(`open -a OpenEmu -W "${romPath}"`, (error) => {
-				if (error) {
-					window.showErrorMessage('Cannot run the build. ' + error.message);
-					resolve(false);
+				if (!existsSync('/Applications/OpenEmu.app')) {
+					window.showErrorMessage("Looks like you haven't installed OpenEmu yet. Make sure it's located in the \"\\Applications\" folder when installed, or else it won't run properly.");
+					return;
 				}
 
-				resolve(true);
-			});
-		});
+				if (!await assemblerChecks(true)) { return; }
 
-		if (!success) { return; }
+				let warnings = false;
 
-		unlink(romPath, (error) => {
-			if (error) {
-				window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
-				return;
+				const result = await executeAssemblyCommand(progress);
+
+				if (result === 1) {
+					warnings = true;
+				} else if (result !== 0) {
+					return;
+				}
+
+				const currentDate = new Date();
+				const hours = currentDate.getHours().toString().padStart(2, '0');
+				const minutes = currentDate.getMinutes().toString().padStart(2, '0');
+				const seconds = currentDate.getSeconds().toString().padStart(2, '0');
+				const romPath = join(assemblerFolder, `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`);
+
+				try {
+					await promises.rename(join(assemblerFolder, 'rom.bin'), romPath);
+				} catch (error: any) {
+					window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
+					return;
+				}
+
+				progress.report({ increment: 100 }); // 0, 30
+
+				// "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
+				const success = await new Promise<boolean>((resolve) => { 
+					exec(`open -a OpenEmu -W "${romPath}"`, (error) => {
+						if (error) {
+							window.showErrorMessage('Cannot run the build. ' + error.message);
+							resolve(false);
+						}
+
+						resolve(true);
+					});
+				});
+
+				if (!success) { return; }
+
+				unlink(romPath, (error) => {
+					if (error) {
+						window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
+						return;
+					}
+				});
+
+				if (!warnings) {
+					if (extensionSettings.quietOperation) { return; }
+					window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}, running it with OpenEmu. (Oh yes!)`);
+				} else {
+					const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal');
+
+					if (selection === 'Show Terminal') {
+						outputChannel.show();
+					}
+				}
 			}
-		});
-
-		if (!warnings) {
-			if (extensionSettings.quietOperation) { return; }
-			window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}, running it with OpenEmu. (Oh yes!)`);
-		} else {
-			const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal');
-
-			if (selection === 'Show Terminal') {
-				outputChannel.show();
-			}
-		}
+		);
 	});
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', async () => {
@@ -1494,9 +1640,9 @@ export async function activate(context: ExtensionContext) {
 				}
 			});
 		} else {
-			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are in use by code templates.', 'Open Setting', 'Ignore');
+			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are in use by code templates.', 'Change Setting', 'Ignore');
 
-			if (selection === 'Open Setting') {
+			if (selection === 'Change Setting') {
 				commands.executeCommand(
 					'workbench.action.openSettings',
 					'megaenvironment.sourceCodeControl.templateSelector'
@@ -1936,7 +2082,7 @@ EntryPoint:`,
 ; Mega Drive ROM header (reference: https://plutiedev.com/rom-header)
 ; ===================================================================
 
-		dc.b "                "										; System type (e.g. "SEGA MEGA DRIVE ") - 16 bytes
+		dc.b "SEGA MEGA DRIVE "										; System type - 16 bytes
 		dc.b "(C).... YYYY.MMM"										; Copyright, release year and month (e.g. "(C)SEGA 1991.APR") - 16 bytes
 		dc.b "                                                "		; Domestic name - 48 bytes
 		dc.b "                                                "		; Overseas name - 48 bytes
@@ -1957,7 +2103,7 @@ EntryPoint:`,
 ;		Motorola 68000
 ; --------------------------
 
-	org M68K_RAM	; Main work RAM address space
+	org M68K_WRAM	; Main work RAM address space
 
 ; Your 68000 variables go here
 
@@ -2028,7 +2174,7 @@ EntryPoint:`,
 
 	move.w	#(Z80_ROM_Start-Z80_ROM_End)-1,d0
 
-$$loop:	; Load Z80 into its RAM
+$$loop:	; Load Z80 program into its RAM
 	move.b	(a0)+,(a1)+
 	dbf	d0,$$loop
 
