@@ -130,12 +130,12 @@
 				"megaenvironment.codeOptions.signExtensionWarning": {
 					"type": "boolean",
 					"default": false,
-					"description": "Gives a warning when using implicit sign extensions. Only effective with the \"moveq\" instruction in 68K assembly."
+					"description": "Gives a warning when using implicit sign extensions. Only effective with the \"moveq\" instruction in 68K assembly. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.absoluteJumpsWarning": {
 					"type": "boolean",
 					"default": false,
-					"description": "Gives a warning when a relative jump can be used instead of an absolute jump. Only effective in Z80 assembly."
+					"description": "Gives a warning when a relative jump can be used instead of an absolute jump. Only effective in Z80 assembly. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.caseSensitiveMode": {
 					"type": "boolean",
@@ -162,7 +162,7 @@
 						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
 					},
 					"default": [],
-					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems. Every entry shall be unique."
+					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems. Every entry shall be unique. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.removeIntegerSyntax": {
 					"type": "array",
@@ -172,12 +172,12 @@
 						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
 					},
 					"default": [],
-					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems. Every entry shall be unique."
+					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems. Every entry shall be unique. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.macroArgumentsWithUnderscore": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Grants the opportunity to use the underscore character in [macro arguments](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_SectMacros). It can come with side effects."
+					"markdownDescription": "Grants the opportunity to use the underscore character in [macro arguments](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_SectMacros). It can come with side effects. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.buildControl.outputRomName": {
 					"type": "string",
@@ -230,19 +230,19 @@
 						"This Saxman version is optimized specifically for the Sega Mega Drive to improve decompression speed."
 					],
 					"default": "kosinski",
-					"description": "The compression algorithm used to compress the specified code segment. Note that not all algorithms work with games that don't support them."
+					"description": "The compression algorithm used to compress the specified code segment. Note that not all algorithms work with games that don't support them. Not supported in the original assembler version."
 				},
 				"megaenvironment.buildControl.segmentCompression.startingAddress": {
 					"type": "string",
 					"default": "0",
-					"description": "The starting address of the first compressed code segment.",
+					"description": "The starting address of the first compressed code segment. Not supported in the original assembler version.",
 					"pattern": "^[0-9A-Fa-f]{1,8}$",
 					"patternErrorMessage": "Must be an address (e.g. from $0 to $FFFFFFFF)"
 				},
 				"megaenvironment.buildControl.segmentCompression.segmentSize": {
 					"type": "string",
 					"default": "Size_of_DAC_driver_guess",
-					"description": "The constant that is used to reserve space for the compressed code segments. Can also be a constant from your assembly code.",
+					"description": "The constant that is used to reserve space for the compressed code segments. Can also be a constant from your assembly code. Not supported in the original assembler version.",
 					"pattern": "^\\w+|[0-9A-Fa-f]{1,8}$",
 					"patternErrorMessage": "Must be a costant or an address"
 				},
@@ -250,7 +250,7 @@
 					"type": "string",
 					"enum": [ "after", "before" ],
 					"enumItemLabels": [ "After", "Before" ],
-					"enumDescriptions": [ "Insert after the previous segment.", "Overlap the previous segment." ],
+					"enumDescriptions": [ "Insert after the previous segment.", "Overlap the previous segment. Not supported in the original assembler version." ],
 					"default": "after",
 					"description": "Method of inserting compressed data."
 				},
@@ -339,7 +339,7 @@
 				"megaenvironment.sourceCodeControl.listUnknownValues": {
 					"type": "boolean",
 					"default": false,
-					"description": "Check this to include unknown values in the first pass listing, showing them as question marks."
+					"description": "Check this to include unknown values in the first pass listing, showing them as question marks. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.sourceCodeControl.cleaningExtensionSelector": {
 					"type": "array",

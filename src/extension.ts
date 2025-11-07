@@ -9,8 +9,7 @@ TODOS:
 import { 
 	ExtensionContext, workspace, commands, debug, window, env, Uri, 
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, 
-	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, 
-	ConfigurationTarget, Progress
+	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress
 } from 'vscode';
 import {
 	existsSync, writeFile, rename, 
@@ -28,11 +27,11 @@ interface ExtensionSettings {
 	defaultCpu: string;
 	superiorWarnings: boolean;
 	compatibilityMode: boolean;
-	signWarning: boolean;
-	jumpsWarning: boolean;
 	caseSensitive: boolean;
 	radix: string,
 	relaxedMode: boolean;
+	signWarning: boolean;
+	jumpsWarning: boolean;
 	addSyntax: Array<string>;
 	removeSyntax: Array<string>;
 	underscoreMacroArgs: boolean;
@@ -61,10 +60,10 @@ interface ExtensionSettings {
 	sourceListing: boolean;
 	listingRadix: string;
 	splitByte: string;
-	listUnknown: boolean;
 	cleaningExtensions: Array<string>;
 	workingFolders: Array<string>;
 	templateSelector: Array<string>;
+	listUnknown: boolean;
 
     backupName: string;
     backupDate: boolean;
@@ -91,11 +90,11 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	defaultCpu: '68000',
 	superiorWarnings: false,
 	compatibilityMode: false,
-	signWarning: false,
-	jumpsWarning: false,
 	caseSensitive: true,
 	radix: '10',
 	relaxedMode: false,
+	signWarning: false,
+	jumpsWarning: false,
 	addSyntax: [],
 	removeSyntax: [],
 	underscoreMacroArgs: false,
@@ -124,10 +123,10 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	sourceListing: false,
 	listingRadix: '16',
 	splitByte: '',
-	listUnknown: false,
 	cleaningExtensions: [ '.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i' ],
 	workingFolders: [ '.' ],
 	templateSelector: [ '68k vectors', 'ROM header', 'Jump table', 'VDP initialization', 'Controllers initialization', 'Z80 initialization', 'Constants', 'Variables' ],
+	listUnknown: false,
 
     backupName: '',
     backupDate: true,
@@ -152,67 +151,61 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 
 // Every setting name and variable to target, with a flag to indicate whether the Sonic assembler supports it or not
 const settingDescriptors = [
-	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu' },
-	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings' },
-	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode' },
-	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive' },
-	{ key: 'codeOptions.radix',								target: 'radix' },
-	{ key: 'codeOptions.RELAXEDMode',						target: 'relaxedMode' },
-	{ key: 'buildControl.outputRomName',					target: 'romName' },
-	{ key: 'buildControl.includeRomDate',					target: 'romDate' },
-	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
-	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
-	{ key: 'buildControl.generateChecksum',					target: 'generateChecksum' },
+	{ key: 'codeOptions.defaultCPU',								target: 'defaultCpu' },
+	{ key: 'codeOptions.superiorModeWarnings',						target: 'superiorWarnings' },
+	{ key: 'codeOptions.compatibilityMode',							target: 'compatibilityMode' },
+	{ key: 'codeOptions.caseSensitiveMode',							target: 'caseSensitive' },
+	{ key: 'codeOptions.radix',										target: 'radix' },
+	{ key: 'codeOptions.RELAXEDMode',								target: 'relaxedMode' },
+	{ key: 'codeOptions.signExtensionWarning',						target: 'signWarning' },
+	{ key: 'codeOptions.absoluteJumpsWarning',						target: 'jumpsWarning' },
+	{ key: 'codeOptions.addIntegerSyntax',							target: 'addSyntax' },
+	{ key: 'codeOptions.removeIntegerSyntax',						target: 'removeSyntax' },
+	{ key: 'codeOptions.macroArgumentsWithUnderscore',				target: 'underscoreMacroArgs' },
+	{ key: 'buildControl.outputRomName',							target: 'romName' },
+	{ key: 'buildControl.includeRomDate',							target: 'romDate' },
+	{ key: 'buildControl.enablePreviousBuilds',						target: 'prevRoms' },
+	{ key: 'buildControl.previousRomsAmount',						target: 'prevAmount' },
+	{ key: 'buildControl.generateChecksum',							target: 'generateChecksum' },
 	// 'buildControl.sonicDisassemblySupport' is handled differently
-	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
-	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
-	{ key: 'sourceCodeControl.variablesFileName',			target: 'variablesName' },
-	{ key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile' },
-	{ key: 'sourceCodeControl.listingFileName',				target: 'listingName' },
-	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile' },
-	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName' },
-	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile' },
-	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing' },
-	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing' },
-	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
-	{ key: 'sourceCodeControl.radixInListing',				target: 'listingRadix' },
-	{ key: 'sourceCodeControl.byteSplitInListing',			target: 'splitByte' },
-	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions' },
-	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
-	{ key: 'sourceCodeControl.templateSelector',			target: 'templateSelector' },
-	{ key: 'backupOptions.backupFileName',					target: 'backupName' },
-	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
-	{ key: 'miscellaneous.compactGlobalSymbols', 			target: 'compactSymbols' },
-	{ key: 'miscellaneous.fillValue',						target: 'fillValue' },
-	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
-	{ key: 'miscellaneous.maximumErrors',					target: 'maximumErrors' },
-	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
-	{ key: 'miscellaneous.AS-StyledErrors',					target: 'asErrors' },
-	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
-	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
-	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
-	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
-	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors' },
-	{ key: 'paths.outputPathWithoutWorkspace',				target: 'singleFileOutput' },
-	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
-	{ key: 'extensionOptions.checkForUpdates',				target: 'checkUpdates' },
-	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum' }
-];
-
-const originalSettingsDescriptors = [
-	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning' },
-	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning' },
-	{ key: 'codeOptions.addIntegerSyntax',					target: 'addSyntax' },
-	{ key: 'codeOptions.removeIntegerSyntax',				target: 'removeSyntax' },
-	{ key: 'codeOptions.macroArgumentsWithUnderscore',		target: 'underscoreMacroArgs' },
-	{ key: 'sourceCodeControl.listUnknownValues',			target: 'listUnknown' }
-];
-
-const fixedSettingsDescriptors = [
 	{ key: 'buildControl.segmentCompression.compressionAlgorithm',	target: 'compressionAlg' },
 	{ key: 'buildControl.segmentCompression.startingAddress',		target: 'startingAddress' },
 	{ key: 'buildControl.segmentCompression.segmentSize',			target: 'segmentSize' },
-	{ key: 'buildControl.segmentCompression.insertionMethod',		target: 'insertionMethod' }
+	{ key: 'buildControl.segmentCompression.insertionMethod',		target: 'insertionMethod' },
+	{ key: 'sourceCodeControl.mainFileName',   						target: 'mainName' },
+	{ key: 'sourceCodeControl.constantsFileName',					target: 'constantsName' },
+	{ key: 'sourceCodeControl.variablesFileName',					target: 'variablesName' },
+	{ key: 'sourceCodeControl.generateCodeListing',					target: 'listingFile' },
+	{ key: 'sourceCodeControl.listingFileName',						target: 'listingName' },
+	{ key: 'sourceCodeControl.generateErrorListing',				target: 'errorFile' },
+	{ key: 'sourceCodeControl.errorFileName',						target: 'errorName' },
+	{ key: 'sourceCodeControl.generateDebugFile',					target: 'debugFile' },
+	{ key: 'sourceCodeControl.generateSectionListing',				target: 'sectionListing' },
+	{ key: 'sourceCodeControl.generateMacroListing',				target: 'macroListing' },
+	{ key: 'sourceCodeControl.generateSourceListing',				target: 'sourceListing' },
+	{ key: 'sourceCodeControl.radixInListing',						target: 'listingRadix' },
+	{ key: 'sourceCodeControl.byteSplitInListing',					target: 'splitByte' },
+	{ key: 'sourceCodeControl.cleaningExtensionSelector',			target: 'cleaningExtensions' },
+	{ key: 'sourceCodeControl.currentWorkingFolders',				target: 'workingFolders' },
+	{ key: 'sourceCodeControl.templateSelector',					target: 'templateSelector' },
+	{ key: 'sourceCodeControl.listUnknownValues',					target: 'listUnknown' },
+	{ key: 'backupOptions.backupFileName',							target: 'backupName' },
+	{ key: 'backupOptions.includeBackupDate',						target: 'backupDate' },
+	{ key: 'miscellaneous.compactGlobalSymbols', 					target: 'compactSymbols' },
+	{ key: 'miscellaneous.fillValue',								target: 'fillValue' },
+	{ key: 'miscellaneous.errorLevel',								target: 'errorLevel' },
+	{ key: 'miscellaneous.maximumErrors',							target: 'maximumErrors' },
+	{ key: 'miscellaneous.displayErrorNumber',						target: 'errorNumber' },
+	{ key: 'miscellaneous.AS-StyledErrors',							target: 'asErrors' },
+	{ key: 'miscellaneous.lowercaseHexadecimal',					target: 'lowercaseHex' },
+	{ key: 'miscellaneous.suppressWarnings',						target: 'suppressWarnings' },
+	{ key: 'miscellaneous.quietOperation',							target: 'quietOperation' },
+	{ key: 'miscellaneous.verboseOperation',						target: 'verboseOperation' },
+	{ key: 'miscellaneous.warningsAsErrors',						target: 'warningsAsErrors' },
+	{ key: 'paths.outputPathWithoutWorkspace',						target: 'singleFileOutput' },
+	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
+	{ key: 'extensionOptions.checkForUpdates',						target: 'checkUpdates' },
+	{ key: 'extensionOptions.showChecksumValue',					target: 'showChecksum' }
 ];
 
 // Global variables that get assigned during activation
@@ -612,7 +605,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 	let command = `"${assemblerPath}" "${sourceCode}" -o "${join(assemblerFolder, 'code.p')}" -`;
 	let warnings = false;
 
-	if (sonicDisassembly) { command += 'c'; }
+	if (sonicDisassembly) { command += 'c'; } // Makes ASL output the header file that P2BIN will use
 
 	const shortFlags: Array<[boolean, string]> = [
 		[settings.compactSymbols,		'A'],
@@ -629,15 +622,24 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 		[!settings.asErrors, 			' -gnuerrors'],
 		[!settings.superiorWarnings,	' -supmode'],
 		[settings.compatibilityMode,	' -compmode'],
+		[settings.relaxedMode,			' -relaxed']
+	];
+
+	const originalAssemblerShortFlags: Array<[boolean, string]> = [
 		[settings.signWarning,			' -wimplicit-sign-extension'],
 		[settings.jumpsWarning,			' -wrelative'],
-		[settings.relaxedMode,			' -relaxed'],
 		[settings.listUnknown,			' -list-unknown-values'],
 		[settings.underscoreMacroArgs,	' -underscore-macroargs']
 	];
 
 	for (const [condition, flag] of shortFlags) { // Best way I (and ChatGPT) could have thought to do this
 		if (condition) { command += flag; }
+	}
+
+	if (!sonicDisassembly) {
+		for (const [condition, flag] of originalAssemblerShortFlags) {
+			if (condition) { command += flag; }
+		}
 	}
 
 	// Some other flags that have different behavior, not just booleans
@@ -664,7 +666,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 
 	if (settings.splitByte) { command += ` -SPLITBYTE "${settings.splitByte}"`; }
 
-	if (settings.addSyntax.length || settings.removeSyntax.length) { // If we filled at least one setting
+	if (!sonicDisassembly && (settings.addSyntax.length || settings.removeSyntax.length)) { // If we filled at least one setting
 		const parts: string[] = [];
 		const addSyntax = settings.addSyntax;
 		const removeSyntax = settings.removeSyntax;
@@ -688,6 +690,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
 	}
 
+	// Make sure the header file goes to the assembler folder so P2BIN can use it
 	if (sonicDisassembly) {
 		command += ' -shareout "' + join(assemblerFolder, 'code.h') + '"';
 	}
@@ -1109,7 +1112,9 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 	} else if (result !== 0) {
 		return;
 	}
-	
+
+	progress.report({ increment: 100 }); // 90, 90
+
 	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${join(assemblerFolder, 'rom.bin')}"`, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the build. ' + error.message);
@@ -1122,8 +1127,6 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 			}
 		});
 	});
-
-	progress.report({ increment: !extensionSettings.sonicDisassembly ? 85 : 70 }); // 15, 30
 	
 	const currentDate = new Date();
 	if (!warnings) {
@@ -1822,46 +1825,6 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 		return;
 	}
 
-	for (const setting of originalSettingsDescriptors) {
-		if (!event.affectsConfiguration(`megaenvironment.${setting.key}`)) { continue; }
-
-		if (!extensionSettings.sonicDisassembly) {
-			(extensionSettings as any)[setting.target] = configuration.get(setting.key);
-		} else {
-			window.showErrorMessage('Sorry, this setting is not available in the Sonic disassembly version.');
-
-			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
-			if (onProject) {
-				await configuration.update(setting.key, undefined, ConfigurationTarget.Workspace);
-			} else {
-				await configuration.update(setting.key, undefined, ConfigurationTarget.Global);
-			}
-			updatingConfiguration = false;
-		}
-
-		return;
-	}
-
-	for (const setting of fixedSettingsDescriptors) {
-		if (!event.affectsConfiguration(`megaenvironment.${setting.key}`)) { continue; }
-
-		if (extensionSettings.sonicDisassembly) {
-			(extensionSettings as any)[setting.target] = configuration.get(setting.key);
-		} else {
-			window.showErrorMessage('Sorry, this setting is not available in the original assembler version.');
-
-			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
-			if (onProject) {
-				await configuration.update(setting.key, undefined, ConfigurationTarget.Workspace);
-			} else {
-				await configuration.update(setting.key, undefined, ConfigurationTarget.Global);
-			}
-			updatingConfiguration = false;
-		}
-
-		return;
-	}
-
 	// This setting requires different management (downloading the right assembler version each time it gets changed)
 	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
 		const settings = extensionSettings;
@@ -1869,31 +1832,6 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 
 		if (!settings.quietOperation) {
 			window.showInformationMessage('Swapping versions...');
-		}
-
-		if (settings.sonicDisassembly) {
-			let settingsModified = false;
-
-			for (const setting of originalSettingsDescriptors) { // Reset the incompatible settings if they were changed
-				const key = setting.key;
-				const inspected = configuration.inspect<any>(key);
-				const defaultValue = inspected?.defaultValue;
-
-				updatingConfiguration = true;
-				// If the value is undefined it means it hasn't been touched, so we should check for that as well
-				if (inspected?.workspaceValue !== undefined && inspected?.workspaceValue !== defaultValue) {
-					await configuration.update(key, undefined, false);
-					settingsModified = true;
-				} else if (inspected?.globalLanguageValue !== undefined && inspected?.globalValue !== defaultValue) {
-					await configuration.update(key, undefined, true);
-					settingsModified = true;
-				}
-				updatingConfiguration = false;
-			}
-
-			if (settingsModified && !settings.quietOperation) {
-				window.showInformationMessage('Some settings were set to their default value due to incompatibilities with the Sonic disassembly version.');
-			}
 		}
 
 		if (await downloadAssembler(true) !== 0) {
