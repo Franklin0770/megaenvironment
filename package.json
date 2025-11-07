@@ -210,22 +210,70 @@
 					"default": false,
 					"markdownDescription": "Downloads an [alternative version](https://github.com/flamewing/asl-releases) that supports [Sonic disassemblies](https://github.com/sonicretro). Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being older."
 				},
+				"megaenvironment.buildControl.segmentCompression.compressionAlgorithm": {
+					"type": "string",
+					"enumItemLabels": [
+						"Uncompressed", "Kosinski (authentic)", "Kosinski (optimized)", "Kosinski+",
+						"Saxman (authentic)", "Saxman (fixed)", "Saxman (optimized)"
+					],
+					"enum": [
+						"uncompressed", "kosinski", "kosinski-optimised", "kosinskiplus",
+						"saxman-bugged", "saxman", "saxman-optimised"
+					],
+					"enumDescriptions": [
+						"The code segment won't be compressed.",
+						"Kosinski is a very powerful compression algorithm derived from LZSS. Originally used in Sonic 1 and Sonic 2.",
+						"This Kosinski version is optimized specifically for the Sega Mega Drive to improve decompression speed.",
+						"Kosinski+ is an enhanced version for the Sega Mega Drive to improve both compression ratio and decompression speed.",
+						"The original Saxman implementation from Sonic 2 is flawed and creates trailing garbage bytes.",
+						"Saxman is a basic implementation of the LZSS algorithm. Originally used in Sonic 2.",
+						"This Saxman version is optimized specifically for the Sega Mega Drive to improve decompression speed."
+					],
+					"default": "kosinski",
+					"description": "The compression algorithm used to compress the specified code segment. Note that not all algorithms work with games that don't support them."
+				},
+				"megaenvironment.buildControl.segmentCompression.startingAddress": {
+					"type": "string",
+					"default": "0",
+					"description": "The starting address of the first compressed code segment.",
+					"pattern": "^[0-9A-Fa-f]{1,8}$",
+					"patternErrorMessage": "Must be an address (e.g. from $0 to $FFFFFFFF)"
+				},
+				"megaenvironment.buildControl.segmentCompression.segmentSize": {
+					"type": "string",
+					"default": "Size_of_DAC_driver_guess",
+					"description": "The constant that is used to reserve space for the compressed code segments. Can also be a constant from your assembly code.",
+					"pattern": "^\\w+|[0-9A-Fa-f]{1,8}$",
+					"patternErrorMessage": "Must be a costant or an address"
+				},
+				"megaenvironment.buildControl.segmentCompression.insertionMethod": {
+					"type": "string",
+					"enum": [ "after", "before" ],
+					"enumItemLabels": [ "After", "Before" ],
+					"enumDescriptions": [ "Insert after the previous segment.", "Overlap the previous segment." ],
+					"default": "after",
+					"description": "Method of inserting compressed data."
+				},
 				"megaenvironment.sourceCodeControl.mainFileName": {
 					"type": "string",
 					"default": "Sonic.68k",
 					"description": "The main source code file name used in the project, where the code gets executed.",
-					"pattern": "^.+$",
-					"patternErrorMessage": "Cannot be empty"
+					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).+$",
+					"patternErrorMessage": "Empty file name or invalid extension"
 				},
 				"megaenvironment.sourceCodeControl.constantsFileName": {
 					"type": "string",
 					"default": "Constants.asm",
-					"description": "The source code file name of the constants used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it."
+					"description": "The source code file name of the constants used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
+					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
+					"patternErrorMessage": "Invalid extension"
 				},
 				"megaenvironment.sourceCodeControl.variablesFileName": {
 					"type": "string",
 					"default": "Variables.asm",
-					"description": "The source code file name of the variables used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it."
+					"description": "The source code file name of the variables used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
+					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
+					"patternErrorMessage": "Invalid extension"
 				},
 				"megaenvironment.sourceCodeControl.generateCodeListing": {
 					"type": "boolean",

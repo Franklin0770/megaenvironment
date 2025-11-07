@@ -43,6 +43,10 @@ interface ExtensionSettings {
     prevAmount: number;
 	generateChecksum: boolean;
 	sonicDisassembly: boolean;
+	compressionAlg: string,
+	startingAddress: string,
+	segmentSize: string,
+	insertionMethod: string,
 
     mainName: string;
     constantsName: string;
@@ -102,6 +106,10 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
     prevAmount: 10,
 	generateChecksum: true,
 	sonicDisassembly: false,
+	compressionAlg: 'kosinski',
+	startingAddress: '0',
+	segmentSize: 'Size_of_DAC_driver_guess',
+	insertionMethod: 'after',
 
     mainName: '',
     constantsName: '',
@@ -144,57 +152,67 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 
 // Every setting name and variable to target, with a flag to indicate whether the Sonic assembler supports it or not
 const settingDescriptors = [
-	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu',				sonicSupport: true },
-	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings',			sonicSupport: true },
-	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode',		sonicSupport: true },
-	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning',				sonicSupport: false },
-	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning',				sonicSupport: false },
-	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive',			sonicSupport: true },
-	{ key: 'codeOptions.radix',								target: 'radix',					sonicSupport: true },
-	{ key: 'codeOptions.RELAXEDMode',						target: 'relaxedMode',				sonicSupport: true },
-	{ key: 'codeOptions.addIntegerSyntax',					target: 'addSyntax',				sonicSupport: false },
-	{ key: 'codeOptions.removeIntegerSyntax',				target: 'removeSyntax',				sonicSupport: false },
-	{ key: 'codeOptions.macroArgumentsWithUnderscore',		target: 'underscoreMacroArgs',		sonicSupport: false },
-	{ key: 'buildControl.outputRomName',					target: 'romName',					sonicSupport: true },
-	{ key: 'buildControl.includeRomDate',					target: 'romDate',					sonicSupport: true },
-	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms',					sonicSupport: true },
-	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount',				sonicSupport: true },
-	{ key: 'buildControl.generateChecksum',					target: 'generateChecksum',			sonicSupport: true },
+	{ key: 'codeOptions.defaultCPU',						target: 'defaultCpu' },
+	{ key: 'codeOptions.superiorModeWarnings',				target: 'superiorWarnings' },
+	{ key: 'codeOptions.compatibilityMode',					target: 'compatibilityMode' },
+	{ key: 'codeOptions.caseSensitiveMode',					target: 'caseSensitive' },
+	{ key: 'codeOptions.radix',								target: 'radix' },
+	{ key: 'codeOptions.RELAXEDMode',						target: 'relaxedMode' },
+	{ key: 'buildControl.outputRomName',					target: 'romName' },
+	{ key: 'buildControl.includeRomDate',					target: 'romDate' },
+	{ key: 'buildControl.enablePreviousBuilds',				target: 'prevRoms' },
+	{ key: 'buildControl.previousRomsAmount',				target: 'prevAmount' },
+	{ key: 'buildControl.generateChecksum',					target: 'generateChecksum' },
 	// 'buildControl.sonicDisassemblySupport' is handled differently
-	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName',					sonicSupport: true },
-	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName',			sonicSupport: true },
-	{ key: 'sourceCodeControl.variablesFileName',			target: 'variablesName',			sonicSupport: true },
-	{ key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile',				sonicSupport: true },
-	{ key: 'sourceCodeControl.listingFileName',				target: 'listingName',				sonicSupport: true },
-	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile',				sonicSupport: true },
-	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName',				sonicSupport: true },
-	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile',				sonicSupport: true },
-	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing',			sonicSupport: true },
-	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing',				sonicSupport: true },
-	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing',			sonicSupport: true },
-	{ key: 'sourceCodeControl.radixInListing',				target: 'listingRadix',				sonicSupport: true },
-	{ key: 'sourceCodeControl.byteSplitInListing',			target: 'splitByte',				sonicSupport: true },
-	{ key: 'sourceCodeControl.listUnknownValues',			target: 'listUnknown',				sonicSupport: false },
-	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions',		sonicSupport: true },
-	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders',			sonicSupport: true },
-	{ key: 'sourceCodeControl.templateSelector',			target: 'templateSelector',			sonicSupport: true },
-	{ key: 'backupOptions.backupFileName',					target: 'backupName',				sonicSupport: true },
-	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate',				sonicSupport: true },
-	{ key: 'miscellaneous.compactGlobalSymbols', 			target: 'compactSymbols',			sonicSupport: true },
-	{ key: 'miscellaneous.fillValue',						target: 'fillValue',				sonicSupport: false },
-	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel',				sonicSupport: true },
-	{ key: 'miscellaneous.maximumErrors',					target: 'maximumErrors',			sonicSupport: true },
-	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber',				sonicSupport: true },
-	{ key: 'miscellaneous.AS-StyledErrors',					target: 'asErrors',					sonicSupport: true },
-	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex',				sonicSupport: true },
-	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings',			sonicSupport: true },
-	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation',			sonicSupport: true },
-	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation',			sonicSupport: true },
-	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors',			sonicSupport: true },
-	{ key: 'paths.outputPathWithoutWorkspace',				target: 'singleFileOutput',			sonicsupport: true },
+	{ key: 'sourceCodeControl.mainFileName',   				target: 'mainName' },
+	{ key: 'sourceCodeControl.constantsFileName',			target: 'constantsName' },
+	{ key: 'sourceCodeControl.variablesFileName',			target: 'variablesName' },
+	{ key: 'sourceCodeControl.generateCodeListing',			target: 'listingFile' },
+	{ key: 'sourceCodeControl.listingFileName',				target: 'listingName' },
+	{ key: 'sourceCodeControl.generateErrorListing',		target: 'errorFile' },
+	{ key: 'sourceCodeControl.errorFileName',				target: 'errorName' },
+	{ key: 'sourceCodeControl.generateDebugFile',			target: 'debugFile' },
+	{ key: 'sourceCodeControl.generateSectionListing',		target: 'sectionListing' },
+	{ key: 'sourceCodeControl.generateMacroListing',		target: 'macroListing' },
+	{ key: 'sourceCodeControl.generateSourceListing',		target: 'sourceListing' },
+	{ key: 'sourceCodeControl.radixInListing',				target: 'listingRadix' },
+	{ key: 'sourceCodeControl.byteSplitInListing',			target: 'splitByte' },
+	{ key: 'sourceCodeControl.cleaningExtensionSelector',	target: 'cleaningExtensions' },
+	{ key: 'sourceCodeControl.currentWorkingFolders',		target: 'workingFolders' },
+	{ key: 'sourceCodeControl.templateSelector',			target: 'templateSelector' },
+	{ key: 'backupOptions.backupFileName',					target: 'backupName' },
+	{ key: 'backupOptions.includeBackupDate',				target: 'backupDate' },
+	{ key: 'miscellaneous.compactGlobalSymbols', 			target: 'compactSymbols' },
+	{ key: 'miscellaneous.fillValue',						target: 'fillValue' },
+	{ key: 'miscellaneous.errorLevel',						target: 'errorLevel' },
+	{ key: 'miscellaneous.maximumErrors',					target: 'maximumErrors' },
+	{ key: 'miscellaneous.displayErrorNumber',				target: 'errorNumber' },
+	{ key: 'miscellaneous.AS-StyledErrors',					target: 'asErrors' },
+	{ key: 'miscellaneous.lowercaseHexadecimal',			target: 'lowercaseHex' },
+	{ key: 'miscellaneous.suppressWarnings',				target: 'suppressWarnings' },
+	{ key: 'miscellaneous.quietOperation',					target: 'quietOperation' },
+	{ key: 'miscellaneous.verboseOperation',				target: 'verboseOperation' },
+	{ key: 'miscellaneous.warningsAsErrors',				target: 'warningsAsErrors' },
+	{ key: 'paths.outputPathWithoutWorkspace',				target: 'singleFileOutput' },
 	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
-	{ key: 'extensionOptions.checkForUpdates',				target: 'checkUpdates',				sonicSupport: true },
-	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum',				sonicSupport: true }
+	{ key: 'extensionOptions.checkForUpdates',				target: 'checkUpdates' },
+	{ key: 'extensionOptions.showChecksumValue',			target: 'showChecksum' }
+];
+
+const originalSettingsDescriptors = [
+	{ key: 'codeOptions.signExtensionWarning',				target: 'signWarning' },
+	{ key: 'codeOptions.absoluteJumpsWarning',				target: 'jumpsWarning' },
+	{ key: 'codeOptions.addIntegerSyntax',					target: 'addSyntax' },
+	{ key: 'codeOptions.removeIntegerSyntax',				target: 'removeSyntax' },
+	{ key: 'codeOptions.macroArgumentsWithUnderscore',		target: 'underscoreMacroArgs' },
+	{ key: 'sourceCodeControl.listUnknownValues',			target: 'listUnknown' }
+];
+
+const fixedSettingsDescriptors = [
+	{ key: 'buildControl.segmentCompression.compressionAlgorithm',	target: 'compressionAlg' },
+	{ key: 'buildControl.segmentCompression.startingAddress',		target: 'startingAddress' },
+	{ key: 'buildControl.segmentCompression.segmentSize',			target: 'segmentSize' },
+	{ key: 'buildControl.segmentCompression.insertionMethod',		target: 'insertionMethod' }
 ];
 
 // Global variables that get assigned during activation
@@ -761,7 +779,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 
 	command = !sonicDisassembly
 		? `"${compilerPath}" code.p rom.bin -l 0x${settings.fillValue} -k`
-		: `"${compilerPath}" -p=${settings.fillValue} -z=0,kosinski,Size_of_DAC_driver_guess,after code.p rom.bin code.h`;
+		: `"${compilerPath}" -p=${settings.fillValue} -z=${settings.startingAddress},${settings.compressionAlg},${settings.segmentSize},${settings.insertionMethod} code.p rom.bin code.h`;
 
 	let p2binErr = '';
 	
@@ -791,6 +809,11 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 			resolve({ success: false });
 		});
 	});
+
+	if (sonicDisassembly) {
+		await promises.unlink('code.p');
+		await promises.unlink('code.h');
+	}
 
 	if (success) {
 		if (p2binErr !== '' && settings.suppressWarnings) {
@@ -1146,12 +1169,12 @@ async function cleanProjectFolder() {
 			.map(file => require('path').join(outputPath, file));
 	}
 	
-	let failedItems = '';
+	const failedItems: string[] = [];
 
 	for (const item of items) {
 		unlink(item, (error) => {
 			if (error) {
-				failedItems += basename(item) + ', ';
+				failedItems.push(basename(item));
 			}
 		});
 	}
@@ -1160,10 +1183,10 @@ async function cleanProjectFolder() {
 
 	switch (items.length) {
 		default:
-			if (failedItems === '') {
+			if (failedItems.length === 0) {
 				window.showInformationMessage(`Cleanup completed. ${items.length} items were removed.`);
 			} else {
-				window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems);
+				window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems.join(', '));
 			}
 			return;
 		case 0:
@@ -1792,26 +1815,51 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 	const configuration = workspace.getConfiguration('megaenvironment');
 
 	for (const setting of settingDescriptors) {
-		const key = setting.key;
+		if (!event.affectsConfiguration(`megaenvironment.${setting.key}`)) { continue; }
 
-		if (!event.affectsConfiguration(`megaenvironment.${key}`)) { continue; }
+		(extensionSettings as any)[setting.target] = configuration.get(setting.key);
 
-		if (!setting.sonicSupport && extensionSettings.sonicDisassembly) {
+		return;
+	}
+
+	for (const setting of originalSettingsDescriptors) {
+		if (!event.affectsConfiguration(`megaenvironment.${setting.key}`)) { continue; }
+
+		if (!extensionSettings.sonicDisassembly) {
+			(extensionSettings as any)[setting.target] = configuration.get(setting.key);
+		} else {
 			window.showErrorMessage('Sorry, this setting is not available in the Sonic disassembly version.');
-			const defaultValue = configuration.inspect<any>(key)!.defaultValue;
 
 			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
 			if (onProject) {
-				await configuration.update(key, defaultValue, ConfigurationTarget.Workspace);
+				await configuration.update(setting.key, undefined, ConfigurationTarget.Workspace);
 			} else {
-				await configuration.update(key, defaultValue, ConfigurationTarget.Global);
+				await configuration.update(setting.key, undefined, ConfigurationTarget.Global);
 			}
 			updatingConfiguration = false;
-
-			return;
 		}
 
-		(extensionSettings as any)[setting.target] = configuration.get(key);
+		return;
+	}
+
+	for (const setting of fixedSettingsDescriptors) {
+		if (!event.affectsConfiguration(`megaenvironment.${setting.key}`)) { continue; }
+
+		if (extensionSettings.sonicDisassembly) {
+			(extensionSettings as any)[setting.target] = configuration.get(setting.key);
+		} else {
+			window.showErrorMessage('Sorry, this setting is not available in the original assembler version.');
+
+			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event
+			if (onProject) {
+				await configuration.update(setting.key, undefined, ConfigurationTarget.Workspace);
+			} else {
+				await configuration.update(setting.key, undefined, ConfigurationTarget.Global);
+			}
+			updatingConfiguration = false;
+		}
+
+		return;
 	}
 
 	// This setting requires different management (downloading the right assembler version each time it gets changed)
@@ -1826,23 +1874,21 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 		if (settings.sonicDisassembly) {
 			let settingsModified = false;
 
-			for (const setting of settingDescriptors) { // Reset the incompatible settings if they were changed
-				if (!setting.sonicSupport) {
-					const key = setting.key;
-					const inspected = configuration.inspect<any>(key);
-					const defaultValue = inspected?.defaultValue;
+			for (const setting of originalSettingsDescriptors) { // Reset the incompatible settings if they were changed
+				const key = setting.key;
+				const inspected = configuration.inspect<any>(key);
+				const defaultValue = inspected?.defaultValue;
 
-					updatingConfiguration = true;
-					// If the value is undefined it means it hasn't been touched, so we should check for that as well
-					if (inspected?.workspaceValue !== undefined && inspected?.workspaceValue !== defaultValue) {
-						await configuration.update(key, defaultValue, false);
-						settingsModified = true;
-					} else if (inspected?.globalLanguageValue !== undefined && inspected?.globalValue !== defaultValue) {
-						await configuration.update(key, defaultValue, true);
-						settingsModified = true;
-					}
-					updatingConfiguration = false;
+				updatingConfiguration = true;
+				// If the value is undefined it means it hasn't been touched, so we should check for that as well
+				if (inspected?.workspaceValue !== undefined && inspected?.workspaceValue !== defaultValue) {
+					await configuration.update(key, undefined, false);
+					settingsModified = true;
+				} else if (inspected?.globalLanguageValue !== undefined && inspected?.globalValue !== defaultValue) {
+					await configuration.update(key, undefined, true);
+					settingsModified = true;
 				}
+				updatingConfiguration = false;
 			}
 
 			if (settingsModified && !settings.quietOperation) {

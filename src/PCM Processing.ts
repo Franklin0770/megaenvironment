@@ -104,6 +104,7 @@ export default class PcmProcessing {
 		return data;
 	}
 
+	// Repurposed code from https://github.com/sonicretro/s1disasm/blob/AS/build_tools/lua/common.lua
 	private static convertPcmToAdpcm(samples: Uint8Array, deltasFile: Uint8Array): Uint8Array {
 		const output: number[] = [];
 		const deltas = new Int8Array(deltasFile);
