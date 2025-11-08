@@ -42,10 +42,11 @@ interface ExtensionSettings {
     prevAmount: number;
 	generateChecksum: boolean;
 	sonicDisassembly: boolean;
-	compressionAlg: string,
-	startingAddress: string,
-	segmentSize: string,
-	insertionMethod: string,
+	compressionAlg: string;
+	startingAddress: string;
+	segmentSize: string;
+	insertionMethod: string;
+	wavConversion: boolean;
 
     mainName: string;
     constantsName: string;
@@ -109,6 +110,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	startingAddress: '0',
 	segmentSize: 'Size_of_DAC_driver_guess',
 	insertionMethod: 'after',
+	wavConversion: true,
 
     mainName: '',
     constantsName: '',
@@ -172,6 +174,7 @@ const settingDescriptors = [
 	{ key: 'buildControl.segmentCompression.startingAddress',		target: 'startingAddress' },
 	{ key: 'buildControl.segmentCompression.segmentSize',			target: 'segmentSize' },
 	{ key: 'buildControl.segmentCompression.insertionMethod',		target: 'insertionMethod' },
+	{ key: 'buildControl.convertWavFilesInDirectory',				target: 'wavConversion' },
 	{ key: 'sourceCodeControl.mainFileName',   						target: 'mainName' },
 	{ key: 'sourceCodeControl.constantsFileName',					target: 'constantsName' },
 	{ key: 'sourceCodeControl.variablesFileName',					target: 'variablesName' },
@@ -586,7 +589,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 	const settings = extensionSettings;
 	const sonicDisassembly = settings.sonicDisassembly;
 
-	if (sonicDisassembly && onProject) {
+	if (sonicDisassembly && settings.wavConversion && onProject) {
 		try {
 			await (new PcmProcessing).generateAudioFiles(progress);
 		} catch (error: any) {
@@ -740,6 +743,8 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 			warnings = true;
 		}
 	} else {
+		if (code === 1) { return -1; } // In case the operation was cancelled
+
 		let errorLocation = 'log file';
 
 		if (!settings.errorFile) {
@@ -765,7 +770,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 			case -2:
 				window.showErrorMessage("Please wait! You're already assembling something.");
 				break;
-
+				
 			default:
 				window.showErrorMessage(`The assembler has thrown an unknown error. You can check the ${errorLocation} for further information. If you believe this doesn't depend on you, please let me know!`);
 				break;
@@ -891,7 +896,7 @@ async function assembleROM(progress: Progress<{ message?: string; increment?: nu
 
 	const sonicDisassembly = extensionSettings.sonicDisassembly;
 
-	if (sonicDisassembly) {
+	if (sonicDisassembly && extensionSettings.wavConversion && onProject) {
 		try {
 			await (new PcmProcessing).generateAudioFiles(progress);
 		} catch (error: any) {
@@ -938,7 +943,7 @@ async function assembleROM(progress: Progress<{ message?: string; increment?: nu
 
 	try {
 		// We can save some performance by using VS Code's indexed search if we are in a workspace
-		const items = onProject ? (await workspace.findFiles(`*.{gen,pre*}`)).map(uri => uri.fsPath) : await promises.readdir(extensionSettings.singleFileOutput);
+		const items = onProject ? (await workspace.findFiles('*.{gen,pre*}')).map(uri => uri.fsPath) : await promises.readdir(extensionSettings.singleFileOutput);
 
 		// Precompute .pre<number> files once
 		const preFiles = items
@@ -998,11 +1003,11 @@ async function assembleROM(progress: Progress<{ message?: string; increment?: nu
 		return;
 	}
 
-	renameRom(outputPath, warnings, progress);
+	await renameRom(outputPath, warnings, progress);
 }
 
 // After versioning, we can rename the lastest ROM from "rom.bin" to whatever we need
-function renameRom(outputPath: string, warnings: boolean, progress: Progress<{ message?: string; increment?: number; }>) {
+async function renameRom(outputPath: string, warnings: boolean, progress: Progress<{ message?: string; increment?: number; }>) {
 	const currentDate = new Date();
 	const hours = currentDate.getHours().toString().padStart(2, '0');
 	const minutes = currentDate.getMinutes().toString().padStart(2, '0');
@@ -1050,7 +1055,7 @@ function renameRom(outputPath: string, warnings: boolean, progress: Progress<{ m
 	}
 }
 
-async function assembleROMWithProgress() {
+function assembleROMWithProgress() {
 	window.withProgress(
 		{
 			location: ProgressLocation.Window,
@@ -1058,7 +1063,12 @@ async function assembleROMWithProgress() {
 		},
 		async (progress, token) => {
 			token.onCancellationRequested(() => {
-				activeAssembler!.kill('SIGKILL');
+				if (process.platform === 'win32') {
+					exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+				} else {
+					activeAssembler!.kill('SIGKILL');
+				}
+				
 				activeAssembler = null;
 			});
 
@@ -1107,13 +1117,13 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 
 	const result = await executeAssemblyCommand(progress);
 
+	progress.report({ increment: 100 }); // 90, 90
+
 	if (result === 1) {
 		warnings = true;
 	} else if (result !== 0) {
 		return;
 	}
-
-	progress.report({ increment: 100 }); // 90, 90
 
 	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${join(assemblerFolder, 'rom.bin')}"`, (error) => {
 		if (error) {
@@ -1141,7 +1151,7 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 	}
 }
 
-async function runTemporaryROMWithProgress(emulator: string) {
+function runTemporaryROMWithProgress(emulator: string) {
 	window.withProgress(
 		{
 			location: ProgressLocation.Window,
@@ -1150,7 +1160,12 @@ async function runTemporaryROMWithProgress(emulator: string) {
 		async (progress, token) => 
 		{
 			token.onCancellationRequested(() => {
-				activeAssembler!.kill('SIGKILL');
+				if (process.platform === 'win32') {
+					exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+				} else {
+					activeAssembler!.kill('SIGKILL');
+				}
+				
 				activeAssembler = null;
 			});
 
@@ -1182,15 +1197,16 @@ async function cleanProjectFolder() {
 		});
 	}
 
+	if (failedItems.length === 0) {
+		window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems.join(', '));
+		return;
+	}
+
 	if (extensionSettings.quietOperation) { return; }
 
 	switch (items.length) {
 		default:
-			if (failedItems.length === 0) {
-				window.showInformationMessage(`Cleanup completed. ${items.length} items were removed.`);
-			} else {
-				window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems.join(', '));
-			}
+			window.showInformationMessage(`Cleanup completed. ${items.length} items were removed.`);
 			return;
 		case 0:
 			window.showInformationMessage('No items to wipe this time.');
@@ -1270,7 +1286,7 @@ export async function activate(context: ExtensionContext) {
 
 	const assemble = commands.registerCommand('megaenvironment.assemble', () => assembleROMWithProgress());
 
-	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', async () => {
+	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', () => {
 		window.withProgress(
 			{
 				location: ProgressLocation.Window,
@@ -1278,7 +1294,12 @@ export async function activate(context: ExtensionContext) {
 			},
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
-					activeAssembler!.kill('SIGKILL');
+					if (process.platform === 'win32') {
+						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+					} else {
+						activeAssembler!.kill('SIGKILL');
+					}
+					
 					activeAssembler = null;
 				});
 				
@@ -1296,7 +1317,7 @@ export async function activate(context: ExtensionContext) {
 					return;
 				}
 
-				renameRom(sourceCodeFolder, warnings, progress);
+				await renameRom(sourceCodeFolder, warnings, progress);
 			}
 		);
 	});
@@ -1382,7 +1403,12 @@ export async function activate(context: ExtensionContext) {
 			},
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
-					activeAssembler!.kill('SIGKILL');
+					if (process.platform === 'win32') {
+						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+					} else {
+						activeAssembler!.kill('SIGKILL');
+					}
+					
 					activeAssembler = null;
 				});
 
@@ -1391,7 +1417,7 @@ export async function activate(context: ExtensionContext) {
 		);
 	});
 
-	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', async () => {
+	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', () => {
 		window.withProgress(
 			{
 				location: ProgressLocation.Window,
@@ -1404,7 +1430,12 @@ export async function activate(context: ExtensionContext) {
 				// }
 
 				token.onCancellationRequested(() => {
-					activeAssembler!.kill('SIGKILL');
+					if (process.platform === 'win32') {
+						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+					} else {
+						activeAssembler!.kill('SIGKILL');
+					}
+					
 					activeAssembler = null;
 				});
 
@@ -1420,6 +1451,8 @@ export async function activate(context: ExtensionContext) {
 				let warnings = false;
 
 				const result = await executeAssemblyCommand(progress);
+
+				progress.report({ increment: 100 }); // 0, 30
 
 				if (result === 1) {
 					warnings = true;
@@ -1439,8 +1472,6 @@ export async function activate(context: ExtensionContext) {
 					window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
 					return;
 				}
-
-				progress.report({ increment: 100 }); // 0, 30
 
 				// "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
 				const success = await new Promise<boolean>((resolve) => { 
@@ -1534,7 +1565,7 @@ export async function activate(context: ExtensionContext) {
 		if (!await promptEmulatorPath('EASy68k')) { return; }
 
 		try {
-			promises.writeFile('temp.txt', new TextEncoder().encode(text));
+			await promises.writeFile('temp.txt', new TextEncoder().encode(text));
 		} catch (error: any) {
 			window.showErrorMessage('Unable to create file for testing. ' + error.message);
 			return;
@@ -1616,7 +1647,7 @@ export async function activate(context: ExtensionContext) {
 		window.showInformationMessage(`${files} files were backed up successfully.`);
 	});
 
-	const cleanup = commands.registerCommand('megaenvironment.cleanup', async () => cleanProjectFolder());
+	const cleanup = commands.registerCommand('megaenvironment.cleanup', () => cleanProjectFolder());
 
 	const newProject = commands.registerCommand('megaenvironment.new_project', async () => {
 		const uri = await window.showOpenDialog({

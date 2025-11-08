@@ -56,35 +56,35 @@ export default class PcmProcessing {
 		const dataSize = view.getUint16(40, true);
 
 		if (new TextDecoder().decode(file.subarray(0, 4)) !== 'RIFF') {
-			throw new Error('Non-traditional header is being used, cannot get data from it');
+			throw new Error('Non-traditional header is being used, cannot get data from it.');
 		}
 
 		if (new TextDecoder().decode(file.subarray(8, 12)) !== 'WAVE') {
-			throw new Error('Only WAVE format is supported');
+			throw new Error('Only WAVE format is supported.');
 		}
 
 		if (audioFormat !== 1) {
-			throw new Error('Only PCM format is supported, no compression please');
+			throw new Error('Only PCM format is supported, no compression please.');
 		}
 
 		if (numChannels > 2) {
-			throw new Error('Only mono or stereo tracks are supported');
+			throw new Error('Only mono or stereo tracks are supported.');
 		}
 
 		if (PcmProcessing.sampleRate > 32000) {
-			throw new Error('The YM2612 supports up to 32 kHz sample rate, yours is higher');
+			throw new Error('The YM2612 supports up to 32 kHz sample rate, yours is higher.');
 		}
 
 		if (bitDepth !== 8 && bitDepth !== 16 && bitDepth !== 24) {
-			throw new Error('Only 8-bit, 16-bit and 24-bit formats are supported');
+			throw new Error('Only 8-bit, 16-bit and 24-bit formats are supported.');
 		}
 
 		if (new TextDecoder().decode(file.subarray(36, 40)) !== 'data') {
-			throw new Error('Invalid WAV data format');
+			throw new Error('Invalid WAV data format.');
 		}
 
 		if (numChannels === 2 && dataSize % 2 !== 0) {
-			throw new Error('Stereo data must be even');
+			throw new Error('Stereo data must be even.');
 		}
 
 		let data: Uint8Array;
@@ -145,14 +145,27 @@ export default class PcmProcessing {
 	}
 
 	public async generateAudioFiles(progress: Progress<{ message?: string; increment?: number }>) {
-		progress.report({ message: 'Converting audio files...', increment: 5 });
-
 		const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
 		const pcmFolder = join(projectFolder, join('sound', 'dac', 'pcm'));
 		const dpcmFolder = join(projectFolder, join('sound', 'dac', 'dpcm'));
 
 		const pcmWavFiles = (await workspace.findFiles('sound/dac/pcm/*.wav')).map(uri => relative(pcmFolder, uri.fsPath));
 		const dpcmWavFiles = (await workspace.findFiles('sound/dac/dpcm/*.wav')).map(uri => relative(dpcmFolder, uri.fsPath));
+
+		const generatedPcmFolder = join(pcmFolder, 'generated');
+		const generatedDpcmFolder = join(dpcmFolder, 'generated');
+
+		if (!existsSync(generatedPcmFolder)) {
+			await promises.mkdir(generatedPcmFolder);
+		}
+
+		if (!existsSync(generatedDpcmFolder)) {
+			await promises.mkdir(generatedDpcmFolder);
+		}
+
+		if (pcmWavFiles.length === 0 && dpcmWavFiles.length === 0) { return; }
+
+		progress.report({ message: 'Converting audio files...', increment: 5 });
 
 		const incrementValue = 25 / (pcmWavFiles.length + dpcmWavFiles.length);
 
@@ -163,8 +176,8 @@ export default class PcmProcessing {
 			const pcmData = PcmProcessing.convertFileToPcmData(file);
 
 			const baseName = basename(fileName, '.wav');
-			const generatedFolder = join(pcmFolder, 'generated');
-			const pcmPath = join(generatedFolder, baseName + '.pcm');
+			
+			const pcmPath = join(generatedPcmFolder, baseName + '.pcm');
 
 			const incFile = String.raw
 `; Auto generated with MegaEnvironment
@@ -173,7 +186,7 @@ export default class PcmProcessing {
 .size = ${pcmData.length}
 	binclude "${relative(projectFolder, pcmPath)}"`;
 
-			await promises.writeFile(join(generatedFolder, baseName + '.inc'), incFile);
+			await promises.writeFile(join(generatedPcmFolder, baseName + '.inc'), incFile);
 			await promises.writeFile(pcmPath, pcmData);
 		}));
 
@@ -195,8 +208,7 @@ export default class PcmProcessing {
 			const dpcmData = PcmProcessing.convertPcmToAdpcm(pcmData, deltas);
 
 			const baseName = basename(fileName, '.wav');
-			const generatedFolder = join(dpcmFolder, 'generated');
-			const dpcmPath = join(generatedFolder, baseName + '.dpcm');
+			const dpcmPath = join(generatedDpcmFolder, baseName + '.dpcm');
 
 			const incFile = String.raw
 `; Auto generated with MegaEnvironment
@@ -205,7 +217,7 @@ export default class PcmProcessing {
 .size = ${dpcmData.length}
 	binclude "${relative(projectFolder, dpcmPath)}"`;
 
-			await promises.writeFile(join(generatedFolder, baseName + '.inc'), incFile);
+			await promises.writeFile(join(generatedDpcmFolder, baseName + '.inc'), incFile);
 			await promises.writeFile(dpcmPath, dpcmData);
 		}));
 	}

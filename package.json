@@ -270,10 +270,15 @@
 					],
 					"enumDescriptions": [
 						"Insert after the previous segment.",
-						"Overlap the previous segment. Not supported in the original assembler version."
+						"Overlap the previous segment."
 					],
 					"default": "after",
-					"description": "Method of inserting compressed data."
+					"description": "Method of inserting compressed data. Not supported in the original assembler version."
+				},
+				"megaenvironment.buildControl.convertWavFilesInDirectory": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether this extension should convert WAV files that are stored in the \"sound\" directory. Not supported in the original assembler version."
 				},
 				"megaenvironment.sourceCodeControl.mainFileName": {
 					"type": "string",
