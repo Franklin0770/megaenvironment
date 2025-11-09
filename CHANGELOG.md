@@ -10,7 +10,7 @@
 - Fixed async functions that disrupt the progress wheel;
 - Fixed a check for WAV file conversion.
 
-# [1.0.2] - 2025-11-09
+## [1.0.2] - 2025-11-09
 
 - Corrected a silly mistake about cleaning;
 - Fixed a small looking flaw in a string;
