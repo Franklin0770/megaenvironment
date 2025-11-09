@@ -8,13 +8,13 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 - Make use of some basic versioning, useful for producing multiple builds and be able to distinguish between them;
 - Gain speedy productivity from shortcuts to manage and organise your project folder;
 - Backup your project quickly, too;
-- Run ROMs with emulators;
-- Utilise nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
+- Run ROMs with emulators with one click;
+- Utilize nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
 - Avoid to include build tools or such, the extension downloads the necessary files to compile;
-- Highlight 68k and Z80 code, with three supported VS themes (Dark, Abyss and Sonic Disassembly);
+- Highlight 68k and Z80 code, with two supported VS themes (Dark and Sonic Disassembly);
 - Enjoy basic autocompletion, indentation and other integrated VS Code features.
 
-![Commands](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Commands.png)
+![Assembly](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Assembly1.png)
 
 ## What you need to set up this (in case you want to modify it)
 You can check [this tutorial](https://code.visualstudio.com/api) out if you don't know much about VS extensions.
@@ -46,11 +46,18 @@ cd megaenvironment
 vsce package
 ```
 This command will output your freshly packaged VSIX, ready to be installed in VS Code.
-## Some screenshots (so you get the idea, they are outdated, though)
-![Settings1](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Settings%201.png)
-![Settings2](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Settings%202.png)
-![Assembly1](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Assembly%201.png)
-![Assembly2](https://github.com/Franklin0770/megaenvironment/blob/main/papers/Assembly%202.png)
+## Some screenshots (so you get the idea)
+![Macro code example](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Assembly2.png)
+![Building](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Assembly3.png)
+![Building with errors](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Assembly4.png)
+![Building with warnings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Assembly5.png)
+![One click away from emulators!](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Emulators.png)
+![Fast debugging](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Debugging.png)
+![One-click backups](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Backup.png)
+![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings1.png)
+![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings2.png)
+![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings3.png)
+![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings4.png)
 ## The Credits Section
 The assembler and compiler: http://john.ccac.rwth-aachen.de:8000/as/  
 How I learnt to make this extension: https://code.visualstudio.com/api/get-started/your-first-extension  

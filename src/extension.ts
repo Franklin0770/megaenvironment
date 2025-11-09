@@ -522,7 +522,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		if (editor.document.isUntitled) {
 			const uri = await window.showSaveDialog({ title: 'Before assembling, save the file' });
 			if (!uri) { return false; }
-			// Doesn't close the previous tab, I'll fix this later
+			// Doesn't close the previous tab. There's nothing official about this, so...
 			const path = uri.fsPath;
 			await promises.writeFile(path, Buffer.from(editor.document.getText(), 'utf8'));
 			await window.showTextDocument(uri, { preview: false });
@@ -1197,7 +1197,7 @@ async function cleanProjectFolder() {
 		});
 	}
 
-	if (failedItems.length === 0) {
+	if (failedItems.length > 0) {
 		window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems.join(', '));
 		return;
 	}
@@ -1858,22 +1858,21 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 
 	// This setting requires different management (downloading the right assembler version each time it gets changed)
 	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
-		const settings = extensionSettings;
-		settings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
+		extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
 
-		if (!settings.quietOperation) {
+		if (!extensionSettings.quietOperation) {
 			window.showInformationMessage('Swapping versions...');
 		}
 
 		if (await downloadAssembler(true) !== 0) {
 			// In case it couldn't update, we need to restore the previous setting value
-			settings.sonicDisassembly = !settings.sonicDisassembly;
+			extensionSettings.sonicDisassembly = !extensionSettings.sonicDisassembly;
 			
 			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event (generating an infinite loop)
 			await configuration.update(
 				'buildControl.sonicDisassemblySupport',
-				settings.sonicDisassembly,
-				true
+				extensionSettings.sonicDisassembly,
+				!onProject
 			);
 			updatingConfiguration = false;
 		}
