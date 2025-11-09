@@ -1,6 +1,6 @@
 ## [1.0.0] - 2025-11-07
 
-- Initial release
+- Initial release.
 
 ## [1.0.1] - 2025-11-08
 
@@ -14,5 +14,5 @@
 
 - Corrected a silly mistake about cleaning;
 - Fixed a small looking flaw in a string;
-- Fixed setting that reverts when it fails behaviour;
+- Fixed setting that reverts when it fails behavior;
 - Refactored README.md.
