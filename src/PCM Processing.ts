@@ -1,6 +1,6 @@
 import { existsSync, promises } from 'fs';
 import { join, basename, relative } from 'path';
-import { workspace, Progress } from 'vscode';
+import { workspace, Progress, window, commands } from 'vscode';
 
 export default class PcmProcessing {
 	private static sampleRate: number;
@@ -46,7 +46,7 @@ export default class PcmProcessing {
 		return convertedData;
 	}
 
-	private static convertFileToPcmData(file: Buffer<ArrayBuffer>): Uint8Array {
+	private static convertFileToPcmData(file: Buffer<ArrayBuffer>): Uint8Array | undefined {
 		const view = new DataView(file.buffer);
 
 		const audioFormat = view.getUint16(20, true);
@@ -56,35 +56,43 @@ export default class PcmProcessing {
 		const dataSize = view.getUint16(40, true);
 
 		if (new TextDecoder().decode(file.subarray(0, 4)) !== 'RIFF') {
-			throw new Error('Non-traditional header is being used, cannot get data from it.');
+			window.showErrorMessage('Non-traditional header is being used, cannot get data from it.');
+			return undefined;
 		}
 
 		if (new TextDecoder().decode(file.subarray(8, 12)) !== 'WAVE') {
-			throw new Error('Only WAVE format is supported.');
+			window.showErrorMessage('Only WAVE format is supported.');
+			return undefined;
 		}
 
 		if (audioFormat !== 1) {
-			throw new Error('Only PCM format is supported, no compression please.');
+			window.showErrorMessage('Only PCM format is supported, no compression please.');
+			return undefined;
 		}
 
 		if (numChannels > 2) {
-			throw new Error('Only mono or stereo tracks are supported.');
+			window.showErrorMessage('Only mono or stereo tracks are supported.');
+			return undefined;
 		}
 
 		if (PcmProcessing.sampleRate > 32000) {
-			throw new Error('The YM2612 supports up to 32 kHz sample rate, yours is higher.');
+			window.showErrorMessage('The YM2612 supports up to 32 kHz sample rate, yours is higher.');
+			return undefined;
 		}
 
 		if (bitDepth !== 8 && bitDepth !== 16 && bitDepth !== 24) {
-			throw new Error('Only 8-bit, 16-bit and 24-bit formats are supported.');
+			window.showErrorMessage('Only 8-bit, 16-bit and 24-bit formats are supported.');
+			return undefined;
 		}
 
 		if (new TextDecoder().decode(file.subarray(36, 40)) !== 'data') {
-			throw new Error('Invalid WAV data format.');
+			window.showErrorMessage('Invalid WAV data format.');
+			return undefined;
 		}
 
 		if (numChannels === 2 && dataSize % 2 !== 0) {
-			throw new Error('Stereo data must be even.');
+			window.showErrorMessage('Stereo data must be even.');
+			return undefined;
 		}
 
 		let data: Uint8Array;
@@ -149,6 +157,34 @@ export default class PcmProcessing {
 		const pcmFolder = join(projectFolder, join('sound', 'dac', 'pcm'));
 		const dpcmFolder = join(projectFolder, join('sound', 'dac', 'dpcm'));
 
+		if (!existsSync(pcmFolder)) {
+			window.showWarningMessage("PCM folder not found. If you don't use WAV conversion, please disable this feature.", 'Change Setting')
+			.then(result => {
+				if (result === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.buildControl.convertWavFilesInDirectory'
+					);
+				}
+			});
+
+			return;
+		}
+
+		if (!existsSync(dpcmFolder)) {
+			window.showWarningMessage("DPCM folder not found. If you don't use WAV conversion, please disable this feature.", 'Change Setting')
+			.then(result => {
+				if (result === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.buildControl.convertWavFilesInDirectory'
+					);
+				}
+			});
+
+			return;
+		}
+
 		const pcmWavFiles = (await workspace.findFiles('sound/dac/pcm/*.wav')).map(uri => relative(pcmFolder, uri.fsPath));
 		const dpcmWavFiles = (await workspace.findFiles('sound/dac/dpcm/*.wav')).map(uri => relative(dpcmFolder, uri.fsPath));
 
@@ -174,6 +210,8 @@ export default class PcmProcessing {
 
 			const file = await promises.readFile(join(pcmFolder, fileName));
 			const pcmData = PcmProcessing.convertFileToPcmData(file);
+
+			if (!pcmData) { return; }
 
 			const baseName = basename(fileName, '.wav');
 			
@@ -205,6 +243,9 @@ export default class PcmProcessing {
 
 			const file = await promises.readFile(join(dpcmFolder, fileName));
 			const pcmData = PcmProcessing.convertFileToPcmData(file);
+
+			if (!pcmData) { return; }
+
 			const dpcmData = PcmProcessing.convertPcmToAdpcm(pcmData, deltas);
 
 			const baseName = basename(fileName, '.wav');

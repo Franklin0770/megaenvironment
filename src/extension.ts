@@ -520,13 +520,8 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		}
 
 		if (editor.document.isUntitled) {
-			const uri = await window.showSaveDialog({ title: 'Before assembling, save the file' });
-			if (!uri) { return false; }
-			// Doesn't close the previous tab. There's nothing official about this, so...
-			const path = uri.fsPath;
-			await promises.writeFile(path, Buffer.from(editor.document.getText(), 'utf8'));
-			await window.showTextDocument(uri, { preview: false });
-			sourceCodeFolder = dirname(path);
+			await promises.writeFile(join(assemblerFolder, editor.document.fileName + '.asm'), Buffer.from(editor.document.getText(), 'utf8'));
+			sourceCodeFolder = assemblerFolder;
 		}
 
 		if (temporary) { return true; } // We are only requesting saving the file, since we have to run an emulator
@@ -590,37 +585,27 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 	const sonicDisassembly = settings.sonicDisassembly;
 
 	if (sonicDisassembly && settings.wavConversion && onProject) {
-		try {
-			await (new PcmProcessing).generateAudioFiles(progress);
-		} catch (error: any) {
-			window.showErrorMessage('Cannot convert WAV files. ' + error.message);
-			return -1;
-		}
+		await (new PcmProcessing).generateAudioFiles(progress);
 	}
 
 	progress.report({ increment: !sonicDisassembly ? 15 : 0, message: 'Assembling...' }); // 0, 30
 
-	// We already checked if "workspaceFolders" or "activeTextEditor" exists. This is why I put "!"
-	const sourceCode = onProject ? settings.mainName : window.activeTextEditor!.document.fileName;
+	const sourceCode = onProject ? settings.mainName : window.activeTextEditor!.document.fileName + '.asm';
 
-	process.chdir(sourceCodeFolder);
-
-	let command = `"${assemblerPath}" "${sourceCode}" -o "${join(assemblerFolder, 'code.p')}" -`;
+	let command = `"${assemblerPath}" "${join(sourceCodeFolder, sourceCode)}" -o "${join(assemblerFolder, 'code.p')}"`;
 	let warnings = false;
 
-	if (sonicDisassembly) { command += 'c'; } // Makes ASL output the header file that P2BIN will use
-
 	const shortFlags: Array<[boolean, string]> = [
-		[settings.compactSymbols,		'A'],
-		[settings.listingFile,			'L'],
-		[settings.caseSensitive,		'U'],
-		[!!settings.errorLevel,			'x'.repeat(settings.errorLevel)],
-		[settings.errorNumber,			'n'],
-		[settings.lowercaseHex,			'h'],
-		[settings.suppressWarnings,		'w'],
-		[settings.sectionListing,		's'],
-		[settings.macroListing,			'M'],
-		[settings.sourceListing,		'P'],
+		[settings.compactSymbols,		' -A'],
+		[settings.listingFile,			' -L'],
+		[settings.caseSensitive,		' -U'],
+		[!!settings.errorLevel,			' -x'.repeat(settings.errorLevel)],
+		[settings.errorNumber,			' -n'],
+		[settings.lowercaseHex,			' -h'],
+		[settings.suppressWarnings,		' -w'],
+		[settings.sectionListing,		' -s'],
+		[settings.macroListing,			' -M'],
+		[settings.sourceListing,		' -P'],
 		[settings.warningsAsErrors,		' -Werror'],
 		[!settings.asErrors, 			' -gnuerrors'],
 		[!settings.superiorWarnings,	' -supmode'],
@@ -629,7 +614,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 	];
 
 	const originalAssemblerShortFlags: Array<[boolean, string]> = [
-		[settings.signWarning,			' -wimplicit-sign-extension'],
+		[!settings.signWarning,			' -wno-implicit-sign-extension'],
 		[settings.jumpsWarning,			' -wrelative'],
 		[settings.listUnknown,			' -list-unknown-values'],
 		[settings.underscoreMacroArgs,	' -underscore-macroargs']
@@ -643,23 +628,13 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 		for (const [condition, flag] of originalAssemblerShortFlags) {
 			if (condition) { command += flag; }
 		}
+	} else { // Makes ASL output the header file as "code.h" that P2BIN will use
+		command += ' -c -shareout "' + join(assemblerFolder, 'code.h"');
 	}
 
 	// Some other flags that have different behavior, not just booleans
-
-	if (settings.listingName) {
-		command += ' -OLIST ' + settings.listingName + '.lst';
-	}
-
-	if (settings.errorFile) {
-		if (settings.errorName !== '') {
-			command += ' -E ' + settings.errorName + '.log';
-		} else {
-			command += ' -E ';
-		}
-	}
 	
-	if (settings.debugFile !== 'None') { command += ' -g ' + settings.debugFile; }
+	if (settings.debugFile !== 'None' && onProject) { command += ' -g ' + settings.debugFile; }
 
 	if (settings.defaultCpu) { command += ' -cpu ' + settings.defaultCpu; }
 
@@ -668,6 +643,31 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 	if (settings.listingRadix !== '16') { command += ' -LISTRADIX ' + settings.listingRadix; }
 
 	if (settings.splitByte) { command += ` -SPLITBYTE "${settings.splitByte}"`; }
+
+	// We must output the listing file in the right spot when we have a standalone file,
+	// because AS automatically puts the listing file to where the source code is located (and not in relation to CWD)
+	if (!onProject && settings.listingFile) {
+		command += ' -OLIST "' + join(
+			settings.singleFileOutput,
+			(settings.listingName ? settings.listingName : 'Code') + '.lst"'
+		);
+	} else if (settings.listingName) {
+		command += ' -OLIST "' + settings.listingName + '.lst"';
+	}
+
+	if (settings.errorFile) {
+		if (settings.errorName !== '') {
+			const errorPath = onProject
+				? settings.errorName + '.log'
+				: join(settings.singleFileOutput, settings.errorName + '.log');
+			command += ` -E "${errorPath}"`;
+		} else {
+			command += ' -E';
+			if (!onProject) {
+				command += ' "' + join(settings.singleFileOutput, settings.errorName + '.log"');
+			}
+		}
+	}
 
 	if (!sonicDisassembly && (settings.addSyntax.length || settings.removeSyntax.length)) { // If we filled at least one setting
 		const parts: string[] = [];
@@ -687,15 +687,10 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 
 	if (settings.maximumErrors) { command += ' -maxerrors ' + settings.maximumErrors; }
 
-	if (settings.workingFolders.length > 0) {
+	if (settings.workingFolders.length > 0 && onProject) {
 		command += ` -i "${settings.workingFolders.join('";"')}"`;
 	} else if (sonicDisassembly) {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
-	}
-
-	// Make sure the header file goes to the assembler folder so P2BIN can use it
-	if (sonicDisassembly) {
-		command += ' -shareout "' + join(assemblerFolder, 'code.h') + '"';
 	}
 
 	console.log(command);
@@ -709,7 +704,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 			resolve({ code: -2 });
 		}
 
-		activeAssembler = spawn(command, { shell: true });
+		activeAssembler = spawn(command, { shell: true, cwd: sourceCodeFolder });
 
 		activeAssembler.stdout!.on('data', (data) => {
 			outputChannel.append(data.toString());
@@ -736,7 +731,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 			outputChannel.show();
 		}
 
-		if (aslErr !== '' && !settings.suppressWarnings) {
+		if (aslErr && !settings.suppressWarnings) {
 			outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
 			outputChannel.appendLine(aslErr);
 			outputChannel.appendLine('============================================================');
@@ -824,7 +819,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 	}
 
 	if (success) {
-		if (p2binErr !== '' && settings.suppressWarnings) {
+		if (p2binErr && settings.suppressWarnings) {
 			outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
 			outputChannel.appendLine(p2binErr);
 			outputChannel.appendLine('===========================================================');
@@ -837,6 +832,11 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 		window.showErrorMessage("The compiler has thrown an unknown error. Check the terminal for more details. If you believe this doesn't depend on you, please let me know!");
 
 		return -1; // There's more than 1 error anyway
+	}
+
+	if (!sonicDisassembly && !existsSync('rom.bin')) { // P2BIN doesn't output anything if there's no code in "code.p"
+		window.showWarningMessage('Looks like you wrote an empty program. No ROM will be compiled.');
+		return -1;
 	}
 
 	// Let's generate the checksum!
@@ -895,15 +895,6 @@ async function assembleROM(progress: Progress<{ message?: string; increment?: nu
 	if (!await assemblerChecks(false)) { return; }
 
 	const sonicDisassembly = extensionSettings.sonicDisassembly;
-
-	if (sonicDisassembly && extensionSettings.wavConversion && onProject) {
-		try {
-			await (new PcmProcessing).generateAudioFiles(progress);
-		} catch (error: any) {
-			window.showErrorMessage(error);
-			return false;
-		}
-	}
 
 	progress.report({ increment: !sonicDisassembly ? 10 : 0, message: 'Assembling...' }); // 0, 30
 
@@ -967,7 +958,7 @@ async function assembleROM(progress: Progress<{ message?: string; increment?: nu
 
 			let number = 0; // Determine the new index for .preX
 
-			if (preFiles.length > 0) { // Generate an infinite number of builds if the user has set this option to 0
+			if (preFiles.length > 0) { // Skip this logic if there's only a .gen file
 				const latest = Math.max(...preFiles.map(f => f.index));
 				const oldest = preFiles.reduce((min, curr) => curr.index < min.index ? curr : min);
 				// If we haven't hit the limit yet or if we know we have to output an infinite amount of ROMs
@@ -1015,14 +1006,15 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 
 	let fileName: string;
 
-	if (extensionSettings.romName !== '') { // If the user has set a custom name use it
+	if (extensionSettings.romName) { // If the user has set a custom name, we use it
 		fileName = extensionSettings.romName;
 	} else if (onProject) { // If not, strip the extension from path if we're in a project
 		const lastDot = extensionSettings.mainName.lastIndexOf('.');
 		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
 	} else { // If we aren't in a project, use the file name of the document
 		const name = window.activeTextEditor!.document.fileName;
-		fileName = basename(name, name.substring(name.length - 4, name.length));
+		const lastDot = name.lastIndexOf('.');
+		fileName = lastDot !== -1 ? name.substring(0, lastDot) : name;
 	}
 
 	if (extensionSettings.romDate) {
@@ -1530,7 +1522,7 @@ export async function activate(context: ExtensionContext) {
 			let constantsLocation = '';
 			const constantsName = extensionSettings.constantsName;
 
-			if (constantsName !== '') {
+			if (constantsName) {
 				constantsLocation = join(sourceCodeFolder, constantsName);
 			}
 
@@ -1538,7 +1530,7 @@ export async function activate(context: ExtensionContext) {
 			let variablesLocation = '';
 			const variablesName = extensionSettings.variablesName;
 
-			if (variablesName !== '') {
+			if (variablesName) {
 				variablesLocation = join(sourceCodeFolder, variablesName);
 				if (existsSync(variablesLocation)) {
 					variablesExists = true;
@@ -1833,7 +1825,6 @@ async function projectCheck(): Promise<boolean> {
 	} else if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the contributed languages
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = false;
-		sourceCodeFolder = dirname(editor.document.fileName);
 		return true;
 	}
 
