@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "Provides complete integration with The Macroassembler AS, among other features, such as versioning and code highlighting.",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"engines": { "vscode": "^1.96.0" },
 	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
 	"main": "./out/extension.js",
