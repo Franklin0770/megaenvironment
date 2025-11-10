@@ -126,12 +126,12 @@
 				"megaenvironment.codeOptions.signExtensionWarning": {
 					"type": "boolean",
 					"default": false,
-					"description": "Gives a warning when using implicit sign extensions. Only effective with the \"moveq\" instruction in 68K assembly. Not supported in the Sonic disassembly version."
+					"description": "Gives a warning when using implicit sign extensions. Only effective with \"moveq\" instructions in 68K assembly. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.absoluteJumpsWarning": {
 					"type": "boolean",
 					"default": false,
-					"description": "Gives a warning when a relative jump can be used instead of an absolute jump. Only effective in Z80 assembly. Not supported in the Sonic disassembly version."
+					"description": "Gives a warning when a relative jump can be used instead of an absolute one. Only effective in Z80 assembly. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.caseSensitiveMode": {
 					"type": "boolean",
@@ -143,32 +143,32 @@
 					"default": "10",
 					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the \"radix\" symbol).",
 					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
-					"patternErrorMessage": "Has to be between 2 and 36"
+					"patternErrorMessage": "Value must be between 2 and 36."
 				},
 				"megaenvironment.codeOptions.RELAXEDMode": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any syntax possible for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the \"relaxed on\" symbol in code as well."
+					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any possible syntax for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the \"relaxed on\" symbol in code as well."
 				},
 				"megaenvironment.codeOptions.addIntegerSyntax": {
 					"type": "array",
 					"items": {
 						"type": "string",
 						"pattern": "^.+(?i:dec|hex|bin|oct)$",
-						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
+						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)."
 					},
 					"default": [],
-					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems. Every entry shall be unique. Not supported in the Sonic disassembly version."
+					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.removeIntegerSyntax": {
 					"type": "array",
 					"items": {
 						"type": "string",
 						"pattern": "^.+(?i:dec|hex|bin|oct)$",
-						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)"
+						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)."
 					},
 					"default": [],
-					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems. Every entry shall be unique. Not supported in the Sonic disassembly version."
+					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.macroArgumentsWithUnderscore": {
 					"type": "boolean",
@@ -188,7 +188,7 @@
 				"megaenvironment.buildControl.enablePreviousBuilds": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced. The latest build has the highest number."
+					"description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced by the newer one. The latest build has the highest number."
 				},
 				"megaenvironment.buildControl.previousRomsAmount": {
 					"type": "integer",
@@ -227,14 +227,14 @@
 					"default": "0",
 					"description": "The starting address of the first compressed code segment. Not supported in the original assembler version.",
 					"pattern": "^[0-9A-Fa-f]{1,8}$",
-					"patternErrorMessage": "Must be an address (e.g. from $0 to $FFFFFFFF)"
+					"patternErrorMessage": "Value must be an address (e.g. from $0 to $FFFFFFFF)."
 				},
 				"megaenvironment.buildControl.segmentCompression.segmentSize": {
 					"type": "string",
 					"default": "Size_of_DAC_driver_guess",
 					"description": "The constant that is used to reserve space for the compressed code segments. Can also be a constant from your assembly code. Not supported in the original assembler version.",
 					"pattern": "^\\w+|[0-9A-Fa-f]{1,8}$",
-					"patternErrorMessage": "Must be a costant or an address"
+					"patternErrorMessage": "Value must be a constant or an address."
 				},
 				"megaenvironment.buildControl.segmentCompression.insertionMethod": {
 					"type": "string",
@@ -257,21 +257,21 @@
 					"default": "Sonic.68k",
 					"description": "The main source code file name used in the project, where the code gets executed.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).+$",
-					"patternErrorMessage": "Empty file name or invalid extension"
+					"patternErrorMessage": "Empty file name or invalid extension."
 				},
 				"megaenvironment.sourceCodeControl.constantsFileName": {
 					"type": "string",
 					"default": "Constants.asm",
 					"description": "The source code file name of the constants used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
-					"patternErrorMessage": "Invalid extension"
+					"patternErrorMessage": "Invalid extension."
 				},
 				"megaenvironment.sourceCodeControl.variablesFileName": {
 					"type": "string",
 					"default": "Variables.asm",
 					"description": "The source code file name of the variables used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
-					"patternErrorMessage": "Invalid extension"
+					"patternErrorMessage": "Invalid extension."
 				},
 				"megaenvironment.sourceCodeControl.generateCodeListing": {
 					"type": "boolean",
@@ -303,7 +303,7 @@
 						"Atmel format used by the AVR tools."
 					],
 					"default": "None",
-					"description": "Check this to instruct AS to print a debug file containing the information for the program. The extension depends on the format you're choosing."
+					"description": "Check this to instruct AS to print a debug file containing the information of the program. The extension depends on the format you're choosing."
 				},
 				"megaenvironment.sourceCodeControl.generateSectionListing": {
 					"type": "boolean",
@@ -325,14 +325,14 @@
 					"default": "16",
 					"description": "You can set the number base (radix) displayed in the code listing file. Default is base 16 (hexadecimal).",
 					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
-					"patternErrorMessage": "Has to be between 2 and 36"
+					"patternErrorMessage": "Value must be between 2 and 36."
 				},
 				"megaenvironment.sourceCodeControl.byteSplitInListing": {
 					"type": "string",
 					"default": "",
 					"description": "You can set a character of choice to split the numbers found in the code listing file in bytes. Leave it blank to disable this feature.",
 					"pattern": "^.$|^$",
-					"patternErrorMessage": "Must be empty or one character only"
+					"patternErrorMessage": "Value must be empty or one character only."
 				},
 				"megaenvironment.sourceCodeControl.listUnknownValues": {
 					"type": "boolean",
@@ -414,9 +414,9 @@
 				"megaenvironment.miscellaneous.fillValue": {
 					"type": "string",
 					"default": "00",
-					"description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since they tend to skip writing to these areas.",
+					"description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since these tend to skip writing to these areas.",
 					"pattern": "^[0-9A-Fa-f]{1,2}$",
-					"patternErrorMessage": "Must be a valid 8-bit hex value (e.g. 00 to FF)"
+					"patternErrorMessage": "Value must be a valid 8-bit hex value (e.g. 00 to FF)."
 				},
 				"megaenvironment.miscellaneous.errorLevel": {
 					"type": "integer",
@@ -430,7 +430,7 @@
 					"default": "",
 					"description": "The assembly terminates after the given number of errors. Leave it empty to make it unlimited, which is the default behavior.",
 					"pattern": "^\\d*$",
-					"patternErrorMessage": "Must be a number"
+					"patternErrorMessage": "Value must be a number."
 				},
 				"megaenvironment.miscellaneous.displayErrorNumber": {
 					"type": "boolean",
@@ -494,7 +494,7 @@
 				"megaenvironment.paths.outputPathWithoutWorkspace": {
 					"type": "string",
 					"default": "",
-					"description": "The default path where the output files get generated when there isn't an opened workspace.",
+					"description": "The default path where the output files get generated when there isn't an opened workspace and there's only a standalone file.",
 					"ignoreSync": true
 				},
 				"megaenvironment.extensionOptions.checkForUpdates": {
