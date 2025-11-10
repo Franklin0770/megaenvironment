@@ -13,6 +13,7 @@
 ## [1.0.2] - 2025-11-09
 
 - Corrected a silly mistake about cleaning;
+- Corrected automatic language detection;
 - Fixed a small looking flaw in a string;
 - Fixed setting that reverts when it fails behavior;
 - Refactored README.md.
