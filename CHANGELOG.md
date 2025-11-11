@@ -23,6 +23,7 @@
 - Rewrote standalone file logic to make assembling work without saving the file;
 - Corrected a dumb mistake that made the WAV conversion logic run twice;
 - Corrected flag concatenation error when there are none;
+- Fixed settings description clarity and correctness;
 - Added a sanity check to see if the user has written an empty program;
 - Added sanity checks in PCM Processing for missing folders;
 - Some very minor performance fixes during assembling.

@@ -578,14 +578,14 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 // Assembles and compiles a ROM
 // 0 if successful, 1 if successful with warnings and -1 if there's an error or a fatal one
 // If the number is negative we shall not proceed (this case only -1)
-async function executeAssemblyCommand(progress: Progress<{ message?: string; increment?: number }>): Promise<0 | 1 | -1> {
+async function executeAssemblyCommand(progress: Progress<{ message: string; increment: number }>): Promise<0 | 1 | -1> {
 	// We proceed with the assembler, which creates the program file
 	outputChannel.clear();
 	const settings = extensionSettings;
 	const sonicDisassembly = settings.sonicDisassembly;
 
 	if (sonicDisassembly && settings.wavConversion && onProject) {
-		await (new PcmProcessing).generateAudioFiles(progress);
+		await PcmProcessing.generateAudioFiles(progress);
 	}
 
 	progress.report({ increment: !sonicDisassembly ? 15 : 0, message: 'Assembling...' }); // 0, 30
@@ -714,9 +714,12 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 			aslErr += data.toString();
 		});
 		
-		activeAssembler.on('close', (code) => {
-			activeAssembler = null;
-			resolve({ code: code ?? 0 });
+		activeAssembler.on('close', (code, signal) => {
+			if (signal !== 'SIGQUIT') {
+				resolve({ code: code ?? 0 });
+			} else {
+				resolve({ code: 1 });
+			}
 		});
 
 		activeAssembler.on('error', (error: any) => {
@@ -739,6 +742,11 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 		}
 	} else {
 		if (code === 1) { return -1; } // In case the operation was cancelled
+		else if (code === -2) {
+			outputChannel.show();
+			window.showErrorMessage("Please wait! You're already assembling something.");
+			return -1;
+		}
 
 		let errorLocation = 'log file';
 
@@ -760,10 +768,6 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 
 			case 255:
 				window.showErrorMessage("Looks like some files are missing because I messed up the structure, sorry! If this doesn't get fixed in a few days, please let me know!");
-				break;
-
-			case -2:
-				window.showErrorMessage("Please wait! You're already assembling something.");
 				break;
 				
 			default:
@@ -889,7 +893,7 @@ async function executeAssemblyCommand(progress: Progress<{ message?: string; inc
 	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
 
-async function assembleROM(progress: Progress<{ message?: string; increment?: number }>) {
+async function assembleROM(progress: Progress<{ message: string; increment?: number }>) {
 	progress.report({ message: 'Checking folders...' });
 
 	if (!await assemblerChecks(false)) { return; }
@@ -1056,9 +1060,9 @@ function assembleROMWithProgress() {
 		async (progress, token) => {
 			token.onCancellationRequested(() => {
 				if (process.platform === 'win32') {
-					exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+					exec(`taskkill /pid ${activeAssembler!.pid} /T`);
 				} else {
-					activeAssembler!.kill('SIGKILL');
+					activeAssembler!.kill('SIGQUIT');
 				}
 				
 				activeAssembler = null;
@@ -1153,9 +1157,9 @@ function runTemporaryROMWithProgress(emulator: string) {
 		{
 			token.onCancellationRequested(() => {
 				if (process.platform === 'win32') {
-					exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+					exec(`taskkill /pid ${activeAssembler!.pid} /T`);
 				} else {
-					activeAssembler!.kill('SIGKILL');
+					activeAssembler!.kill('SIGQUIT');
 				}
 				
 				activeAssembler = null;
@@ -1261,7 +1265,7 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	// A small button located at the bottom of the screen to force download the assembler
-	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 10);
+	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 49); // As close as possible to the problems counter
 	runButton.name = 'Force Assembler Download';
 	runButton.text = '$(cloud-download)';
 	runButton.tooltip = 'Re-download the Assembler';
@@ -1287,9 +1291,9 @@ export async function activate(context: ExtensionContext) {
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
 					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+						exec(`taskkill /pid ${activeAssembler!.pid} /T`);
 					} else {
-						activeAssembler!.kill('SIGKILL');
+						activeAssembler!.kill('SIGQUIT');
 					}
 					
 					activeAssembler = null;
@@ -1396,9 +1400,9 @@ export async function activate(context: ExtensionContext) {
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
 					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+						exec(`taskkill /pid ${activeAssembler!.pid} /T`);
 					} else {
-						activeAssembler!.kill('SIGKILL');
+						activeAssembler!.kill('SIGQUIT');
 					}
 					
 					activeAssembler = null;
@@ -1423,9 +1427,9 @@ export async function activate(context: ExtensionContext) {
 
 				token.onCancellationRequested(() => {
 					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
+						exec(`taskkill /pid ${activeAssembler!.pid} /T`);
 					} else {
-						activeAssembler!.kill('SIGKILL');
+						activeAssembler!.kill('SIGQUIT');
 					}
 					
 					activeAssembler = null;

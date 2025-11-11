@@ -152,7 +152,7 @@ export default class PcmProcessing {
 		return new Uint8Array(output);
 	}
 
-	public async generateAudioFiles(progress: Progress<{ message?: string; increment?: number }>) {
+	public static async generateAudioFiles(progress: Progress<{ message?: string; increment: number }>) {
 		const projectFolder = workspace.workspaceFolders![0].uri.fsPath;
 		const pcmFolder = join(projectFolder, join('sound', 'dac', 'pcm'));
 		const dpcmFolder = join(projectFolder, join('sound', 'dac', 'dpcm'));
