@@ -62,3 +62,5 @@ This command will output your freshly packaged VSIX, ready to be installed in VS
 The assembler and compiler: http://john.ccac.rwth-aachen.de:8000/as/  
 How I learnt to make this extension: https://code.visualstudio.com/api/get-started/your-first-extension  
 This is were the files are downloaded from: https://github.com/Franklin0770/AS-releases.git
+
+I've just found out it has been more than a year of development since the first release... _time flies!_

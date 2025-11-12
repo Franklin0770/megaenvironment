@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"engines": { "vscode": "^1.96.0" },
 	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
 	"main": "./out/extension.js",
