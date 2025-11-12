@@ -27,3 +27,14 @@
 - Added a sanity check to see if the user has written an empty program;
 - Added sanity checks in PCM Processing for missing folders;
 - Some very minor performance fixes during assembling.
+
+## [1.0.4] - 2025-11-12
+
+- Refactored ASL and P2BIN execution to make it execute without shell and to give more control during early termination;
+- Improved kill signals for better cross-platform compatibility;
+- Downgraded to Node 16 and to ES2022 since the later versions have proven to screw up the Sonic disassembly setting asyncing;
+- Added error information when the assembler crashes;
+- Added an additional check on "sourceCodeControl.mainFileName";
+- Fixed assembly attempt when it's already assembling;
+- Fixed settings type;
+- Removed an unused parameter.

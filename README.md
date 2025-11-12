@@ -1,5 +1,5 @@
 # What does this thing do?
-It's a Visual Studio Code extension developed to integrate a command-like UI with [The Macroassembler AS](http://john.ccac.rwth-aachen.de:8000/as/).  
+MDE is a Visual Studio Code extension developed to integrate a cross-platform UI with [The Macroassembler AS](http://john.ccac.rwth-aachen.de:8000/as/).  
 The purpose of this extension is primarily for Sega Mega Drive homebrew development. It also supports Sonic Disassemblies and aims to bring a familiar UI to fellow Sonic ROM hackers.  
 
 ## What it can do

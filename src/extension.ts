@@ -15,7 +15,7 @@ import {
 	existsSync, writeFile, rename, 
 	unlink, createWriteStream, promises
 } from 'fs';
-import { join, basename, dirname } from 'path';
+import { join, basename } from 'path';
 import { ChildProcess, exec, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
@@ -28,7 +28,7 @@ interface ExtensionSettings {
 	superiorWarnings: boolean;
 	compatibilityMode: boolean;
 	caseSensitive: boolean;
-	radix: string,
+	radix: number,
 	relaxedMode: boolean;
 	signWarning: boolean;
 	jumpsWarning: boolean;
@@ -59,7 +59,7 @@ interface ExtensionSettings {
 	sectionListing: boolean;
 	macroListing: boolean;
 	sourceListing: boolean;
-	listingRadix: string;
+	listingRadix: number;
 	splitByte: string;
 	cleaningExtensions: Array<string>;
 	workingFolders: Array<string>;
@@ -92,7 +92,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	superiorWarnings: false,
 	compatibilityMode: false,
 	caseSensitive: true,
-	radix: '10',
+	radix: 10,
 	relaxedMode: false,
 	signWarning: false,
 	jumpsWarning: false,
@@ -123,7 +123,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	sectionListing: false,
 	macroListing: false,
 	sourceListing: false,
-	listingRadix: '16',
+	listingRadix: 16,
 	splitByte: '',
 	cleaningExtensions: [ '.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i' ],
 	workingFolders: [ '.' ],
@@ -579,6 +579,12 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 // 0 if successful, 1 if successful with warnings and -1 if there's an error or a fatal one
 // If the number is negative we shall not proceed (this case only -1)
 async function executeAssemblyCommand(progress: Progress<{ message: string; increment: number }>): Promise<0 | 1 | -1> {
+	if (activeAssembler) {
+		outputChannel.show();
+		window.showErrorMessage("Please wait! You're already assembling something.");
+		return -1;
+	}
+
 	// We proceed with the assembler, which creates the program file
 	outputChannel.clear();
 	const settings = extensionSettings;
@@ -592,67 +598,49 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	const sourceCode = onProject ? settings.mainName : window.activeTextEditor!.document.fileName + '.asm';
 
-	let command = `"${assemblerPath}" "${join(sourceCodeFolder, sourceCode)}" -o "${join(assemblerFolder, 'code.p')}"`;
 	let warnings = false;
 
-	const shortFlags: Array<[boolean, string]> = [
-		[settings.compactSymbols,		' -A'],
-		[settings.listingFile,			' -L'],
-		[settings.caseSensitive,		' -U'],
-		[!!settings.errorLevel,			' -x'.repeat(settings.errorLevel)],
-		[settings.errorNumber,			' -n'],
-		[settings.lowercaseHex,			' -h'],
-		[settings.suppressWarnings,		' -w'],
-		[settings.sectionListing,		' -s'],
-		[settings.macroListing,			' -M'],
-		[settings.sourceListing,		' -P'],
-		[settings.warningsAsErrors,		' -Werror'],
-		[!settings.asErrors, 			' -gnuerrors'],
-		[!settings.superiorWarnings,	' -supmode'],
-		[settings.compatibilityMode,	' -compmode'],
-		[settings.relaxedMode,			' -relaxed']
+	const aslArgs: string[] = [
+		join(sourceCodeFolder, sourceCode),
+		...['-o', join(assemblerFolder, 'code.p')],
+		...(settings.compactSymbols ? ['-A'] : []),
+		...(settings.listingFile ? ['-L'] : []),
+		...(settings.caseSensitive ? ['-U'] : []),
+		...(settings.errorLevel ? ['-x'.repeat(settings.errorLevel)] : []),
+		...(settings.errorNumber ? ['-n'] : []),
+		...(settings.lowercaseHex ? ['-h'] : []),
+		...(settings.suppressWarnings ? ['-w'] : []),
+		...(settings.sectionListing ? ['-s'] : []),
+		...(settings.macroListing ? ['-M'] : []),
+		...(settings.sourceListing ? ['-P'] : []),
+		...(settings.warningsAsErrors ? ['-Werror'] : []),
+		...(!settings.asErrors ? ['-gnuerrors'] : []),
+		...(!settings.superiorWarnings ? ['-supmode'] : []),
+		...(settings.compatibilityMode ? ['-compmode'] : []),
+		...(settings.relaxedMode ? ['-relaxed'] : []),
+		...(!settings.signWarning && !sonicDisassembly ? ['-wno-implicit-sign-extension'] : []),
+		...(settings.jumpsWarning && !sonicDisassembly ? ['-wrelative'] : []),
+		...(settings.listUnknown && !sonicDisassembly ? ['-list-unknown-values'] : []),
+		...(settings.underscoreMacroArgs && !sonicDisassembly ? ['-underscore-macroargs'] : []),
+		...(settings.debugFile !== 'None' && onProject ? ['-g', settings.debugFile] : []),
+		...(settings.defaultCpu ? ['-cpu', settings.defaultCpu] : []),
+		...(settings.radix !== 10 ? ['-RADIX', settings.radix.toString()] : []),
+		...(settings.listingRadix !== 16 ? ['-LISTRADIX', settings.listingRadix.toString()] : []),
+		...(settings.splitByte ? ['-SPLITBYTE', settings.splitByte] : []),
+		...(settings.maximumErrors ? ['-maxerrors', settings.maximumErrors] : []),
+		...(settings.sonicDisassembly ? ['-c', '-shareout', join(assemblerFolder, 'code.h')] : [])
 	];
-
-	const originalAssemblerShortFlags: Array<[boolean, string]> = [
-		[!settings.signWarning,			' -wno-implicit-sign-extension'],
-		[settings.jumpsWarning,			' -wrelative'],
-		[settings.listUnknown,			' -list-unknown-values'],
-		[settings.underscoreMacroArgs,	' -underscore-macroargs']
-	];
-
-	for (const [condition, flag] of shortFlags) { // Best way I (and ChatGPT) could have thought to do this
-		if (condition) { command += flag; }
-	}
-
-	if (!sonicDisassembly) {
-		for (const [condition, flag] of originalAssemblerShortFlags) {
-			if (condition) { command += flag; }
-		}
-	} else { // Makes ASL output the header file as "code.h" that P2BIN will use
-		command += ' -c -shareout "' + join(assemblerFolder, 'code.h"');
-	}
-
-	// Some other flags that have different behavior, not just booleans
-	
-	if (settings.debugFile !== 'None' && onProject) { command += ' -g ' + settings.debugFile; }
-
-	if (settings.defaultCpu) { command += ' -cpu ' + settings.defaultCpu; }
-
-	if (settings.radix !== '10') { command += ' -RADIX ' + settings.radix; }
-
-	if (settings.listingRadix !== '16') { command += ' -LISTRADIX ' + settings.listingRadix; }
-
-	if (settings.splitByte) { command += ` -SPLITBYTE "${settings.splitByte}"`; }
 
 	// We must output the listing file in the right spot when we have a standalone file,
 	// because AS automatically puts the listing file to where the source code is located (and not in relation to CWD)
 	if (!onProject && settings.listingFile) {
-		command += ' -OLIST "' + join(
-			settings.singleFileOutput,
-			(settings.listingName ? settings.listingName : 'Code') + '.lst"'
+		aslArgs.push(
+			'-OLIST',
+			join(settings.singleFileOutput,
+			(settings.listingName ? settings.listingName : 'Code') + '.lst')
 		);
 	} else if (settings.listingName) {
-		command += ' -OLIST "' + settings.listingName + '.lst"';
+		aslArgs.push('-OLIST', settings.listingName, '.lst');
 	}
 
 	if (settings.errorFile) {
@@ -660,11 +648,11 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 			const errorPath = onProject
 				? settings.errorName + '.log'
 				: join(settings.singleFileOutput, settings.errorName + '.log');
-			command += ` -E "${errorPath}"`;
+			aslArgs.push('-E', errorPath);
 		} else {
-			command += ' -E';
+			aslArgs.push('-E');
 			if (!onProject) {
-				command += ' "' + join(settings.singleFileOutput, settings.errorName + '.log"');
+				aslArgs.push(join(settings.singleFileOutput, settings.errorName + '.log'));
 			}
 		}
 	}
@@ -682,29 +670,22 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 			parts.push('-' + removeSyntax.join(',-'));
 		}
 
-		command += ' -INTSYNTAX ' + parts.join(',');
+		aslArgs.push('-INTSYNTAX', parts.join(','));
 	}
 
-	if (settings.maximumErrors) { command += ' -maxerrors ' + settings.maximumErrors; }
-
 	if (settings.workingFolders.length > 0 && onProject) {
-		command += ` -i "${settings.workingFolders.join('";"')}"`;
-	} else if (sonicDisassembly) {
+		aslArgs.push('-i', settings.workingFolders.join(';'));
+	} else if (sonicDisassembly && !onProject) {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
 	}
 
-	console.log(command);
-
-	// AS exit code convention: 0 if successful, 2 if error, 3 if fatal error
+	// AS exit code convention: 0 if successful, 1 if crash, 2 if error, 3 if fatal error
+	// My exit code convention: -1 if cancelled
 
 	let aslErr = '';
 
-	const { code } = await new Promise<{ code: number }>((resolve) => {
-		if (activeAssembler) {
-			resolve({ code: -2 });
-		}
-
-		activeAssembler = spawn(command, { shell: true, cwd: sourceCodeFolder });
+	const { aslCode } = await new Promise<{ aslCode: number }>((resolve) => {
+		activeAssembler = spawn(assemblerPath, aslArgs, { cwd: sourceCodeFolder });
 
 		activeAssembler.stdout!.on('data', (data) => {
 			outputChannel.append(data.toString());
@@ -715,85 +696,103 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 		
 		activeAssembler.on('close', (code, signal) => {
-			if (signal !== 'SIGQUIT') {
-				resolve({ code: code ?? 0 });
+			activeAssembler = null;
+
+			if (signal !== 'SIGQUIT' && signal !== 'SIGKILL') {
+				resolve({ aslCode: code ?? 0 });
 			} else {
-				resolve({ code: 1 });
+				resolve({ aslCode: -1 });
 			}
 		});
 
 		activeAssembler.on('error', (error: any) => {
 			outputChannel.appendLine(error.message);
 			activeAssembler = null;
-			resolve({ code: -1 });
+			resolve({ aslCode: 4 });
 		});
 	});
 
-	if (code === 0) {
-		if (settings.verboseOperation) {
-			outputChannel.show();
-		}
+	switch (aslCode) {
+		case 0:
+			if (settings.verboseOperation) {
+				outputChannel.show();
+			}
 
-		if (aslErr && !settings.suppressWarnings) {
-			outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
-			outputChannel.appendLine(aslErr);
-			outputChannel.appendLine('============================================================');
-			warnings = true;
-		}
-	} else {
-		if (code === 1) { return -1; } // In case the operation was cancelled
-		else if (code === -2) {
-			outputChannel.show();
-			window.showErrorMessage("Please wait! You're already assembling something.");
+			if (aslErr && !settings.suppressWarnings) {
+				outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
+				outputChannel.appendLine(aslErr);
+				outputChannel.appendLine('============================================================');
+				warnings = true;
+			}
+			break;
+
+		default:
+			let errorLocation = 'log file';
+
+			if (!settings.errorFile) {
+				outputChannel.appendLine('\n==================== ASSEMBLER ERRORS ====================\n');
+				outputChannel.append(aslErr);
+				outputChannel.show();
+				errorLocation = 'terminal';
+			}
+
+			switch (aslCode) {
+				case 2:
+					window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
+					return -1;
+
+				case 3:
+					window.showErrorMessage(`Build failed. A fatal error was thrown by the assembler. Check the ${errorLocation} for more details.`);
+					return -1;
+
+				case 255:
+					window.showErrorMessage("Looks like some files are missing because I messed up the structure, sorry! If this doesn't get fixed in a few days, please let me know!");
+					return -1;
+					
+				default:
+					window.showErrorMessage(`The assembler has thrown an unknown error. You can check the ${errorLocation} for further information. If you believe this doesn't depend on you, please let me know!`);
+					return -1;
+			}
+
+		case -1:
 			return -1;
-		}
 
-		let errorLocation = 'log file';
-
-		if (!settings.errorFile) {
-			outputChannel.appendLine('\n==================== ASSEMBLER ERRORS ====================\n');
-			outputChannel.append(aslErr);
-			outputChannel.show();
-			errorLocation = 'terminal';
-		}
-
-		switch (code) {
-			case 2:
-				window.showErrorMessage(`Build failed. An error was thrown by the assembler. Check the ${errorLocation} for more details.`);
-				break;
-
-			case 3:
-				window.showErrorMessage(`Build failed. A fatal error was thrown by the assembler. Check the ${errorLocation} for more details.`);
-				break;
-
-			case 255:
-				window.showErrorMessage("Looks like some files are missing because I messed up the structure, sorry! If this doesn't get fixed in a few days, please let me know!");
-				break;
-				
-			default:
-				window.showErrorMessage(`The assembler has thrown an unknown error. You can check the ${errorLocation} for further information. If you believe this doesn't depend on you, please let me know!`);
-				break;
-		}
-
-		return -1; // Can't proceed with compiling, there's no program file
+		case 1:
+			window.showErrorMessage('The assembler crashed! If you terminated the process manually, please use the cancelling function if the execution gets stuck.');
+			return -1;
 	}
 
 	progress.report({ increment: !sonicDisassembly ? 50 : 40, message: 'Compiling...' }); // 10, 30
 
 	// Now, to the compiler!
 
+	if (activeAssembler) {
+		outputChannel.show();
+		window.showErrorMessage("Please wait! You're already assembling something.");
+		return -1;
+	}
+
 	process.chdir(assemblerFolder);
 
-	command = !sonicDisassembly
-		? `"${compilerPath}" code.p rom.bin -l 0x${settings.fillValue} -k`
-		: `"${compilerPath}" -p=${settings.fillValue} -z=${settings.startingAddress},${settings.compressionAlg},${settings.segmentSize},${settings.insertionMethod} code.p rom.bin code.h`;
+	const p2binArgs = !sonicDisassembly 
+		? [ 'code.p', 'rom.bin', '-l', `0x${settings.fillValue}`, '-k' ]
+		: [
+			`-p=${settings.fillValue}`,
+			`-z=${settings.startingAddress},${settings.compressionAlg},${settings.segmentSize},${settings.insertionMethod}`,
+			'code.p',
+			'rom.bin',
+			'code.h'
+		];
 
 	let p2binErr = '';
 	
-	console.log(command);
+	const { p2binCode } = await new Promise<{ p2binCode: number }>((resolve) => {
+		if (activeAssembler) {
+			resolve({ p2binCode: -2 });
+			return;
+		}
 
-	const { success } = await new Promise<{ success: boolean }>((resolve) => {
-		activeAssembler = spawn(command, { shell: true });
+		activeAssembler = spawn(compilerPath, p2binArgs);
 
 		if (!sonicDisassembly) {
 			activeAssembler.stdout!.on('data', (data) => {
@@ -805,15 +804,20 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 			p2binErr += data.toString();
 		});
 		
-		activeAssembler.on('close', () => {
+		activeAssembler.on('close', (code, signal) => {
 			activeAssembler = null;
-			resolve({ success: true });
+
+			if (signal !== 'SIGQUIT' && signal !== 'SIGKILL') {
+				resolve({ p2binCode: code ?? 0 });
+			} else {
+				resolve({ p2binCode: -1 });
+			}
 		});
 
 		activeAssembler.on('error', (error: any) => {
 			outputChannel.appendLine(error.message);
 			activeAssembler = null;
-			resolve({ success: false });
+			resolve({ p2binCode: 1 });
 		});
 	});
 
@@ -822,25 +826,31 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		await promises.unlink('code.h');
 	}
 
-	if (success) {
-		if (p2binErr && settings.suppressWarnings) {
-			outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
-			outputChannel.appendLine(p2binErr);
-			outputChannel.appendLine('===========================================================');
-			warnings = true;
-		}
-	} else {
-		outputChannel.appendLine('\n==================== COMPILER ERRORS ====================\n');
-		outputChannel.append(p2binErr);
+	switch (p2binCode) {
+		case 0:
+			if (p2binErr && settings.suppressWarnings) {
+				outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
+				outputChannel.appendLine(p2binErr);
+				outputChannel.appendLine('===========================================================');
+				warnings = true;
+			}
 
-		window.showErrorMessage("The compiler has thrown an unknown error. Check the terminal for more details. If you believe this doesn't depend on you, please let me know!");
+			/* if (!sonicDisassembly && !existsSync('rom.bin')) { // P2BIN doesn't output anything if there's no code in "code.p"
+				window.showWarningMessage('Looks like you wrote an empty program. No ROM will be compiled.');
+				return -1;
+			} */
+			break;
 
-		return -1; // There's more than 1 error anyway
-	}
+		default:
+			outputChannel.appendLine('\n==================== COMPILER ERRORS ====================\n');
+			outputChannel.append(p2binErr);
 
-	if (!sonicDisassembly && !existsSync('rom.bin')) { // P2BIN doesn't output anything if there's no code in "code.p"
-		window.showWarningMessage('Looks like you wrote an empty program. No ROM will be compiled.');
-		return -1;
+			window.showErrorMessage("The compiler has thrown an unknown error. Check the terminal for more details. If you believe this doesn't depend on you, please let me know!");
+
+			return -1; // There's more than 1 error anyway
+
+		case -1:
+			return -1;
 	}
 
 	// Let's generate the checksum!
@@ -1059,11 +1069,9 @@ function assembleROMWithProgress() {
 		},
 		async (progress, token) => {
 			token.onCancellationRequested(() => {
-				if (process.platform === 'win32') {
-					exec(`taskkill /pid ${activeAssembler!.pid} /T`);
-				} else {
-					activeAssembler!.kill('SIGQUIT');
-				}
+
+					activeAssembler!.kill('SIGKILL');
+
 				
 				activeAssembler = null;
 			});
@@ -1157,7 +1165,7 @@ function runTemporaryROMWithProgress(emulator: string) {
 		{
 			token.onCancellationRequested(() => {
 				if (process.platform === 'win32') {
-					exec(`taskkill /pid ${activeAssembler!.pid} /T`);
+					exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
 				} else {
 					activeAssembler!.kill('SIGQUIT');
 				}
@@ -1291,7 +1299,7 @@ export async function activate(context: ExtensionContext) {
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
 					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T`);
+						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
 					} else {
 						activeAssembler!.kill('SIGQUIT');
 					}
@@ -1400,7 +1408,7 @@ export async function activate(context: ExtensionContext) {
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
 					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T`);
+						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
 					} else {
 						activeAssembler!.kill('SIGQUIT');
 					}
@@ -1427,7 +1435,7 @@ export async function activate(context: ExtensionContext) {
 
 				token.onCancellationRequested(() => {
 					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T`);
+						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
 					} else {
 						activeAssembler!.kill('SIGQUIT');
 					}

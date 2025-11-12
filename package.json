@@ -2,7 +2,7 @@
 	"name": "megaenvironment",
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
-	"description": "Provides complete integration with The Macroassembler AS, among other features, such as versioning and code highlighting.",
+	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
 	"version": "1.0.3",
 	"engines": { "vscode": "^1.96.0" },
 	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
@@ -139,11 +139,11 @@
 					"description": "Check this to make any symbol case-sensitive in your code."
 				},
 				"megaenvironment.codeOptions.radix": {
-					"type": "string",
-					"default": "10",
+					"type": "number",
+					"default": 10,
 					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the \"radix\" symbol).",
-					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
-					"patternErrorMessage": "Value must be between 2 and 36."
+					"maximum": 36,
+					"minimum": 2
 				},
 				"megaenvironment.codeOptions.RELAXEDMode": {
 					"type": "boolean",
@@ -256,7 +256,7 @@
 					"type": "string",
 					"default": "Sonic.68k",
 					"description": "The main source code file name used in the project, where the code gets executed.",
-					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).+$",
+					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i)$).+\\..+$",
 					"patternErrorMessage": "Empty file name or invalid extension."
 				},
 				"megaenvironment.sourceCodeControl.constantsFileName": {
@@ -321,11 +321,11 @@
 					"description": "Check this if you want a listing file representing the source text processed by the macro processor and conditional assembly. The file extension is \".i\"."
 				},
 				"megaenvironment.sourceCodeControl.radixInListing": {
-					"type": "string",
-					"default": "16",
+					"type": "number",
+					"default": 16,
 					"description": "You can set the number base (radix) displayed in the code listing file. Default is base 16 (hexadecimal).",
-					"pattern": "^\\b(?:[2-9]|[12][0-9]|3[0-6])\\b$",
-					"patternErrorMessage": "Value must be between 2 and 36."
+					"maximum": 36,
+					"minimum": 2
 				},
 				"megaenvironment.sourceCodeControl.byteSplitInListing": {
 					"type": "string",
@@ -430,7 +430,7 @@
 					"default": "",
 					"description": "The assembly terminates after the given number of errors. Leave it empty to make it unlimited, which is the default behavior.",
 					"pattern": "^\\d*$",
-					"patternErrorMessage": "Value must be a number."
+					"patternErrorMessage": "Value must be empty or a number."
 				},
 				"megaenvironment.miscellaneous.displayErrorNumber": {
 					"type": "boolean",
