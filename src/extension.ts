@@ -205,6 +205,7 @@ const settingDescriptors = [
 	{ key: 'miscellaneous.quietOperation',							target: 'quietOperation' },
 	{ key: 'miscellaneous.verboseOperation',						target: 'verboseOperation' },
 	{ key: 'miscellaneous.warningsAsErrors',						target: 'warningsAsErrors' },
+	// BlastEm debugger setting only gets used once
 	{ key: 'paths.outputPathWithoutWorkspace',						target: 'singleFileOutput' },
 	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
 	{ key: 'extensionOptions.checkForUpdates',						target: 'checkUpdates' },
@@ -696,13 +697,13 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 		
 		activeAssembler.on('close', (code, signal) => {
-			activeAssembler = null;
-
 			if (signal !== 'SIGQUIT' && signal !== 'SIGKILL') {
 				resolve({ aslCode: code ?? 0 });
 			} else {
 				resolve({ aslCode: -1 });
 			}
+
+			activeAssembler = null;
 		});
 
 		activeAssembler.on('error', (error: any) => {
@@ -805,13 +806,13 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 		
 		activeAssembler.on('close', (code, signal) => {
-			activeAssembler = null;
-
 			if (signal !== 'SIGQUIT' && signal !== 'SIGKILL') {
 				resolve({ p2binCode: code ?? 0 });
 			} else {
 				resolve({ p2binCode: -1 });
 			}
+
+			activeAssembler = null;
 		});
 
 		activeAssembler.on('error', (error: any) => {
@@ -1069,10 +1070,7 @@ function assembleROMWithProgress() {
 		},
 		async (progress, token) => {
 			token.onCancellationRequested(() => {
-
-					activeAssembler!.kill('SIGKILL');
-
-				
+				activeAssembler!.kill('SIGQUIT');
 				activeAssembler = null;
 			});
 
@@ -1129,13 +1127,17 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 		return;
 	}
 
-	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${join(assemblerFolder, 'rom.bin')}"`, (error) => {
+	const configuration = workspace.getConfiguration('megaenvironment');
+
+	const debbugger = configuration.get<boolean>('miscellaneous.startBlastEmWithDebuggers') && emulator === 'BlastEm' ? ' -d' : '';
+
+	exec(`"${configuration.get<string>('paths.' + emulator)}" "${join(assemblerFolder, 'rom.bin')}"` + debbugger, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the build. ' + error.message);
 		}
 
 		unlink(join(assemblerFolder, 'rom.bin'), (error) => {
-			if (error) {
+			if (error && error.code !== 'ENOENT') {
 				window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
 				return;
 			}
@@ -1164,12 +1166,7 @@ function runTemporaryROMWithProgress(emulator: string) {
 		async (progress, token) => 
 		{
 			token.onCancellationRequested(() => {
-				if (process.platform === 'win32') {
-					exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
-				} else {
-					activeAssembler!.kill('SIGQUIT');
-				}
-				
+				activeAssembler!.kill('SIGQUIT');				
 				activeAssembler = null;
 			});
 
@@ -1298,12 +1295,7 @@ export async function activate(context: ExtensionContext) {
 			},
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
-					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
-					} else {
-						activeAssembler!.kill('SIGQUIT');
-					}
-					
+					activeAssembler!.kill('SIGQUIT');					
 					activeAssembler = null;
 				});
 				
@@ -1407,12 +1399,7 @@ export async function activate(context: ExtensionContext) {
 			},
 			async (progress, token) => {
 				token.onCancellationRequested(() => {
-					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
-					} else {
-						activeAssembler!.kill('SIGQUIT');
-					}
-					
+					activeAssembler!.kill('SIGQUIT');					
 					activeAssembler = null;
 				});
 
@@ -1434,12 +1421,7 @@ export async function activate(context: ExtensionContext) {
 				// }
 
 				token.onCancellationRequested(() => {
-					if (process.platform === 'win32') {
-						exec(`taskkill /pid ${activeAssembler!.pid} /T /F`);
-					} else {
-						activeAssembler!.kill('SIGQUIT');
-					}
-					
+					activeAssembler!.kill('SIGQUIT');
 					activeAssembler = null;
 				});
 
@@ -1492,7 +1474,7 @@ export async function activate(context: ExtensionContext) {
 				if (!success) { return; }
 
 				unlink(romPath, (error) => {
-					if (error) {
+					if (error && error.code !== 'ENOENT') {
 						window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
 						return;
 					}

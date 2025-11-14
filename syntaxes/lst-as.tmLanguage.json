@@ -42,11 +42,11 @@
 			"patterns": [
 				{
 					"name": "instruction.mnemonic.as",
-					"match": "\\b(?i:[as]bcd|add[aiqx]?|andi?|as[lr]|b(?:chg|clr|set|tst)|chk|clr|cmp[aim]?|div[su]|[e]?or[i]?|exg|ext|illegal|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|negx?|nop|not|pea|reset|rox?[lr]|rt[ser]|stop|sub[aiqx]?|swap|tas|trapv?|tst|unlk)\\b"
+					"match": "\\b(?i:[as]bcd|add[aiqx]?|andi?|as[lr]|b(?:chg|clr|set|tst)|chk|clr|cmp[aim]?|div[su]|[e]?or[i]?|exg|ext|illegal|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|negx?|nop|not|pea|reset|rox?[lr]|rt[ser]|stop|sub[aiqx]?|swap|tas|trapv?|tst|unlk|ld|push|pop|exx?|ld[id]r?|cp[id]r?|add|sub|sbc|and|x?or|cp|inc|dec|daa|cpl|neg|[cs]cf|halt|[ed]i|im|r[lr]c?a|lrc?|rrc?|s[lr]a|srl|rld|rrd|bit|set|res|djnz|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
 				},
 				{
 					"name": "instruction.jump.as",
-					"match": "\\b(?i:b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser])\\b"
+					"match": "\\b(?i:b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser]|b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser]|j[pr]|call|ret[in]?|rst)\\b"
 				}
 			]
 		},
@@ -60,17 +60,17 @@
 		},
 		"variables": {
 			"name": "variable.register.as",
-			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr)\\b"
+			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr|af'?|bc|de|hl|ix|iy|a|b|c|d|e|h|l|r|i)\\b"
 		},
 		"constants": {
 			"patterns": [
 				{
 					"name": "constant.immediate.as",
-					"match": "(?<=\\s+)#(?=[\\w|$%@(])"
+					"match": "(?<=\\s+)#(?=[\\w|$%@\\-('\"])"
 				},
 				{
 					"name": "constant.numeric.as",
-					"match": "(?<![\\w\\)])(?:-?\\d{1,10}|\\$[0-9a-fA-F]{1,8}|%[01]{1,32}|@[0-7]{1,11})(?!\\w)"
+					"match": "(?<![\\w\\)])-?(?:\\d{1,10}|\\$[0-9a-fA-F]{1,8}|%[01]{1,32}|@[0-7]{1,11}|\\d{1,5}|[0-9a-fA-F]{1,4}h|[01]{1,16}b|[0-7]{1,6}[oq])(?!\\w)"
 				}
 			]
 		},
@@ -140,6 +140,21 @@
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "variable.register.as" },
 						"3": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\bz|nz|c|nc|p|pe|po|m\\b))\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "variable.flag.as" },
+						"3": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "directive.label.jump.as" }
 					}
 				}
 			]

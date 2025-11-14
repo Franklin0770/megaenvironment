@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.4",
+	"version": "1.0.5",
 	"engines": { "vscode": "^1.96.0" },
 	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
 	"main": "./out/extension.js",
@@ -467,6 +467,11 @@
 					"default": false,
 					"description": "Whether the assembler should treat warnings as errors."
 				},
+				"megaenvironment.miscellaneous.startBlastEmWithDebuggers": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether BlastEm should start with debuggers right away."
+				},
 				"megaenvironment.paths.BlastEm": {
 					"type": "string",
 					"default": "",
@@ -601,7 +606,8 @@
 			{
 				"id": "lst-as",
 				"aliases": [ "AS - Listing File" ],
-				"extensions": [ ".lst" ]
+				"extensions": [ ".lst" ],
+				"configuration": "./configs/as-language-configuration.json"
 			},
 			{
 				"id": "m68k-sdisasm",

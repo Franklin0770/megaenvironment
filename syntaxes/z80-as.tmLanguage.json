@@ -36,7 +36,7 @@
 		},
 		"constants": {
 			"name": "constant.numeric.as",
-			"match": "(?<![\\w\\)])(?:-?\\d{1,5}|[0-9a-fA-F]{1,4}h|[01]{1,16}b|[0-7]{1,6}[oq])(?!\\w)"
+			"match": "(?<![\\w\\)])-?(?:\\d{1,5}|[0-9a-fA-F]{1,4}h|[01]{1,16}b|[0-7]{1,6}[oq])(?!\\w)"
 		},
 		"comments": {
 			"name": "directive.comment.as",
@@ -95,7 +95,6 @@
 		"instruction-label-structure": {
 			"patterns": [
 				{
-					"name": "instruction.label.as",
 					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\bz|nz|c|nc|p|pe|po|m\\b))\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
@@ -104,7 +103,6 @@
 					}
 				},
 				{
-					"name": "instruction.label.as",
 					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
