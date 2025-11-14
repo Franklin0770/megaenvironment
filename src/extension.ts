@@ -697,7 +697,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 		
 		activeAssembler.on('close', (code, signal) => {
-			if (signal !== 'SIGQUIT' && signal !== 'SIGKILL') {
+			if (signal !== 'SIGQUIT') {
 				resolve({ aslCode: code ?? 0 });
 			} else {
 				resolve({ aslCode: -1 });
@@ -806,7 +806,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 		
 		activeAssembler.on('close', (code, signal) => {
-			if (signal !== 'SIGQUIT' && signal !== 'SIGKILL') {
+			if (signal !== 'SIGQUIT') {
 				resolve({ p2binCode: code ?? 0 });
 			} else {
 				resolve({ p2binCode: -1 });
@@ -1163,8 +1163,7 @@ function runTemporaryROMWithProgress(emulator: string) {
 			location: ProgressLocation.Window,
 			cancellable: true
 		},
-		async (progress, token) => 
-		{
+		async (progress, token) => {
 			token.onCancellationRequested(() => {
 				activeAssembler!.kill('SIGQUIT');				
 				activeAssembler = null;

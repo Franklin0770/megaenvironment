@@ -41,3 +41,12 @@
 - Changed the assembler download button priority;
 - Changed descriptions;
 - Removed an unused parameter.
+
+## [1.0.5] - 2025-11-14
+
+- Added Z80 syntax highlighter for Sonic disassemblies;
+- Added BlastEm option to start it immediately with debuggers;
+- Added actual killing signal for Windows that I forgot to activate;
+- Added configuration for listing syntax highlighter;
+- Fixed ENOENT error spam when closing multiple emulators;
+- Fixed hex, bin and octal numbers' minus sign syntax highlight.

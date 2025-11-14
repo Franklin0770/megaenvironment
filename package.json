@@ -612,6 +612,10 @@
 			{
 				"id": "m68k-sdisasm",
 				"aliases": [ "Sonic Disassembly - Motorola 68000" ]
+			},
+			{
+				"id": "z80-sdisasm",
+				"aliases": [ "Sonic Disassembly - Zilog Z80" ]
 			}
 		],
 		"grammars": [
@@ -634,6 +638,11 @@
 				"language": "m68k-sdisasm",
 				"scopeName": "source.m68k-sdisasm",
 				"path": "./syntaxes/m68k-sdisasm.tmLanguage.json"
+			},
+			{
+				"language": "z80-sdisasm",
+				"scopeName": "source.z80-sdisasm",
+				"path": "./syntaxes/z80-sdisasm.tmLanguage.json"
 			}
 		],
 		"themes": [
