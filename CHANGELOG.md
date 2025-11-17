@@ -50,3 +50,7 @@
 - Added configuration for listing syntax highlighter;
 - Fixed ENOENT error spam when closing multiple emulators;
 - Fixed hex, bin and octal numbers' minus sign syntax highlight.
+
+## [1.0.6] - 2025-11-17
+- Added support for multiple assemblers;
+- Fixed BlastEm debug flag when running the latest ROM.

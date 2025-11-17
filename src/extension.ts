@@ -1096,7 +1096,12 @@ async function findAndRunROM(emulator: string) {
 	}
 
 	let errorCode = false;
-	exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>(emulator)}" "${rom[0].fsPath}"`, (error) => {
+
+	const configuration = workspace.getConfiguration('megaenvironment');
+
+	const debbugger = configuration.get<boolean>('miscellaneous.startBlastEmWithDebuggers') && emulator === 'BlastEm' ? ' -d' : '';
+
+	exec(`"${configuration.get<string>('paths.' + emulator)}" "${rom[0].fsPath}"` + debbugger, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the latest build. ' + error.message);
 			errorCode = true;
@@ -1119,7 +1124,7 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 
 	const result = await executeAssemblyCommand(progress);
 
-	progress.report({ increment: 100 }); // 90, 90
+	progress.report({ increment: 10 }); // 90, 90
 
 	if (result === 1) {
 		warnings = true;
@@ -1231,16 +1236,22 @@ export async function activate(context: ExtensionContext) {
 			assemblerPath += '.exe';
 			compilerPath += '.exe';
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
+			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', true);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
 			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', true);
 			break;
 		case 'darwin':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
+			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', false);
+			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
 			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
 			break;
 		case 'linux':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
+			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
 			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
 			break;
@@ -1321,6 +1332,12 @@ export async function activate(context: ExtensionContext) {
 
 	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => findAndRunROM('Regen'));
 
+	const run_Gens = commands.registerCommand('megaenvironment.run_gens', () => findAndRunROM('Gens'));
+
+	const run_BizHawk = commands.registerCommand('megaenvironment.run_bizhawk', () => findAndRunROM('BizHawk'));
+
+	const run_Fusion = commands.registerCommand('megaenvironment.run_fusion', () => findAndRunROM('Fusion'));
+
 	const run_ClownMdEmu = commands.registerCommand('megaenvironment.run_clownmdemu', async () => {
 		const platform = process.platform;
 		if (platform !== 'win32' && platform !== 'linux') {
@@ -1378,6 +1395,12 @@ export async function activate(context: ExtensionContext) {
 	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => runTemporaryROMWithProgress('BlastEm'));
 
 	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', () => runTemporaryROMWithProgress('Regen'));
+
+	const assemble_and_run_Gens = commands.registerCommand('megaenvironment.assemble_run_gens', () => runTemporaryROMWithProgress('Gens'));
+
+	const assemble_and_run_BizHawk = commands.registerCommand('megaenvironment.assemble_run_bizhawk', () => runTemporaryROMWithProgress('BizHawk'));
+
+	const assemble_and_run_Fusion = commands.registerCommand('megaenvironment.assemble_run_fusion', () => runTemporaryROMWithProgress('Fusion'));
 
 	const assemble_and_run_ClownMDEmu = commands.registerCommand('megaenvironment.assemble_run_clownmdemu', async () => {
 		const platform = process.platform;
@@ -1791,8 +1814,8 @@ export async function activate(context: ExtensionContext) {
 	context.subscriptions.push(
 		workspace.onDidChangeConfiguration(event => updateConfiguration(event)), workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidOpenTextDocument(projectCheck),
 		assemble, clean_and_assemble,
-		run_BlastEm, run_Regen, run_ClownMdEmu, run_OpenEmu,
-		assemble_and_run_BlastEm, assemble_and_run_Regen, assemble_and_run_ClownMDEmu, assemble_and_run_ClownMDEmu, assemble_and_run_OpenEmu,
+		run_BlastEm, run_ClownMdEmu, run_Regen, run_Gens, run_BizHawk, run_Fusion, run_OpenEmu,
+		assemble_and_run_BlastEm, assemble_and_run_ClownMDEmu, assemble_and_run_Regen, assemble_and_run_Gens, assemble_and_run_BizHawk, assemble_and_run_Fusion, assemble_and_run_OpenEmu,
 		backup, cleanup, open_EASy68k, newProject, generateConfiguration
 	);
 }
@@ -1891,6 +1914,21 @@ class ButtonProvider implements TreeDataProvider<ButtonTreeItem> {
 				command: 'megaenvironment.run_regen',
 				title: 'Run with Regen',
 				tooltip: 'Run lastest ROM (.gen) using Regen emulator'
+			}),
+			new ButtonTreeItem('Run with Gens', {
+				command: 'megaenvironment.run_gens',
+				title: 'Run with Gens',
+				tooltip: 'Run lastest ROM (.gen) using Gens emulator'
+			}),
+			new ButtonTreeItem('Run with BizHawk', {
+				command: 'megaenvironment.run_bizhawk',
+				title: 'Run with BizHawk',
+				tooltip: 'Run lastest ROM (.gen) using BizHawk emulator'
+			}),
+			new ButtonTreeItem('Run with Kega Fusion', {
+				command: 'megaenvironment.run_fusion',
+				title: 'Run with Fusion',
+				tooltip: 'Run lastest ROM (.gen) using Fusion emulator'
 			}),
 			new ButtonTreeItem('Run with OpenEmu', {
 				command: 'megaenvironment.run_openemu',

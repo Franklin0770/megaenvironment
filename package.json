@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"engines": { "vscode": "^1.96.0" },
 	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
 	"main": "./out/extension.js",
@@ -29,6 +29,12 @@
 				"when": "megaenvironment.shouldActivate"
 			},
 			{
+				"command": "megaenvironment.run_clownmdemu",
+				"title": "Run Latest ROM with ClownMDEmu",
+				"category": "Execution",
+				"when": "megaenvironment.shouldActivate"
+			},
+			{
 				"command": "megaenvironment.run_regen",
 				"title": "Run Latest ROM with Regen",
 				"category": "Execution",
@@ -36,8 +42,22 @@
 				"when": "megaenvironment.shouldActivate"
 			},
 			{
-				"command": "megaenvironment.run_clownmdemu",
-				"title": "Run Latest ROM with ClownMDEmu",
+				"command": "megaenvironment.run_gens",
+				"title": "Run Latest ROM with Gens",
+				"category": "Execution",
+				"enablement": "megaenvironment.Gens.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
+			},
+			{
+				"command": "megaenvironment.run_bizhawk",
+				"title": "Run Latest ROM with BizHawk",
+				"category": "Execution",
+				"enablement": "megaenvironment.BizHawk.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
+			},
+			{
+				"command": "megaenvironment.run_fusion",
+				"title": "Run Latest ROM with Kega Fusion",
 				"category": "Execution",
 				"when": "megaenvironment.shouldActivate"
 			},
@@ -55,6 +75,12 @@
 				"when": "megaenvironment.shouldActivate"
 			},
 			{
+				"command": "megaenvironment.assemble_run_clownmdemu",
+				"title": "QuickRun ClownMDEmu",
+				"category": "Test",
+				"when": "megaenvironment.shouldActivate"
+			},
+			{
 				"command": "megaenvironment.assemble_run_regen",
 				"title": "QuickRun Regen",
 				"category": "Test",
@@ -62,8 +88,22 @@
 				"when": "megaenvironment.shouldActivate"
 			},
 			{
-				"command": "megaenvironment.assemble_run_clownmdemu",
-				"title": "QuickRun ClownMDEmu",
+				"command": "megaenvironment.assemble_run_gens",
+				"title": "QuickRun Gens",
+				"category": "Test",
+				"enablement": "megaenvironment.Gens.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
+			},
+			{
+				"command": "megaenvironment.assemble_run_bizhawk",
+				"title": "QuickRun BizHawk",
+				"category": "Test",
+				"enablement": "megaenvironment.BizHawk.compatiblePlatform",
+				"when": "megaenvironment.shouldActivate"
+			},
+			{
+				"command": "megaenvironment.assemble_run_fusion",
+				"title": "QuickRun Kega Fusion",
 				"category": "Test",
 				"when": "megaenvironment.shouldActivate"
 			},
@@ -478,16 +518,34 @@
 					"description": "Full path to the BlastEm executable.",
 					"ignoreSync": true
 				},
+				"megaenvironment.paths.ClownMDEmu": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the ClownMDEmu executable.",
+					"ignoreSync": true
+				},
 				"megaenvironment.paths.Regen": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the Regen executable.",
 					"ignoreSync": true
 				},
-				"megaenvironment.paths.ClownMDEmu": {
+				"megaenvironment.paths.Gens": {
 					"type": "string",
 					"default": "",
-					"description": "Full path to the ClownMDEmu executable.",
+					"description": "Full path to the Gens executable.",
+					"ignoreSync": true
+				},
+				"megaenvironment.paths.BizHawk": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the BizHawk executable.",
+					"ignoreSync": true
+				},
+				"megaenvironment.paths.Fusion": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the Fusion executable.",
 					"ignoreSync": true
 				},
 				"megaenvironment.paths.EASy68k": {
@@ -551,8 +609,23 @@
 					"when": "megaenvironment.shouldActivate"
 				},
 				{
-					"command": "megaenvironment.assemble_run_openemu",
+					"command": "megaenvironment.assemble_run_gens",
 					"group": "1_runGroup@4",
+					"when": "megaenvironment.shouldActivate"
+				},
+				{
+					"command": "megaenvironment.assemble_run_bizhawk",
+					"group": "1_runGroup@5",
+					"when": "megaenvironment.shouldActivate"
+				},
+				{
+					"command": "megaenvironment.assemble_run_fusion",
+					"group": "1_runGroup@6",
+					"when": "megaenvironment.shouldActivate"
+				},
+				{
+					"command": "megaenvironment.assemble_run_openemu",
+					"group": "1_runGroup@7",
 					"when": "megaenvironment.shouldActivate"
 				},
 				{
