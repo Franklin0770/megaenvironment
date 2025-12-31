@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.6",
+	"version": "1.0.7",
 	"engines": { "vscode": "^1.96.0" },
 	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
 	"main": "./out/extension.js",
@@ -39,21 +39,21 @@
 				"title": "Run Latest ROM with Regen",
 				"category": "Execution",
 				"enablement": "megaenvironment.Regen.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.Regen.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.run_gens",
 				"title": "Run Latest ROM with Gens",
 				"category": "Execution",
 				"enablement": "megaenvironment.Gens.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.Gens.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.run_bizhawk",
 				"title": "Run Latest ROM with BizHawk",
 				"category": "Execution",
 				"enablement": "megaenvironment.BizHawk.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.BizHawk.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.run_fusion",
@@ -66,7 +66,7 @@
 				"title": "Run Latest ROM with OpenEmu",
 				"category": "Execution",
 				"enablement": "megaenvironment.OpenEmu.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.OpenEmu.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.assemble_run_blastem",
@@ -85,21 +85,21 @@
 				"title": "QuickRun Regen",
 				"category": "Test",
 				"enablement": "megaenvironment.Regen.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.Regen.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.assemble_run_gens",
 				"title": "QuickRun Gens",
 				"category": "Test",
 				"enablement": "megaenvironment.Gens.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.Gens.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.assemble_run_bizhawk",
 				"title": "QuickRun BizHawk",
 				"category": "Test",
 				"enablement": "megaenvironment.BizHawk.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.BizHawk.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.assemble_run_fusion",
@@ -112,7 +112,7 @@
 				"title": "QuickRun OpenEmu",
 				"category": "Test",
 				"enablement": "megaenvironment.OpenEmu.compatiblePlatform",
-				"when": "megaenvironment.shouldActivate"
+				"when": "megaenvironment.shouldActivate && (megaenvironment.OpenEmu.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 			},
 			{
 				"command": "megaenvironment.backup",
@@ -128,7 +128,7 @@
 			},
 			{
 				"command": "megaenvironment.open_easy68k",
-				"title": "Open Current Selection In EASy68k",
+				"title": "Open Current Selection in EASy68k",
 				"category": "Debug"
 			},
 			{
@@ -156,17 +156,23 @@
 				"megaenvironment.codeOptions.superiorModeWarnings": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Setting this means the assembler will issue warnings when a [68k privileged instruction](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_4_) takes place in your code, when you're not using the symbol \"supmode on\" in code."
+					"markdownDescription": "Setting this means the assembler will issue warnings when a [68k privileged instruction](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_4_) takes place in your code, when you're not using the symbol ```supmode on``` in code."
 				},
 				"megaenvironment.codeOptions.compatibilityMode": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "[Compatibility mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_8_) gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the \"compmode on\" symbol, too."
+					"markdownDescription": "[Compatibility mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_8_) gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the ```compmode on``` symbol, too."
+				},
+				"megaenvironment.codeOptions.maximumForwardReferences": {
+					"type": "number",
+					"default": 1,
+					"minimum": 0,
+					"description": "The maximum number of additional passes that will be performend to resolve forward references. Increasing this number may impact assembly time in relation to how many forward references you have included in your code."
 				},
 				"megaenvironment.codeOptions.signExtensionWarning": {
 					"type": "boolean",
 					"default": false,
-					"description": "Gives a warning when using implicit sign extensions. Only effective with \"moveq\" instructions in 68K assembly. Not supported in the Sonic disassembly version."
+					"markdownDescription": "Gives a warning when using implicit sign extensions. Only effective with ```moveq``` instructions in 68K assembly. Not supported in the Sonic disassembly version."
 				},
 				"megaenvironment.codeOptions.absoluteJumpsWarning": {
 					"type": "boolean",
@@ -181,14 +187,14 @@
 				"megaenvironment.codeOptions.radix": {
 					"type": "number",
 					"default": 10,
-					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the \"radix\" symbol).",
+					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the ```radix``` symbol).",
 					"maximum": 36,
 					"minimum": 2
 				},
 				"megaenvironment.codeOptions.RELAXEDMode": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any possible syntax for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the \"relaxed on\" symbol in code as well."
+					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any possible syntax for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the ```relaxed on``` symbol in code as well."
 				},
 				"megaenvironment.codeOptions.addIntegerSyntax": {
 					"type": "array",
@@ -353,7 +359,7 @@
 				"megaenvironment.sourceCodeControl.generateMacroListing": {
 					"type": "boolean",
 					"default": false,
-					"description": "Check this if you want a listing file representing all macros that don't use \"NOEXPORT\" to be issued. File name is the same as the main source code, with extension \".mac\"."
+					"markdownDescription": "Check this if you want a listing file representing all macros that don't use ```NOEXPORT``` to be issued. File name is the same as the main source code, with extension \".mac\"."
 				},
 				"megaenvironment.sourceCodeControl.generateSourceListing": {
 					"type": "boolean",
@@ -407,7 +413,7 @@
 					"items": {
 						"type": "string"
 					},
-					"markdownDescription": "The directories where the assembler will look for resources (when using \"[include](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_2_)\" or \"[binclude](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_3_)\", for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
+					"markdownDescription": "The directories where the assembler will look for resources (when using [```include```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_2_) or [```binclude```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_3_), for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
 				},
 				"megaenvironment.sourceCodeControl.templateSelector": {
 					"type": "array",
@@ -570,6 +576,11 @@
 					"default": true,
 					"description": "Whether the checksum should be shown in the terminal. Useful when you need to hard code it into your ROM to perform the integrity check."
 				},
+				"megaenvironment.extensionOptions.hideUnsupportedEmulators": {
+					"type": "boolean",
+					"default": false,
+					"description": "Choose to hide grayed out emulators that aren't compatible with your operative system."
+				},
 				"megaenvironment.extensionOptions.alwaysActive": {
 					"type": "boolean",
 					"default": false,
@@ -606,17 +617,17 @@
 				{
 					"command": "megaenvironment.assemble_run_regen",
 					"group": "1_runGroup@3",
-					"when": "megaenvironment.shouldActivate"
+					"when": "megaenvironment.shouldActivate && (megaenvironment.Regen.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 				},
 				{
 					"command": "megaenvironment.assemble_run_gens",
 					"group": "1_runGroup@4",
-					"when": "megaenvironment.shouldActivate"
+					"when": "megaenvironment.shouldActivate && (megaenvironment.Gens.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 				},
 				{
 					"command": "megaenvironment.assemble_run_bizhawk",
 					"group": "1_runGroup@5",
-					"when": "megaenvironment.shouldActivate"
+					"when": "megaenvironment.shouldActivate && (megaenvironment.BizHawk.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 				},
 				{
 					"command": "megaenvironment.assemble_run_fusion",
@@ -626,7 +637,7 @@
 				{
 					"command": "megaenvironment.assemble_run_openemu",
 					"group": "1_runGroup@7",
-					"when": "megaenvironment.shouldActivate"
+					"when": "megaenvironment.shouldActivate && (megaenvironment.OpenEmu.compatiblePlatform || !config.megaenvironment.extensionOptions.hideUnsupportedEmulators)"
 				},
 				{
 					"command": "megaenvironment.clean_assemble",

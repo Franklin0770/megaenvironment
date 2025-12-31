@@ -2,37 +2,37 @@
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
 	"name": "AS - Zilog Z80",
 	"scopeName": "source.z80-as",
-	"foldingStartMarker": "^\\s*(?i:macro|if|ifn?(?:def|symexist|used|exist|b)|rept|irpc?|while|function|struct|switch)\\b",
+	"foldingStartMarker": "^\\s*(?i:macro|ifn?(?:def|symexist|used|exist|b)?|rept|irpc?|while|function|struct|switch)\\b",
 	"foldingStopMarker": "^\\s*(?i:end(?:if|struct|case|m))\\b",
 	"patterns": [
-		{ "include": "#instruction-label-structure" },
 		{ "include": "#instructions" },
+		{ "include": "#instruction-label-structure" },
 		{ "include": "#variables" },
 		{ "include": "#constants" },
 		{ "include": "#comments" },
-		{ "include": "#strings" },
 		{ "include": "#labels" },
-		{ "include": "#symbols" },
+		{ "include": "#strings" },
 		{ "include": "#operators" },
-		{ "include": "#functions" },
-		{ "include": "#pseudo-instructions" }
+		{ "include": "#pseudo-instructions" },
+		{ "include": "#symbols" },
+		{ "include": "#functions" }
 	],
 	"repository": {
 		"instructions": {
 			"patterns": [
 				{
 					"name": "instruction.mnemonic.as",
-					"match": "\\b(?i:ld|push|pop|exx?|ld[id]r?|cp[id]r?|add|sub|sbc|and|x?or|cp|inc|dec|daa|cpl|neg|[cs]cf|nop|halt|[ed]i|im|r[lr]c?a|lrc?|rrc?|s[lr]a|srl|rld|rrd|bit|set|res|djnz|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
+					"match": "\\b(?i:ld[id]?|ld[id]r|inc|dec|ad[dc]|sub|sbc|and|x?or|cpl?|exx?|push|pop|cp[id]r?|nop|bit|s[lr]a|srl|r[rl]d|r[lr]c?a?|set|res|[ed]i|im|halt|daa|neg|[cs]cf|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
 				},
 				{
 					"name": "instruction.jump.as",
-					"match": "\\b(?i:j[pr]|call|ret[in]?|rst)\\b"
+					"match": "\\b(?i:j[pr]|call|djnz|ret[in]|rst)\\b(?!\\s+(?:\\$\\$|[\\w+-]))"
 				}
 			]
 		},
 		"variables": {
 			"name": "variable.register.as",
-			"match": "\\b(?i:af'?|bc|de|hl|ix|iy|sp|pc|a|b|c|d|e|h|l|r|i)(?![\\w'])"
+			"match": "\\b(?i:af'?|bc|de|hl|i[xy]|sp|a|b|c|d|e|h|l|r|i)(?![\\w'])"
 		},
 		"constants": {
 			"name": "constant.numeric.as",
@@ -51,8 +51,8 @@
 				},
 				{
 					"name": "directive.string.as",
-					"begin": "(?<!\\w)'",
-  					"end": "'(?!\\w)"
+					"begin": "'",
+  					"end": ""
 				}
 			]
 		},
@@ -82,20 +82,20 @@
 		},
 		"functions": {
 			"name": "directive.function.as",
-			"match": "\\b(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bit(?:cnt|pos)|(?:first|last)bit|sgn|abs|to(?:upper|lower)|(?:up|low)string|strlen|substr|charfromstr|strstr|val|exprtype|fsize|symused)(?=\\(.+\\))\\b"
+			"match": "(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bit(?:cnt|pos)|(?:first|last)bit|sgn|abs|to(?:upper|lower)|(?:up|low)string|strlen|substr|charfromstr|strstr|val|exprtype|fsize|symused)(?=\\([^)\n]+\\))"
 		},
 		"symbols": {
 			"name": "directive.symbol.as",
-			"match": "(?<!\\w)(?:TRUE|FALSE|CONSTPI|FLOATMAX|VERSION|ARCHITECTURE|DATE|TIME|MOM(?:CPU(?:NAME)?|FILE|LINE|PASS|SECTION)|[\\.\\$])(?![\\w\\$])"
+			"match": "(?<!\\w)(?:TRUE|FALSE|MOMCPU(?:NAME)?|CONSTPI|FLOATMAX|VERSION|ARCHITECTURE|DATE|TIME|FILE|LINE|PASS|SECTION)|[\\.\\$](?![\\w\\$])"	
 		},
 		"pseudo-instructions": {
 			"name": "directive.pseudo.as",
-			"match": "\\b(?i:set|equ|label|charset|codepage|pushv|popv|r?org|cpu|supmode|padding|segment|(?:de)?phase|save|restore|assume|(?:end)?expect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|page(?:size)?|newpage|macexp_(?:dft|ovr)|listing|title|(?:out)?radix|public|global|forward|shared|b?include|message|warning|error|fatal|read|intsyntax|relaxed|compmode)\\b"
+			"match": "\\b(?i:d[cs]|set|equ|b?include|r?org|cpu|(?:de)?phase|rept|macro|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|while|page(?:size)?|listing|padding|save|restore|align|message|warning|error|fatal|label|charset|codepage|pushv|popv|(?:sup|comp)mode|intsyntax|relaxed|segment|assume|(?:end)?expect|irpc?|exitm|shift|maxnest|newpage|macexp_(?:dft|ovr)|title|(?:out)?radix|public|global|forward|shared|read)\\b"
 		},
 		"instruction-label-structure": {
 			"patterns": [
 				{
-					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\bz|nz|c|nc|p|pe|po|m\\b))\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))\\s*,\\s*((?:\\.|\\$\\$)?(?:[\\w\\.]+))",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "variable.flag.as" },
@@ -103,10 +103,17 @@
 					}
 				},
 				{
-					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"match": "\\b(?i:(j[pr]|call|djnz))\\b\\s+((?:\\.|\\$\\$)?[\\w\\.]+)\\b(?!\\s*,)",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"match": "\\b(?i:(ret))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))?",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "variable.flag.as" }
 					}
 				}
 			]

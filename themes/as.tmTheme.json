@@ -145,6 +145,12 @@
 			}
 		},
 		{
+			"scope": "constant.message",
+			"settings": {
+				"foreground": "#8cd1bd"
+			}
+		},
+		{
 			"scope": "constant.header.as",
 			"settings": {
 				"foreground": "#ffffff50",

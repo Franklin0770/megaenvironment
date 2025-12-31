@@ -4,14 +4,14 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 
 ## What it can do
 #### You can:
-- Assemble files and produce a ROM output in various ways;
-- Make use of some basic versioning, useful for producing multiple builds and be able to distinguish between them;
+- Assemble files and produce a ROM output in various ways;  
+- Make use of some basic versioning, useful for producing multiple builds and be able to distinguish between them;  
 - Gain speedy productivity from shortcuts to manage and organise your project folder;
-- Backup your project quickly, too;
-- Run ROMs with emulators with one click;
-- Utilize nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;
-- Avoid to include build tools or such, the extension downloads the necessary files to compile;
-- Highlight 68k and Z80 code, with two supported VS themes (Dark and Sonic Disassembly);
+- Backup your project quickly, too;  
+- Run ROMs with emulators with one click;  
+- Utilize nearly every option available of the assembler, using the UI-friendly settings screen of VS Code;  
+- Avoid to include build tools or such, the extension downloads the necessary files to compile;  
+- Highlight 68k and Z80 code, with two supported VS themes (Dark and Sonic Disassembly);  
 - Enjoy basic autocompletion, indentation and other integrated VS Code features.
 
 ![Assembly](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Assembly1.png)
@@ -62,5 +62,11 @@ This command will output your freshly packaged VSIX, ready to be installed in VS
 The assembler and compiler: http://john.ccac.rwth-aachen.de:8000/as/  
 How I learnt to make this extension: https://code.visualstudio.com/api/get-started/your-first-extension  
 This is were the files are downloaded from: https://github.com/Franklin0770/AS-releases.git
+### A bit of history
+So, originally, I didn't have any plans on creating such a complex piece of software like this. It was intended to be written in LUA (just like Sonic disassemblies scripts to compile code), to simplify the creation of a Mega Drive homebrew project I'm working on right at this moment (this is also why I won't put 100% of my energies here).
+Then I decided that VS Code's integration would have opened the possibility to make a decent UI. As a matter of fact, if you hop on GitHub and take a look at the branches of this project, you can see there's an extremely early version that was rewritten shortly after the LUA conversion. Very much incomplete, huh?
+At this point, I started to get a little crazy with adding features, until this extension became so big that I couldn't keep it just for myself.
+This is why Mega Driven Environment exists in the first place, to help whoever is in search of a better Mega Drive coding environment. Don't get me wrong, there could be some rough edges, but we should also consider this is my first program that contributes to the community.
+I hope this suits your needs! Have a good time while you assemble your next Mega Drive project!
 
 I've just found out it has been more than a year of development since the first release... _time flies!_

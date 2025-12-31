@@ -24,7 +24,7 @@
 		"lst-constants": {
 			"patterns": [
 				{
-					"match": "^(\\(\\d\\))?\\s+(\\d+\/)?\\s+([0-9a-fA-F]{1,6}) : ((?:[0-9a-fA-F]{1,4} )+|(?:[0-9a-fA-F]{1,4})|(?:=-?\\$[0-9a-fA-F]{1,8}))?",
+					"match": "^(\\(\\d\\))?\\s+(\\d+\/)?\\s*([0-9a-fA-F]{1,8}) : ((?:=-?\\$[0-9a-fA-F]{1,8})|(?:[0-9a-fA-F]{1,4} ?)*)",
 					"captures": {
 						"1": { "name": "line.pass.as" },
 						"2": { "name": "line.codeLine.as" },
@@ -35,6 +35,10 @@
 				{
 					"name": "constant.header.as",
 					"match": "^\\x0C? AS.+$"
+				},
+				{
+					"name": "constant.message",
+					"match": "^[^\\s*].+$"
 				}
 			]
 		},
@@ -42,11 +46,11 @@
 			"patterns": [
 				{
 					"name": "instruction.mnemonic.as",
-					"match": "\\b(?i:[as]bcd|add[aiqx]?|andi?|as[lr]|b(?:chg|clr|set|tst)|chk|clr|cmp[aim]?|div[su]|[e]?or[i]?|exg|ext|illegal|lea|link|ls[lr]|move[ampq]?|mul[su]|nbcd|negx?|nop|not|pea|reset|rox?[lr]|rt[ser]|stop|sub[aiqx]?|swap|tas|trapv?|tst|unlk|ld|push|pop|exx?|ld[id]r?|cp[id]r?|add|sub|sbc|and|x?or|cp|inc|dec|daa|cpl|neg|[cs]cf|halt|[ed]i|im|r[lr]c?a|lrc?|rrc?|s[lr]a|srl|rld|rrd|bit|set|res|djnz|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
+					"match": "\\b(?i:move[qapm]?|[lp]ea|add[aiqx]?|sub[aiqx]?|cmp[aim]?|clr|tst|b(?:tst|chg|set|clr)|andi?|e?ori?|not|ls[lr]|as[lr]|rox?[lr]|negx?|ex[gt]|swap|[asn]bcd|mul[su]|div[su]|nop|tas|s(?:eq|ne|pl|mi|cc|cs|vs|vc|hi|ls|ge|lt|gt|le)|stop|chk|illegal|link|unlk|reset|trapv?|ld[id]?|ld[id]r|inc|dec|ad[dc]|sub|sbc|and|x?or|cpl?|exx?|push|pop|cp[id]r?|nop|bit|s[lr]a|srl|r[rl]d|r[lr]c?a?|set|res|[ed]i|im|halt|daa|neg|[cs]cf|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
 				},
 				{
 					"name": "instruction.jump.as",
-					"match": "\\b(?i:b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser]|b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser]|j[pr]|call|ret[in]?|rst)\\b"
+					"match": "\\b(?i:b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser]|j[pr]|call|djnz|ret[in]|rst)\\b"
 				}
 			]
 		},
@@ -60,7 +64,7 @@
 		},
 		"variables": {
 			"name": "variable.register.as",
-			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr|af'?|bc|de|hl|ix|iy|a|b|c|d|e|h|l|r|i)\\b"
+			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr|af'?|bc|de|hl|i[xy]|sp|a|b|c|d|e|h|l|r|i)(?![\\w'])"
 		},
 		"constants": {
 			"patterns": [
@@ -87,8 +91,8 @@
 				},
 				{
 					"name": "directive.string.as",
-					"begin": "'",
-					"end": "'"
+					"begin": "(?<!\\w)'",
+  					"end": "'(?!\\w)"
 				}
 			]
 		},
@@ -127,7 +131,7 @@
 		"instruction-label-structure": {
 			"patterns": [
 				{
-					"match": "(?i:\\b(b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr))(\\.[swl])?)\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"match": "(?i:\\b(b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr))(\\.[swl])?)\\b\\s+((?:\\.|\\$\\$)?(?:[\\w\\.]+|[+-]))",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "instruction.size.as" },
@@ -135,7 +139,7 @@
 					}
 				},
 				{
-					"match": "(?i:\\b((?:db|s)(?:t|f|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])))\\b\\s+(?i:\\b(d[0-7])\\b)\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"match": "(?i:\\b(db(?:t|f|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])))\\b\\s+(?i:\\b(d[0-7])\\b)\\s*,\\s*((?:\\.|\\$\\$)?(?:[\\w\\.]+|[+-]))",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "variable.register.as" },
@@ -143,7 +147,7 @@
 					}
 				},
 				{
-					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\bz|nz|c|nc|p|pe|po|m\\b))\\s*,\\s*((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))\\s*,\\s*((?:\\.|\\$\\$)?(?:[\\w\\.]+))",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "variable.flag.as" },
@@ -151,10 +155,17 @@
 					}
 				},
 				{
-					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?:\\.?|\\$\\$)?(?:[\\w\\.]+|[+-]))",
+					"match": "\\b(?i:(j[pr]|call|djnz))\\b\\s+((?:\\.|\\$\\$)?[\\w\\.]+)\\b(?!\\s*,)",
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"match": "\\b(?i:(ret))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))?",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "variable.flag.as" }
 					}
 				}
 			]

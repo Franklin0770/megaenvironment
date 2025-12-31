@@ -54,3 +54,16 @@
 ## [1.0.6] - 2025-11-17
 - Added support for multiple assemblers;
 - Fixed BlastEm debug flag when running the latest ROM.
+
+## [1.0.7] - 2025-12-31 (the last 2025 day!)
+- Added option to hide unsupported emulators;
+- Added a setting for further passes to calculate forward references;
+- Added and fixed some content in the README;
+- Sorted unsupported emulators in the TreeView;
+- Optimized the sintax highlighter;
+- Fixed Z80 ADC and DJNZ instructions not being properly recognized;
+- Fixed and improved the listing syntax highlighter;
+- Fixed folders not being backed up;
+- Improved the safety of cleaning code;
+- Changed some message and information strings;
+- Other minor bug fixing.

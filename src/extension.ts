@@ -8,14 +8,14 @@ TODOS:
 // Import just what we need
 import { 
 	ExtensionContext, workspace, commands, debug, window, env, Uri, 
-	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, 
+	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, EventEmitter,
 	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress
 } from 'vscode';
 import {
 	existsSync, writeFile, rename, 
 	unlink, createWriteStream, promises
 } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, extname } from 'path';
 import { ChildProcess, exec, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
@@ -27,6 +27,7 @@ interface ExtensionSettings {
 	defaultCpu: string;
 	superiorWarnings: boolean;
 	compatibilityMode: boolean;
+	forwardReferences: number;
 	caseSensitive: boolean;
 	radix: number,
 	relaxedMode: boolean;
@@ -91,6 +92,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	defaultCpu: '68000',
 	superiorWarnings: false,
 	compatibilityMode: false,
+	forwardReferences: 1,
 	caseSensitive: true,
 	radix: 10,
 	relaxedMode: false,
@@ -156,6 +158,7 @@ const settingDescriptors = [
 	{ key: 'codeOptions.defaultCPU',								target: 'defaultCpu' },
 	{ key: 'codeOptions.superiorModeWarnings',						target: 'superiorWarnings' },
 	{ key: 'codeOptions.compatibilityMode',							target: 'compatibilityMode' },
+	{ key: 'codeOptions.maximumForwardReferences',					target: 'forwardReferences' },
 	{ key: 'codeOptions.caseSensitiveMode',							target: 'caseSensitive' },
 	{ key: 'codeOptions.radix',										target: 'radix' },
 	{ key: 'codeOptions.RELAXEDMode',								target: 'relaxedMode' },
@@ -209,8 +212,145 @@ const settingDescriptors = [
 	{ key: 'paths.outputPathWithoutWorkspace',						target: 'singleFileOutput' },
 	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
 	{ key: 'extensionOptions.checkForUpdates',						target: 'checkUpdates' },
+	// 'extensionOptions.hideUnsupportedEmulators' is handled differently
 	{ key: 'extensionOptions.showChecksumValue',					target: 'showChecksum' }
 ];
+
+let regenCompatible = false;
+let gensCompatible = false;
+let bizhawkCompatible = false;
+let openemuCompatible = false;
+
+class SectionTreeItem extends TreeItem {
+	constructor(label: string) {
+		super(label, TreeItemCollapsibleState.Collapsed);
+		this.contextValue = 'section';
+	}
+}
+
+class EmulatorTreeItem extends TreeItem {
+	constructor (
+		public readonly label: string,
+		public readonly command: Command
+	) {
+		super(label, TreeItemCollapsibleState.None);
+
+		if (label === 'Run with Regen' && !regenCompatible ||
+			label === 'Run with Gens' && !gensCompatible ||
+			label === 'Run with BizHawk' && !bizhawkCompatible ||
+			label === 'Run with OpenEmu' && !openemuCompatible
+		) {
+			this.iconPath = new ThemeIcon('error');
+			return;
+		}
+
+		this.iconPath = new ThemeIcon('play-circle');
+	}
+}
+
+interface EmulatorEntry {
+	command: string;
+	title: string;
+	tooltip: string;
+	isCompatible(): boolean;
+}
+
+const EMULATORS: EmulatorEntry[] = [
+	{
+		command: 'megaenvironment.run_blastem',
+		title: 'Run with BlastEm',
+		tooltip: 'Run lastest ROM (.gen) using BlastEm emulator',
+		isCompatible: () => true
+	},
+	{
+		command: 'megaenvironment.run_clownmdemu',
+		title: 'Run with ClownMDEmu',
+		tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator',
+		isCompatible: () => true
+	},
+	{
+		command: 'megaenvironment.run_regen',
+		title: 'Run with Regen',
+		tooltip: 'Run lastest ROM (.gen) using Regen emulator',
+		isCompatible: () => regenCompatible
+	},
+	{
+		command: 'megaenvironment.run_gens',
+		title: 'Run with Gens',
+		tooltip: 'Run lastest ROM (.gen) using Gens emulator',
+		isCompatible: () => gensCompatible
+	},
+	{
+		command: 'megaenvironment.run_bizhawk',
+		title: 'Run with BizHawk',
+		tooltip: 'Run lastest ROM (.gen) using BizHawk emulator',
+		isCompatible: () => bizhawkCompatible
+	},
+	{
+		command: 'megaenvironment.run_fusion',
+		title: 'Run with Fusion',
+		tooltip: 'Run lastest ROM (.gen) using Fusion emulator',
+		isCompatible: () => true
+	},
+	{
+		command: 'megaenvironment.run_openemu',
+		title: 'Run with OpenEmu',
+		tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator',
+		isCompatible: () => openemuCompatible
+	}
+];
+
+class ButtonProvider implements TreeDataProvider<TreeItem> {
+	private _onDidChangeTreeData = new EventEmitter<void>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire(); // This doesn't work, whatever
+	}
+
+	getTreeItem(element: EmulatorTreeItem): TreeItem { return element; }
+
+	getChildren(element?: TreeItem): TreeItem[] {
+		const hideEmulators = workspace.getConfiguration('megaenvironment').get<boolean>('extensionOptions.hideUnsupportedEmulators', false);
+
+		// ROOT
+		if (!element) {
+			const sections: TreeItem[] = [
+				new SectionTreeItem('Supported')
+			];
+
+			if (!hideEmulators) {
+				sections.push(new SectionTreeItem('Unsupported'));
+			}
+
+			return sections;
+		}
+
+		// SUPPORTED
+		if (element.label === 'Supported') {
+			return EMULATORS
+				.filter(e => e.isCompatible())
+				.map(e => new EmulatorTreeItem(e.title, {
+					command: e.command,
+					title: e.title,
+					tooltip: e.tooltip
+				}));
+		}
+
+		// UNSUPPORTED
+		if (element.label === 'Unsupported') {
+			return EMULATORS
+				.filter(e => !e.isCompatible())
+				.map(e => new EmulatorTreeItem(e.title, {
+					command: e.command,
+					title: e.title,
+					tooltip: e.tooltip
+				}));
+		}
+
+		return [];
+	}
+}
 
 // Global variables that get assigned during activation
 let assemblerFolder: string;
@@ -225,6 +365,7 @@ let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
 let updatingConfiguration = false;
 
 let activeAssembler: ChildProcess | null;
+let buttonProvider: ButtonProvider;
 
 const outputChannel = window.createOutputChannel('AS');
 
@@ -232,7 +373,7 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 	toolsDownloading = true;
 	// A progress indicator that shows in the Status Bar at the bottom.
 	// Returns 0 if successfull, 1 if there was an error but the code can continue, -1 if the code can't continue due to an error.
-	// Every report there's an increment value. If it adds up to 100 the indicator will disappear.
+	// Every report there's an increment value.
 	const exitCode = await window.withProgress(
 		{
 			location: ProgressLocation.Window,
@@ -369,7 +510,7 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 			process.chdir(assemblerFolder);
 			const fileStream = createWriteStream(zipName);
 
-			const exitCode = await new Promise<boolean>((resolve) => { 
+			const exitCode = await new Promise<boolean>((resolve) => {
 				let retries = 3;
 				const retry = () => {
 					pipeline(response.body as ReadableStream<string>, fileStream, (error) => {
@@ -501,7 +642,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		}
 
 		if (!existsSync(join(sourceCodeFolder, extensionSettings.mainName))) {
-			const selection = await window.showErrorMessage(`The main source code is missing. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Change Setting');
+			const selection = await window.showErrorMessage(`The main source code could not be located. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Change Setting');
 			
 			if (selection === 'Change Setting') {
 				commands.executeCommand(
@@ -537,7 +678,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 			canSelectFolders: true,
 			canSelectFiles: false,
 			canSelectMany: false,
-			openLabel: 'Select'
+			openLabel: 'This one'
 		});
 
 		if (!uri || uri.length === 0) { return false; }
@@ -545,9 +686,9 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		const selectedPath = uri[0].fsPath;
 
 		if ((await promises.readdir(selectedPath)).length > 0) {
-			const selection = await window.showWarningMessage('This directory is not empty, which means the selected files for cleaning can be accidentally wiped forever!', 'Continue', 'Go Back');
+			const selection = await window.showWarningMessage('This directory is not empty, which means the selected files for cleaning can be accidentally wiped forever!', 'I take this risk!', 'Nevermind');
 
-			if (selection !== 'Continue') {
+			if (selection !== 'I take this risk!') {
 				return false;
 			}
 		}
@@ -582,7 +723,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 async function executeAssemblyCommand(progress: Progress<{ message: string; increment: number }>): Promise<0 | 1 | -1> {
 	if (activeAssembler) {
 		outputChannel.show();
-		window.showErrorMessage("Please wait! You're already assembling something.");
+		window.showErrorMessage("Slow down, please! You're already assembling something.");
 		return -1;
 	}
 
@@ -622,6 +763,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		...(!settings.signWarning && !sonicDisassembly ? ['-wno-implicit-sign-extension'] : []),
 		...(settings.jumpsWarning && !sonicDisassembly ? ['-wrelative'] : []),
 		...(settings.listUnknown && !sonicDisassembly ? ['-list-unknown-values'] : []),
+		...(settings.forwardReferences !== 1 && !sonicDisassembly ? ['-maxsympass', settings.forwardReferences.toString()] : []),
 		...(settings.underscoreMacroArgs && !sonicDisassembly ? ['-underscore-macroargs'] : []),
 		...(settings.debugFile !== 'None' && onProject ? ['-g', settings.debugFile] : []),
 		...(settings.defaultCpu ? ['-cpu', settings.defaultCpu] : []),
@@ -769,7 +911,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	if (activeAssembler) {
 		outputChannel.show();
-		window.showErrorMessage("Please wait! You're already assembling something.");
+		window.showErrorMessage("One more second! I'm still compiling.");
 		return -1;
 	}
 
@@ -866,7 +1008,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 			// If the file isn't big enough to support the checksum feature
 			if (size <= 0) {
-				outputChannel.append('\nChecksum not calculated due to ROM being too small.');
+				outputChannel.append('\nChecksum not calculated due to ROM being too small to include headers.');
 				await fileHandler.close();
 				return (+warnings) as 0 | 1;
 			}
@@ -1091,7 +1233,7 @@ async function findAndRunROM(emulator: string) {
 	const rom = await workspace.findFiles('*.gen', undefined, 1);
 
 	if (rom.length === 0) {
-		window.showErrorMessage('There are no ROMs to run. Build something first.');
+		window.showErrorMessage('There are no ROMs to run. Build something first!');
 		return;
 	}
 
@@ -1188,8 +1330,9 @@ async function cleanProjectFolder() {
 		items = (await workspace.findFiles(`{${patterns.join(',')}}`)).map(uri => uri.fsPath);
 	} else {
 		const outputPath = extensionSettings.singleFileOutput;
-		items = (await promises.readdir(outputPath))
-			.map(file => require('path').join(outputPath, file));
+		items = (await promises.readdir(outputPath, { withFileTypes: true} ))
+			.filter(e => e.isFile())
+			.map(e => join(outputPath, e.name));
 	}
 	
 	const failedItems: string[] = [];
@@ -1236,23 +1379,35 @@ export async function activate(context: ExtensionContext) {
 			assemblerPath += '.exe';
 			compilerPath += '.exe';
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			regenCompatible = true;
 			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
+			gensCompatible = true;
 			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', true);
+			bizhawkCompatible = true;
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			openemuCompatible = false;
 			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', true);
 			break;
 		case 'darwin':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
+			regenCompatible = false;
 			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', false);
+			gensCompatible = false;
 			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
+			bizhawkCompatible = false;
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
+			openemuCompatible = true;
 			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
 			break;
 		case 'linux':
 			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			regenCompatible = true;
 			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
+			gensCompatible = true;
 			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
+			bizhawkCompatible = false;
 			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			openemuCompatible = false;
 			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
 			break;
 		default:
@@ -1267,6 +1422,15 @@ export async function activate(context: ExtensionContext) {
 	}
 
 	extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
+
+	buttonProvider = new ButtonProvider();
+
+	/* const treeView = window.createTreeView('run_emulator', {
+		treeDataProvider: buttonProvider
+	}); */
+
+	const treeView = window.registerTreeDataProvider('run_emulator', buttonProvider);
+
 
 	const redownloadTools = commands.registerCommand('megaenvironment.redownload_tools', async () => {
 		if (toolsDownloading) {
@@ -1376,18 +1540,13 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const success = await new Promise<boolean>((resolve) => {
-			exec(`open -a OpenEmu -W "${rom[0].fsPath}"`, (error) => {
-				if (error) {
-					window.showErrorMessage('Cannot run the latest build. ' + error.message);
-					resolve(false);
-				}
-
-				resolve(true);
-			});
+		exec(`open -a OpenEmu -W "${rom[0].fsPath}"`, (error) => {
+			if (error) {
+				window.showErrorMessage('Cannot run the latest build. ' + error.message);
+			}
 		});
 
-		if (!success || extensionSettings.quietOperation) { return; }
+		if (extensionSettings.quietOperation) { return; }
 
 		window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with OpenEmu.`);
 	});
@@ -1482,24 +1641,17 @@ export async function activate(context: ExtensionContext) {
 				}
 
 				// "-W" switch is a macOS exclusive to wait for the app before exiting the shell command (to make "await" actually work)
-				const success = await new Promise<boolean>((resolve) => { 
-					exec(`open -a OpenEmu -W "${romPath}"`, (error) => {
-						if (error) {
-							window.showErrorMessage('Cannot run the build. ' + error.message);
-							resolve(false);
-						}
-
-						resolve(true);
-					});
-				});
-
-				if (!success) { return; }
-
-				unlink(romPath, (error) => {
-					if (error && error.code !== 'ENOENT') {
-						window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
-						return;
+				exec(`open -a OpenEmu -W "${romPath}"`, (error) => {
+					if (error) {
+						window.showErrorMessage('Cannot run the build. ' + error.message);
 					}
+
+					unlink(romPath, (error) => {
+						if (error && error.code !== 'ENOENT') {
+							window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
+							return;
+						}
+					});
 				});
 
 				if (!warnings) {
@@ -1575,7 +1727,7 @@ export async function activate(context: ExtensionContext) {
 		try {
 			await promises.writeFile('temp.txt', new TextEncoder().encode(text));
 		} catch (error: any) {
-			window.showErrorMessage('Unable to create file for testing. ' + error.message);
+			window.showErrorMessage('Unable to create a temporary file for testing. ' + error.message);
 			return;
 		}
 
@@ -1614,28 +1766,36 @@ export async function activate(context: ExtensionContext) {
 
 		try {
 			const items = await promises.readdir('.');
-			if (!existsSync('Backups')) {
-				window.showInformationMessage('No "Backups" folder found. Fixing.');
-				await promises.mkdir('Backups');
-				
-				for (const item of items) {
-					zip.addLocalFile(item);
-
-					if (extensionSettings.cleaningExtensions.some(v => item.includes(v))) {
-						unlink(item, (error) => {
-							if (error) {
-								window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error.message}`);
-							}
-						});
-					}
-
-					files++;
-				}
+			const index = items.indexOf('Backups');
+			if (index !== -1) {
+				items.splice(index, 1); // Remove Backups folder
 			} else {
-				items.filter(u => !u.includes('Backups')); // Remove Backups folder
+				if (!extensionSettings.quietOperation) {
+					window.showInformationMessage('No "Backups" folder found. Fixing!');
+				}
+
+				await promises.mkdir('Backups');
+			}
+
+			for (const item of items) {
+				if ((await promises.stat(item)).isFile()) {
+					zip.addLocalFile(item);
+				} else {
+					zip.addLocalFolder(item, basename(item));
+				}
+
+				if (extensionSettings.cleaningExtensions.includes(extname(item).toLowerCase())) {
+					unlink(item, (error) => {
+						if (error) {
+							window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error.message}`);
+						}
+					});
+				}
+
+				files++;
 			}
 		} catch (error: any) {
-			window.showErrorMessage('Cannot read your project folder to backup files. ' + error.message);
+			window.showErrorMessage('Cannot back up your files. ' + error.message);
 			return;
 		}
 
@@ -1652,7 +1812,11 @@ export async function activate(context: ExtensionContext) {
 
 		if (extensionSettings.quietOperation) { return; }
 
-		window.showInformationMessage(`${files} files were backed up successfully.`);
+		if (files !== 0) {
+			window.showInformationMessage(`${files} files were backed up successfully.`);
+		} else {
+			window.showErrorMessage('Cannot backup an empty folder.');
+		}
 	});
 
 	const cleanup = commands.registerCommand('megaenvironment.cleanup', () => cleanProjectFolder());
@@ -1663,7 +1827,7 @@ export async function activate(context: ExtensionContext) {
 			canSelectFolders: true,
 			canSelectFiles: false,
 			canSelectMany: false,
-			openLabel: 'Select'
+			openLabel: 'This one'
 		});
 
 		if (!uri || uri.length === 0) { return; }
@@ -1685,7 +1849,7 @@ export async function activate(context: ExtensionContext) {
 			const selection = await window.showWarningMessage(
 				'Looks like this folder already contains a project! If you continue, some files might get overwritten. Do you wish to proceed?',
 				'Sure!',
-				'No, take me back'
+				'Take me back'
 			);
 
 			if (selection !== 'Sure!') { return; }
@@ -1789,14 +1953,14 @@ export async function activate(context: ExtensionContext) {
 		}
 
 		if (existsSync(join(vscodeFolder, 'launch.json'))) {
-			const selection = await window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to replace it?', 'Yes', 'No');
+			const selection = await window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to replace it?', 'Replace!', 'I change my mind');
 			
-			if (selection !== 'Yes') { return; }
+			if (selection !== 'Replace!') { return; }
 		}
 
 		writeFile(join(vscodeFolder, 'launch.json'), strings.launchJson, (error) => {
 			if (error) {
-				window.showErrorMessage('Cannot create the "launch.json" file for custom settings. You need to set the main file name to "Main.asm" and a current working folder to "Assets". ' + error.message);
+				window.showErrorMessage('Cannot create the "launch.json" file for custom settings. You need manually to set the main file name to "Main.asm" and a current working folder to "Assets". ' + error.message);
 			}
 		});
 	});
@@ -1816,7 +1980,7 @@ export async function activate(context: ExtensionContext) {
 		assemble, clean_and_assemble,
 		run_BlastEm, run_ClownMdEmu, run_Regen, run_Gens, run_BizHawk, run_Fusion, run_OpenEmu,
 		assemble_and_run_BlastEm, assemble_and_run_ClownMDEmu, assemble_and_run_Regen, assemble_and_run_Gens, assemble_and_run_BizHawk, assemble_and_run_Fusion, assemble_and_run_OpenEmu,
-		backup, cleanup, open_EASy68k, newProject, generateConfiguration
+		backup, cleanup, open_EASy68k, newProject, generateConfiguration, treeView
 	);
 }
 
@@ -1883,60 +2047,9 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 			);
 			updatingConfiguration = false;
 		}
+	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.hideUnsupportedEmulators')) {
+		buttonProvider.refresh();
 	}
-}
-
-class ButtonTreeItem extends TreeItem {
-	constructor (
-		public readonly label: string,
-		public readonly command: Command
-	) {
-		super(label, TreeItemCollapsibleState.None);
-		this.iconPath = new ThemeIcon('play-circle');
-	}
-}
-
-class ButtonProvider implements TreeDataProvider<ButtonTreeItem> {
-	getTreeItem(element: ButtonTreeItem): TreeItem { return element; }
-	getChildren(): ButtonTreeItem[] {
-		return [
-			new ButtonTreeItem('Run with BlastEm', {
-				command: 'megaenvironment.run_blastem',
-				title: 'Run with BlastEm',
-				tooltip: 'Run lastest ROM (.gen) using BlastEm emulator'
-			}),
-			new ButtonTreeItem('Run with ClownMDEmu', {
-				command: 'megaenvironment.run_clownmdemu',
-				title: 'Run with ClownMDEmu',
-				tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator'
-			}),
-			new ButtonTreeItem('Run with Regen', {
-				command: 'megaenvironment.run_regen',
-				title: 'Run with Regen',
-				tooltip: 'Run lastest ROM (.gen) using Regen emulator'
-			}),
-			new ButtonTreeItem('Run with Gens', {
-				command: 'megaenvironment.run_gens',
-				title: 'Run with Gens',
-				tooltip: 'Run lastest ROM (.gen) using Gens emulator'
-			}),
-			new ButtonTreeItem('Run with BizHawk', {
-				command: 'megaenvironment.run_bizhawk',
-				title: 'Run with BizHawk',
-				tooltip: 'Run lastest ROM (.gen) using BizHawk emulator'
-			}),
-			new ButtonTreeItem('Run with Kega Fusion', {
-				command: 'megaenvironment.run_fusion',
-				title: 'Run with Fusion',
-				tooltip: 'Run lastest ROM (.gen) using Fusion emulator'
-			}),
-			new ButtonTreeItem('Run with OpenEmu', {
-				command: 'megaenvironment.run_openemu',
-				title: 'Run with OpenEmu',
-				tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator',
-			})
-		];
-	 }
 }
 
 // Strings section
@@ -1955,7 +2068,7 @@ const strings = {
 	"configurations": [
 		{
 			"name": "Debug selection with EASy68k",
-			"type": "megaenvironment-nondebugger", // Ignore the warnings, everything is fine
+			"type": "megaenvironment-nondebugger", // Ignore the eventual warnings, everything is fine
 			"request": "launch"
 		}
 	]
