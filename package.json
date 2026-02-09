@@ -572,7 +572,7 @@
 					"description": "Whether the assembler should treat warnings as errors.",
 					"order": 53
 				},
-				"megaenvironment.miscellaneous.startBlastEmWithDebuggers": {
+				"megaenvironment.miscellaneous.startBlastemWithDebuggers": {
 					"type": "boolean",
 					"default": false,
 					"description": "Whether BlastEm should start with the debugging console right away. Useful if you have a ROM that crashes during initialization.",

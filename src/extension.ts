@@ -12,10 +12,9 @@ import {
 	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress
 } from 'vscode';
 import {
-	existsSync, writeFile, rename, 
-	unlink, createWriteStream, promises
+	existsSync, writeFile, rename, unlink, createWriteStream, promises
 } from 'fs';
-import { join, basename, extname } from 'path';
+import { join, basename, extname, normalize, dirname } from 'path';
 import { ChildProcess, exec, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
@@ -82,6 +81,7 @@ interface ExtensionSettings {
     quietOperation: boolean;
     verboseOperation: boolean;
 	warningsAsErrors: boolean;
+	blastEmDebugger: boolean;
 
 	singleFileOutput: string;
 
@@ -148,6 +148,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
     quietOperation: false,
     verboseOperation: false,
 	warningsAsErrors: false,
+	blastEmDebugger: false,
 
 	singleFileOutput: '',
 
@@ -210,7 +211,7 @@ const settingDescriptors = [
 	{ key: 'miscellaneous.quietOperation',							target: 'quietOperation' },
 	{ key: 'miscellaneous.verboseOperation',						target: 'verboseOperation' },
 	{ key: 'miscellaneous.warningsAsErrors',						target: 'warningsAsErrors' },
-	// BlastEm debugger setting only gets used once
+	{ key: 'miscellaneous.startBlastemWithDebuggers',				target: 'blastEmDebugger' },
 	{ key: 'paths.outputPathWithoutWorkspace',						target: 'singleFileOutput' },
 	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
 	{ key: 'extensionOptions.checkForUpdates',						target: 'checkUpdates' },
@@ -223,137 +224,6 @@ let gensCompatible = false;
 let bizhawkCompatible = false;
 let openemuCompatible = false;
 
-class SectionTreeItem extends TreeItem {
-	constructor(label: string) {
-		super(label, TreeItemCollapsibleState.Collapsed);
-		this.contextValue = 'section';
-	}
-}
-
-class EmulatorTreeItem extends TreeItem {
-	constructor (
-		public readonly label: string,
-		public readonly command: Command
-	) {
-		super(label, TreeItemCollapsibleState.None);
-
-		if (label === 'Run with Regen' && !regenCompatible ||
-			label === 'Run with Gens' && !gensCompatible ||
-			label === 'Run with BizHawk' && !bizhawkCompatible ||
-			label === 'Run with OpenEmu' && !openemuCompatible
-		) {
-			this.iconPath = new ThemeIcon('error');
-			return;
-		}
-
-		this.iconPath = new ThemeIcon('play-circle');
-	}
-}
-
-interface EmulatorEntry {
-	command: string;
-	title: string;
-	tooltip: string;
-	isCompatible(): boolean;
-}
-
-const EMULATORS: EmulatorEntry[] = [
-	{
-		command: 'megaenvironment.run_blastem',
-		title: 'Run with BlastEm',
-		tooltip: 'Run lastest ROM (.gen) using BlastEm emulator',
-		isCompatible: () => true
-	},
-	{
-		command: 'megaenvironment.run_clownmdemu',
-		title: 'Run with ClownMDEmu',
-		tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator',
-		isCompatible: () => true
-	},
-	{
-		command: 'megaenvironment.run_regen',
-		title: 'Run with Regen',
-		tooltip: 'Run lastest ROM (.gen) using Regen emulator',
-		isCompatible: () => regenCompatible
-	},
-	{
-		command: 'megaenvironment.run_gens',
-		title: 'Run with Gens',
-		tooltip: 'Run lastest ROM (.gen) using Gens emulator',
-		isCompatible: () => gensCompatible
-	},
-	{
-		command: 'megaenvironment.run_bizhawk',
-		title: 'Run with BizHawk',
-		tooltip: 'Run lastest ROM (.gen) using BizHawk emulator',
-		isCompatible: () => bizhawkCompatible
-	},
-	{
-		command: 'megaenvironment.run_fusion',
-		title: 'Run with Fusion',
-		tooltip: 'Run lastest ROM (.gen) using Fusion emulator',
-		isCompatible: () => true
-	},
-	{
-		command: 'megaenvironment.run_openemu',
-		title: 'Run with OpenEmu',
-		tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator',
-		isCompatible: () => openemuCompatible
-	}
-];
-
-class ButtonProvider implements TreeDataProvider<TreeItem> {
-	private _onDidChangeTreeData = new EventEmitter<void>();
-	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-
-	refresh(): void {
-		this._onDidChangeTreeData.fire(); // This doesn't work, whatever
-	}
-
-	getTreeItem(element: EmulatorTreeItem): TreeItem { return element; }
-
-	getChildren(element?: TreeItem): TreeItem[] {
-		const hideEmulators = workspace.getConfiguration('megaenvironment').get<boolean>('extensionOptions.hideUnsupportedEmulators', false);
-
-		// ROOT
-		if (!element) {
-			const sections: TreeItem[] = [
-				new SectionTreeItem('Supported')
-			];
-
-			if (!hideEmulators) {
-				sections.push(new SectionTreeItem('Unsupported'));
-			}
-
-			return sections;
-		}
-
-		// SUPPORTED
-		if (element.label === 'Supported') {
-			return EMULATORS
-				.filter(e => e.isCompatible())
-				.map(e => new EmulatorTreeItem(e.title, {
-					command: e.command,
-					title: e.title,
-					tooltip: e.tooltip
-				}));
-		}
-
-		// UNSUPPORTED
-		if (element.label === 'Unsupported') {
-			return EMULATORS
-				.filter(e => !e.isCompatible())
-				.map(e => new EmulatorTreeItem(e.title, {
-					command: e.command,
-					title: e.title,
-					tooltip: e.tooltip
-				}));
-		}
-
-		return [];
-	}
-}
-
 // Global variables that get assigned during activation
 let assemblerFolder: string;
 let assemblerPath: string;
@@ -364,14 +234,13 @@ let sourceCodeFolder: string;
 let onProject: boolean;
 
 let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
-let updatingConfiguration = false;
 
 let activeAssembler: ChildProcess | null;
 let buttonProvider: ButtonProvider;
 
 const outputChannel = window.createOutputChannel('AS');
 
-async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
+async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promise<0 | 1 | -1> {
 	toolsDownloading = true;
 	// A progress indicator that shows in the Status Bar at the bottom.
 	// Returns 0 if successfull, 1 if there was an error but the code can continue, -1 if the code can't continue due to an error.
@@ -379,17 +248,16 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 	const exitCode = await window.withProgress(
 		{
 			location: ProgressLocation.Window,
-			title: !extensionSettings.sonicDisassembly ? 'Original assembler' : "Sonic's assembler",
+			title: !fixedAssembler ? 'Original assembler' : "Sonic's assembler",
 			cancellable: true
 		},
 		async (progress, token) => {
-			token.onCancellationRequested(() => {
-				window.showErrorMessage("Operation was cancelled! You can retry if you didn't mean to stop the download.", 'Re-attempt Download')
-				.then((selection) => {
-					if (selection === 'Re-attempt Download') {
-						downloadAssembler(true);
-					}
-				});
+			token.onCancellationRequested(async () => {
+				const selection = await window.showErrorMessage("Operation was cancelled! You can retry if you didn't mean to stop the download.", 'Re-attempt Download');
+				
+				if (selection === 'Re-attempt Download') {
+					downloadAssembler(fixedAssembler, true);
+				}
 
 				return 0;
 			});
@@ -423,67 +291,75 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 					}
 					break;
 				default:
-					window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
 					return -1;
 			}
 
-			const type = +extensionSettings.sonicDisassembly;
+			const type = +fixedAssembler;
+			const windowsExtension = process.platform === 'win32' ? '.exe' : '';
 
-			if (!force && existsSync(join(assemblerFolder, 'version.txt'))) {
-				const versionTag = [ 'Original', 'Fixed' ];
-				let response: Response;
+			const folderToUpdate = join(dirname(normalize(assemblerFolder)),[ 'Original', 'Fixed' ][type]);
+			const assemblerToUpdate = join(folderToUpdate, 'asl' + windowsExtension);
+			const compilerToUpdate = join(folderToUpdate, 'p2bin' + windowsExtension);
 
-				try {
-					response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + versionTag[type] + '/' + folderName + '/version.txt');
-				} catch (error: any) {
-					if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-						window.showWarningMessage("Failed to get version to check for updates. Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error.message);
-						return 1;
-					} else {
-						window.showErrorMessage("Failed to get version to check for updates and we can't continue since there's no previously downloaded versions. Make sure you have an Internet connection. If this is a mistake, you can force the download. " + error.message);
-						return -1;
+			const assemblerName = [ 'the original AS assembler', "Sonic's fixed assembler" ][type];
+
+			if (existsSync(folderToUpdate)) {
+				if (!force && existsSync(join(folderToUpdate, 'version.txt'))) {
+					let response: Response | undefined;
+
+					response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + [ 'Original', 'Fixed' ][type] + '/' + folderName + '/version.txt');
+					
+					if (!response || !response.ok || !response.body) {
+						if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
+							window.showWarningMessage(`Failed to get version to check for updates for ${assemblerName}. Internet connection is either missing or insufficient, we'll have to stick with the assembler we have.`);
+							return 1;
+						} else {
+							const selection = await window.showErrorMessage(`Failed to get version to check for updates for ${assemblerName} and we can't continue since there's no previously downloaded versions. Make sure you have an Internet connection.`, 'Retry');
+
+							if (selection === 'Retry') {
+								downloadAssembler(fixedAssembler, true);
+							}
+
+							return -1;
+						}
+					}
+
+					const localBuild = +await promises.readFile(join(folderToUpdate, 'version.txt'), 'ascii');
+					const onlineBuild = +await response!.text();
+					
+					if (localBuild >= onlineBuild) { return 0; } // No need for updates
+
+					if (!extensionSettings.quietOperation) {
+						window.showInformationMessage(`Upgrading ${assemblerName} from build ${localBuild} to build ${onlineBuild}.`);
 					}
 				}
-				
-				if (!response.ok) {
-					window.showErrorMessage(`Failed to get version to check for updates. Make sure you have a stable Internet connection. If this is a mistake, you can force the download. Error code: ${response.status} ${response.statusText}`);
-					return -1;
-				}
-
-				const file = await promises.readFile(join(assemblerFolder, 'version.txt'), 'ascii');
-				const localBuild = +file;
-				const onlineBuild = +await response.text();
-				const asMsgExists = existsSync(join(assemblerFolder, 'as.msg')); // This is a way to know if we have the sonic disassembly version installed
-				const differentVersion = (asMsgExists && !extensionSettings.sonicDisassembly) || (!asMsgExists && extensionSettings.sonicDisassembly);
-				
-				if (localBuild >= onlineBuild && !differentVersion) { return 0; } // No need for updates
-
-				if (!extensionSettings.quietOperation && !differentVersion) {
-					window.showInformationMessage(`Upgrading from build ${localBuild} to ${onlineBuild}.`);
+			} else {
+				try {
+					await promises.mkdir(folderToUpdate);
+				} catch (error) {
+					console.log(error);
 				}
 			}
 
-			progress.report({ message: 'requesting your assembler version...', increment: 20 });
-
-			const releaseTag = [ 'latest', 'latest_fixed' ];
+			progress.report({ message: 'requesting version...', increment: 20 });
 
 			let response: Response;
 			
 			try {
-				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + releaseTag[type] + '/' + zipName);
+				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + [ 'latest', 'latest_fixed' ][type] + '/' + zipName);
 			} catch (error: any) {
-				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
-					window.showWarningMessage("Internet connection is either missing or insufficient, we'll have to stick with the assembler we have. " + error.message);
+				if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
+					window.showWarningMessage(`Internet connection is either missing or insufficient to download ${assemblerName}, we'll have to stick with the assembler we have. ` + error.message);
 					return 1;
 				}
 
-				window.showErrorMessage("Failed to download the latest AS compiler. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. " + error.message);
+				window.showErrorMessage(`Failed to download the latest AS compiler for ${assemblerName}. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. ` + error.message);
 				return -1;
 			}
 
 			if (!response.ok || !response.body) {
 				if (response.status === 404) { // The classic "not found"
-					if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+					if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 						window.showWarningMessage("Hmm, it appears the download source is missing, we can stick with what we have, though. It might be because I've forgotten to upload some files, sorry! If this doesn't get corrected in a few days, please let me know!");
 						return 1;
 					}
@@ -492,7 +368,7 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 					return -1;
 				}
 
-				window.showErrorMessage('Failed to download the latest AS compiler. ' + response.statusText);
+				window.showErrorMessage(`Failed to download ${assemblerName}. ` + response.statusText);
 
 				unlink(zipName, (error) => {
 					if (error) {
@@ -503,13 +379,13 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 				return -1;
 			}
 
-			progress.report({ message: 'downloading ZIP...', increment: 20 });
+			progress.report({ message: 'downloading archive...', increment: 20 });
 
-			if (!existsSync(assemblerFolder)) {
-				await promises.mkdir(assemblerFolder, { recursive: true });
+			if (!existsSync(folderToUpdate)) {
+				await promises.mkdir(folderToUpdate, { recursive: true });
 			}
 
-			process.chdir(assemblerFolder);
+			process.chdir(folderToUpdate);
 			const fileStream = createWriteStream(zipName);
 
 			const exitCode = await new Promise<boolean>((resolve) => {
@@ -520,11 +396,11 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 							resolve(true);
 						} else {
 							if (retries > 0) {
-								progress.report({ message: `downloading ZIP... (take number ${retries})`, increment: 0 });
+								progress.report({ message: `downloading archive... (take number ${retries})`, increment: 0 });
 								retries--;
 								setTimeout(retry, 1000);
 							} else {
-								if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+								if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 									window.showWarningMessage('Even though it turned out to be impossible to download the assembler, we still have the previous version we can use! ' + error.message);
 									resolve(true);
 								} else {
@@ -541,14 +417,14 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 
 			if (!exitCode) { return -1; }
 
-			progress.report({ message: 'extracting ZIP...', increment: 50 });
+			progress.report({ message: 'extracting archive...', increment: 50 });
 
 			let zip: AdmZip;
 
 			try {
 				zip = new AdmZip(zipName);
 			} catch {
-				if (existsSync(assemblerPath) && existsSync(compilerPath)) {
+				if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 					window.showWarningMessage("Hmm, it seems the file structure is incorrect, we can stick with what we have, though. This happens because I could have messed up the download, sorry! If this doesn't get corrected in a few days, please let me know!");
 					return 1;
 				}
@@ -585,7 +461,7 @@ async function downloadAssembler(force: boolean): Promise<0 | 1 | -1> {
 					if (item === zipName || !extensionSettings.sonicDisassembly && (item === 'as.msg' || item === 'cmdarg.msg' || item === 'ioerrs.msg')) {
 						unlink(item, (error) => {
 							if (error) {
-								window.showWarningMessage(`Could not remove the temporary file located at ${join(assemblerFolder, item)}. ${error.message}`);
+								window.showWarningMessage(`Could not remove the temporary file located at ${join(assemblerToUpdate, item)}. ${error.message}`);
 							}
 						});
 					}
@@ -620,7 +496,7 @@ async function promptEmulatorPath(emulator: string): Promise<boolean> {
 		canSelectFiles: true,
 		canSelectMany: false,
 		filters: { 'Executable files': executableExtension },
-		openLabel: 'Select'
+		openLabel: 'Found it'
 	});
 
 	if (!uri || uri.length === 0) { return false; }
@@ -668,7 +544,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 			sourceCodeFolder = assemblerFolder;
 		}
 
-		if (temporary) { return true; } // We are only requesting saving the file, since we have to run an emulator
+		if (temporary) { return true; } // We are only requesting to save the file since we have to run an emulator
 
 		const configuration = workspace.getConfiguration('megaenvironment.paths');
 		const outputPath = extensionSettings.singleFileOutput;
@@ -1207,23 +1083,6 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 	}
 }
 
-function assembleROMWithProgress() {
-	window.withProgress(
-		{
-			location: ProgressLocation.Window,
-			cancellable: true
-		},
-		async (progress, token) => {
-			token.onCancellationRequested(() => {
-				activeAssembler!.kill('SIGQUIT');
-				activeAssembler = null;
-			});
-
-			await assembleROM(progress);
-		}
-	);
-}
-
 // Only works with workspaces, because it searches the project folder for ROMs to run with an emulator
 async function findAndRunROM(emulator: string) {
 	if (!workspace.workspaceFolders) {
@@ -1244,9 +1103,9 @@ async function findAndRunROM(emulator: string) {
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
-	const debbugger = configuration.get<boolean>('miscellaneous.startBlastEmWithDebuggers') && emulator === 'BlastEm' ? ' -d' : '';
+	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'BlastEm' ? ' -d' : '';
 
-	exec(`"${configuration.get<string>('paths.' + emulator)}" "${rom[0].fsPath}"` + debbugger, (error) => {
+	exec(`"${configuration.get<string>('paths.' + emulator)}" "${rom[0].fsPath}"` + debuggerFlag, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the latest build. ' + error.message);
 			errorCode = true;
@@ -1279,9 +1138,9 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
-	const debbugger = configuration.get<boolean>('miscellaneous.startBlastEmWithDebuggers') && emulator === 'BlastEm' ? ' -d' : '';
+	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'BlastEm' ? ' -d' : '';
 
-	exec(`"${configuration.get<string>('paths.' + emulator)}" "${join(assemblerFolder, 'rom.bin')}"` + debbugger, (error) => {
+	exec(`"${configuration.get<string>('paths.' + emulator)}" "${join(assemblerFolder, 'rom.bin')}"` + debuggerFlag, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the build. ' + error.message);
 		}
@@ -1373,7 +1232,9 @@ async function cleanProjectFolder() {
 export async function activate(context: ExtensionContext) {
 	if (!projectCheck()) { return; }
 
-	assemblerFolder = context.globalStorageUri.fsPath;
+	const sonicDisassembly = workspace.getConfiguration('megaenvironment.buildControl').get('sonicDisassemblySupport', false);
+
+	assemblerFolder = join(context.globalStorageUri.fsPath, !sonicDisassembly ? 'Original' : 'Fixed');
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerPath = join(assemblerFolder, 'p2bin');
 
@@ -1428,12 +1289,7 @@ export async function activate(context: ExtensionContext) {
 
 	buttonProvider = new ButtonProvider();
 
-	/* const treeView = window.createTreeView('run_emulator', {
-		treeDataProvider: buttonProvider
-	}); */
-
 	const treeView = window.registerTreeDataProvider('run_emulator', buttonProvider);
-
 
 	const redownloadTools = commands.registerCommand('megaenvironment.redownload_tools', async () => {
 		if (toolsDownloading) {
@@ -1441,7 +1297,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 		
-		if (await downloadAssembler(true) !== 0 || extensionSettings.quietOperation) { return; }
+		if (await downloadAssembler(extensionSettings.sonicDisassembly, true) !== 0 || extensionSettings.quietOperation) { return; }
 
 		window.showInformationMessage('Build tools successfully re-downloaded.');
 	});
@@ -1454,15 +1310,31 @@ export async function activate(context: ExtensionContext) {
 	runButton.command = 'megaenvironment.redownload_tools';
 	runButton.show();
 
-	context.subscriptions.push(redownloadTools, runButton);
+	const result1 = await downloadAssembler(false, false);
+	const result2 = await downloadAssembler(true, false);
 
-	if (extensionSettings.checkUpdates && await downloadAssembler(false) === -1) { return; }
+	if (extensionSettings.checkUpdates && result1 === -1 && result2 === -1) { return; }
 
 	//
 	//	Main commands
 	//
 
-	const assemble = commands.registerCommand('megaenvironment.assemble', () => assembleROMWithProgress());
+	const assemble = commands.registerCommand('megaenvironment.assemble', () => {
+		window.withProgress(
+			{
+				location: ProgressLocation.Window,
+				cancellable: true
+			},
+			async (progress, token) => {
+				token.onCancellationRequested(() => {
+					activeAssembler!.kill('SIGQUIT');
+					activeAssembler = null;
+				});
+
+				await assembleROM(progress);
+			}
+		);
+	});
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', () => {
 		window.withProgress(
@@ -1521,11 +1393,6 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const run_OpenEmu = commands.registerCommand('megaenvironment.run_openemu', async () => {
-		// if (process.platform !== 'darwin') {
-		// 	window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
-		// 	return;
-		// }
-
 		if (!workspace.workspaceFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
@@ -1599,11 +1466,6 @@ export async function activate(context: ExtensionContext) {
 				cancellable: true
 			},
 			async (progress, token) => {
-				// if (process.platform !== 'darwin') {
-				// 	window.showErrorMessage('This command is not supported in your platform. OpenEmu is only available for macOS, unfortunately.');
-				// 	return;
-				// }
-
 				token.onCancellationRequested(() => {
 					activeAssembler!.kill('SIGQUIT');
 					activeAssembler = null;
@@ -1672,11 +1534,6 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', async () => {
-		// if (process.platform !== 'win32') {
-		// 	window.showErrorMessage('This command is not supported in your platform. EASy68k is only available for Windows, unfortunately.');
-		// 	return;
-		// }
-
 		const editor = window.activeTextEditor;
 
 		if (!editor) {
@@ -1968,10 +1825,8 @@ export async function activate(context: ExtensionContext) {
 		});
 	});
 
-	window.registerTreeDataProvider('run_emulator', new ButtonProvider());
-
 	// Hacky way to get a somewhat-debugger integrated into VS Code
-	debug.registerDebugConfigurationProvider('megaenvironment-nondebugger', {
+	const fakeDebugger = debug.registerDebugConfigurationProvider('megaenvironment-nondebugger', {
 		resolveDebugConfiguration() {
 			commands.executeCommand('megaenvironment.open_easy68k');
 			return undefined; // Prevent actual debug session
@@ -1983,7 +1838,7 @@ export async function activate(context: ExtensionContext) {
 		assemble, clean_and_assemble,
 		run_BlastEm, run_ClownMdEmu, run_Regen, run_Gens, run_BizHawk, run_Fusion, run_OpenEmu,
 		assemble_and_run_BlastEm, assemble_and_run_ClownMDEmu, assemble_and_run_Regen, assemble_and_run_Gens, assemble_and_run_BizHawk, assemble_and_run_Fusion, assemble_and_run_OpenEmu,
-		backup, cleanup, open_EASy68k, newProject, generateConfiguration, treeView
+		backup, cleanup, open_EASy68k, newProject, redownloadTools, runButton, generateConfiguration, fakeDebugger, treeView
 	);
 }
 
@@ -2028,11 +1883,22 @@ async function projectCheck(): Promise<boolean> {
 	return false;
 }
 
-// Updates "settingsDescriptors" each time a setting is changed
 async function updateConfiguration(event: ConfigurationChangeEvent) {
-	if (!event.affectsConfiguration('megaenvironment') || updatingConfiguration) { return; }
+	if (!event.affectsConfiguration('megaenvironment')) { return; }
 
 	const configuration = workspace.getConfiguration('megaenvironment');
+	// This setting requires different management
+	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
+		extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
+		assemblerFolder = join(dirname(normalize(assemblerFolder)), !extensionSettings.sonicDisassembly ? 'Original' : 'Fixed');
+		const windowsExtension = process.platform === 'win32' ? '.exe' : '';
+		assemblerPath = join(assemblerFolder, 'asl' + windowsExtension);
+		compilerPath = join(assemblerFolder, 'p2bin' + windowsExtension);
+	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.hideUnsupportedEmulators')) {
+		buttonProvider.refresh();
+	}
+
+	// Updates "settingsDescriptors" each time a setting is changed
 
 	for (const setting of settingDescriptors) {
 		if (!event.affectsConfiguration(`megaenvironment.${setting.key}`)) { continue; }
@@ -2041,29 +1907,107 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 
 		return;
 	}
+}
 
-	// This setting requires different management (downloading the right assembler version each time it gets changed)
-	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
-		extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
+class EmulatorTreeItem extends TreeItem {
+	constructor (
+		public readonly label: string,
+		public readonly command: Command,
+		public readonly compatible: boolean
+	) {
+		super(label, TreeItemCollapsibleState.None);
 
-		if (!extensionSettings.quietOperation) {
-			window.showInformationMessage('Swapping versions...');
+		this.iconPath = compatible
+			? new ThemeIcon('play-circle')
+			: new ThemeIcon('error');
+	}
+}
+
+interface EmulatorEntry {
+	command: string;
+	title: string;
+	tooltip: string;
+	isCompatible(): boolean;
+}
+
+const EMULATORS: EmulatorEntry[] = [
+	{
+		command: 'megaenvironment.run_blastem',
+		title: 'Run with BlastEm',
+		tooltip: 'Run lastest ROM (.gen) using BlastEm emulator',
+		isCompatible: () => true
+	},
+	{
+		command: 'megaenvironment.run_clownmdemu',
+		title: 'Run with ClownMDEmu',
+		tooltip: 'Run lastest ROM (.gen) using ClownMDEmu emulator',
+		isCompatible: () => true
+	},
+	{
+		command: 'megaenvironment.run_regen',
+		title: 'Run with Regen',
+		tooltip: 'Run lastest ROM (.gen) using Regen emulator',
+		isCompatible: () => regenCompatible
+	},
+	{
+		command: 'megaenvironment.run_gens',
+		title: 'Run with Gens',
+		tooltip: 'Run lastest ROM (.gen) using Gens emulator',
+		isCompatible: () => gensCompatible
+	},
+	{
+		command: 'megaenvironment.run_bizhawk',
+		title: 'Run with BizHawk',
+		tooltip: 'Run lastest ROM (.gen) using BizHawk emulator',
+		isCompatible: () => bizhawkCompatible
+	},
+	{
+		command: 'megaenvironment.run_fusion',
+		title: 'Run with Fusion',
+		tooltip: 'Run lastest ROM (.gen) using Fusion emulator',
+		isCompatible: () => true
+	},
+	{
+		command: 'megaenvironment.run_openemu',
+		title: 'Run with OpenEmu',
+		tooltip: 'Run lastest ROM (.gen) using OpenEmu emulator',
+		isCompatible: () => openemuCompatible
+	}
+];
+
+class ButtonProvider implements TreeDataProvider<TreeItem> {
+	private _onDidChangeTreeData = new EventEmitter<void>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire(); // This doesn't work, whatever
+	}
+
+	getTreeItem(element: EmulatorTreeItem): TreeItem { return element; }
+
+	getChildren(element?: TreeItem): TreeItem[] {
+		const hideEmulators = workspace.getConfiguration('megaenvironment').get<boolean>('extensionOptions.hideUnsupportedEmulators', false);
+
+		if (!element) {
+			if (!hideEmulators) {
+				return EMULATORS
+					.map(e => new EmulatorTreeItem(e.title, {
+						command: e.command,
+						title: e.title,
+						tooltip: e.tooltip
+					}, e.isCompatible()));
+			} else {
+				return EMULATORS
+					.filter(e => e.isCompatible())
+					.map(e => new EmulatorTreeItem(e.title, {
+						command: e.command,
+						title: e.title,
+						tooltip: e.tooltip
+					}, true));
+			}
 		}
 
-		if (await downloadAssembler(true) !== 0) {
-			// In case it couldn't update, we need to restore the previous setting value
-			extensionSettings.sonicDisassembly = !extensionSettings.sonicDisassembly;
-			
-			updatingConfiguration = true; // We don't want this configuration update to re-trigger this event (generating an infinite loop)
-			await configuration.update(
-				'buildControl.sonicDisassemblySupport',
-				extensionSettings.sonicDisassembly,
-				!onProject
-			);
-			updatingConfiguration = false;
-		}
-	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.hideUnsupportedEmulators')) {
-		buttonProvider.refresh();
+		return [];
 	}
 }
 
