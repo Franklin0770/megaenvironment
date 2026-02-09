@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.7",
+	"version": "1.0.8",
 	"engines": { "vscode": "^1.96.0" },
 	"categories": [ "Programming Languages", "Themes", "Debuggers" ],
 	"main": "./out/extension.js",
@@ -151,50 +151,59 @@
 				"megaenvironment.codeOptions.defaultCPU": {
 					"type": "string",
 					"default": "68000",
-					"markdownDescription": "The default [CPU](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_3_) the assembler uses when it isn't specified in the code (by issuing its symbol). The Mega Drive uses the Motorola 68000 as the main processor."
+					"markdownDescription": "The default [CPU](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_3_) the assembler uses when it isn't specified in the code (by issuing its symbol). The Mega Drive uses the Motorola 68000 as the main processor.",
+					"order": 0
 				},
 				"megaenvironment.codeOptions.superiorModeWarnings": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Setting this means the assembler will issue warnings when a [68k privileged instruction](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_4_) takes place in your code, when you're not using the symbol ```supmode on``` in code."
+					"markdownDescription": "Setting this means the assembler will issue warnings when a [68k privileged instruction](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_2_4_) takes place in your code, when you're not using the symbol ```supmode on``` in code.",
+					"order": 1
 				},
 				"megaenvironment.codeOptions.compatibilityMode": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "[Compatibility mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_8_) gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the ```compmode on``` symbol, too."
+					"markdownDescription": "[Compatibility mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_8_) gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the ```compmode on``` symbol, too.",
+					"order": 2
 				},
 				"megaenvironment.codeOptions.maximumForwardReferences": {
 					"type": "number",
 					"default": 1,
 					"minimum": 0,
-					"description": "The maximum number of additional passes that will be performend to resolve forward references. Increasing this number may impact assembly time in relation to how many forward references you have included in your code."
+					"description": "The maximum number of additional passes that will be performend to resolve forward references. Increasing this number may impact assembly time in relation to how many forward references you have included in your code. Not supported in Sonic disassemblies.",
+					"order": 3
 				},
 				"megaenvironment.codeOptions.signExtensionWarning": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Gives a warning when using implicit sign extensions. Only effective with ```moveq``` instructions in 68K assembly. Not supported in the Sonic disassembly version."
+					"markdownDescription": "Gives a warning when using implicit sign extensions. Only effective with ```moveq``` instructions in 68K assembly. Not supported in Sonic disasseblies.",
+					"order": 4
 				},
 				"megaenvironment.codeOptions.absoluteJumpsWarning": {
 					"type": "boolean",
 					"default": false,
-					"description": "Gives a warning when a relative jump can be used instead of an absolute one. Only effective in Z80 assembly. Not supported in the Sonic disassembly version."
+					"description": "Gives a warning when a relative jump can be used instead of an absolute one. Only effective in Z80 assembly. Not supported in Sonic disasseblies.",
+					"order": 5
 				},
 				"megaenvironment.codeOptions.caseSensitiveMode": {
 					"type": "boolean",
 					"default": true,
-					"description": "Check this to make any symbol case-sensitive in your code."
+					"description": "Check this to make any symbol case-sensitive in your code.",
+					"order": 6
 				},
 				"megaenvironment.codeOptions.radix": {
 					"type": "number",
 					"default": 10,
 					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the ```radix``` symbol).",
 					"maximum": 36,
-					"minimum": 2
+					"minimum": 2,
+					"order": 7
 				},
 				"megaenvironment.codeOptions.RELAXEDMode": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any possible syntax for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the ```relaxed on``` symbol in code as well."
+					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any possible syntax for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the ```relaxed on``` symbol in code as well.",
+					"order": 8
 				},
 				"megaenvironment.codeOptions.addIntegerSyntax": {
 					"type": "array",
@@ -204,7 +213,8 @@
 						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)."
 					},
 					"default": [],
-					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in the Sonic disassembly version."
+					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in Sonic disasseblies.",
+					"order": 9
 				},
 				"megaenvironment.codeOptions.removeIntegerSyntax": {
 					"type": "array",
@@ -214,43 +224,51 @@
 						"patternErrorMessage": "You must put the symbol, then the identifier (e.g. 0xhex, %bin)."
 					},
 					"default": [],
-					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in the Sonic disassembly version."
+					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in Sonic disasseblies.",
+					"order": 10
 				},
 				"megaenvironment.codeOptions.macroArgumentsWithUnderscore": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Grants the opportunity to use the underscore character in [macro arguments](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_SectMacros). It can come with side effects. Not supported in the Sonic disassembly version."
+					"markdownDescription": "Grants the opportunity to use the underscore character in [macro arguments](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_SectMacros). It can come with side effects. Not supported in Sonic disasseblies.",
+					"order": 11
 				},
 				"megaenvironment.buildControl.outputRomName": {
 					"type": "string",
 					"default": "",
-					"description": "The output ROM file name. Leave it blank if you want this to have the same name as the main source code file."
+					"description": "The output ROM file name. Leave it blank if you want this to have the same name as the main source code file.",
+					"order": 12
 				},
 				"megaenvironment.buildControl.includeRomDate": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether the output ROM file name should include date and time after the set name."
+					"description": "Whether the output ROM file name should include date and time after the set name.",
+					"order": 13
 				},
 				"megaenvironment.buildControl.enablePreviousBuilds": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced by the newer one. The latest build has the highest number."
+					"description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced by the newer one. The latest build has the highest number.",
+					"order": 14
 				},
 				"megaenvironment.buildControl.previousRomsAmount": {
 					"type": "integer",
 					"default": 10,
 					"description": "The maximum amount of .pre ROMs before it starts replacing the oldest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
-					"minimum": 0
+					"minimum": 0,
+					"order": 15
 				},
 				"megaenvironment.buildControl.generateChecksum": {
 					"type": "boolean",
 					"default": true,
-					"markdownDescription": "Generates a [16-bit Mega Drive-style checksum](https://plutiedev.com/rom-header#checksum) which patches byte $18E and $18F of the ROM header."
+					"markdownDescription": "Generates a [16-bit Mega Drive-style checksum](https://plutiedev.com/rom-header#checksum) which patches byte $18E and $18F of the ROM header.",
+					"order": 16
 				},
 				"megaenvironment.buildControl.sonicDisassemblySupport": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Downloads an [alternative version](https://github.com/flamewing/asl-releases) that supports [Sonic disassemblies](https://github.com/sonicretro). Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being older."
+					"markdownDescription": "Downloads an [alternative version](https://github.com/flamewing/asl-releases) that supports [Sonic disassemblies](https://github.com/sonicretro). Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being older.",
+					"order": 17
 				},
 				"megaenvironment.buildControl.segmentCompression.compressionAlgorithm": {
 					"type": "string",
@@ -259,28 +277,31 @@
 					"enumDescriptions": [
 						"The code segment won't be compressed.",
 						"Kosinski is a very powerful compression algorithm derived from LZSS. Originally used in Sonic 1 and Sonic 2.",
-						"This Kosinski version is optimized specifically for the Sega Mega Drive to improve decompression speed.",
+						"This Kosinski version is optimized specifically for the Sega Mega Drive to boost decompression speed.",
 						"Kosinski+ is an enhanced version for the Sega Mega Drive to improve both compression ratio and decompression speed.",
 						"The original Saxman implementation from Sonic 2 is flawed and creates trailing garbage bytes.",
 						"Saxman is a basic implementation of the LZSS algorithm. Originally used in Sonic 2.",
-						"This Saxman version is optimized specifically for the Sega Mega Drive to improve decompression speed."
+						"This Saxman version is optimized specifically for the Sega Mega Drive to refine decompression speed."
 					],
 					"default": "kosinski",
-					"description": "The compression algorithm used to compress the specified code segment. Note that not all algorithms work with games that don't support them. Not supported in the original assembler version."
+					"description": "The compression algorithm used to compress the specified code segment. Note that not all algorithms work with games that don't support them. Not supported in the original assembler version.",
+					"order": 18
 				},
 				"megaenvironment.buildControl.segmentCompression.startingAddress": {
 					"type": "string",
 					"default": "0",
 					"description": "The starting address of the first compressed code segment. Not supported in the original assembler version.",
 					"pattern": "^[0-9A-Fa-f]{1,8}$",
-					"patternErrorMessage": "Value must be an address (e.g. from $0 to $FFFFFFFF)."
+					"patternErrorMessage": "Value must be an address (e.g. from $0 to $FFFFFFFF).",
+					"order": 19
 				},
 				"megaenvironment.buildControl.segmentCompression.segmentSize": {
 					"type": "string",
 					"default": "Size_of_DAC_driver_guess",
 					"description": "The constant that is used to reserve space for the compressed code segments. Can also be a constant from your assembly code. Not supported in the original assembler version.",
 					"pattern": "^\\w+|[0-9A-Fa-f]{1,8}$",
-					"patternErrorMessage": "Value must be a constant or an address."
+					"patternErrorMessage": "Value must be a constant or an address.",
+					"order": 20
 				},
 				"megaenvironment.buildControl.segmentCompression.insertionMethod": {
 					"type": "string",
@@ -291,53 +312,62 @@
 						"Overlap the previous segment."
 					],
 					"default": "after",
-					"description": "Method of inserting compressed data. Not supported in the original assembler version."
+					"description": "Method of inserting compressed data. Not supported in the original assembler version.",
+					"order": 21
 				},
 				"megaenvironment.buildControl.convertWavFilesInDirectory": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether this extension should convert WAV files that are stored in the \"sound\" directory. Not supported in the original assembler version."
+					"description": "Whether this extension should convert WAV files that are stored in the \"sound\" directory. Not supported in the original assembler version.",
+					"order": 22
 				},
 				"megaenvironment.sourceCodeControl.mainFileName": {
 					"type": "string",
 					"default": "Sonic.68k",
 					"description": "The main source code file name used in the project, where the code gets executed.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i)$).+\\..+$",
-					"patternErrorMessage": "Empty file name or invalid extension."
+					"patternErrorMessage": "Empty file name or invalid extension.",
+					"order": 23
 				},
 				"megaenvironment.sourceCodeControl.constantsFileName": {
 					"type": "string",
 					"default": "Constants.asm",
 					"description": "The source code file name of the constants used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
-					"patternErrorMessage": "Invalid extension."
+					"patternErrorMessage": "Invalid extension.",
+					"order": 24
 				},
 				"megaenvironment.sourceCodeControl.variablesFileName": {
 					"type": "string",
 					"default": "Variables.asm",
 					"description": "The source code file name of the variables used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
-					"patternErrorMessage": "Invalid extension."
+					"patternErrorMessage": "Invalid extension.",
+					"order": 25
 				},
 				"megaenvironment.sourceCodeControl.generateCodeListing": {
 					"type": "boolean",
 					"default": true,
-					"description": "Check this if you want a listing file to be generated each time a build is assembled. Useful for debugging."
+					"description": "Check this if you want a listing file to be generated each time a build is assembled. Useful for debugging.",
+					"order": 26
 				},
 				"megaenvironment.sourceCodeControl.listingFileName": {
 					"type": "string",
 					"default": "",
-					"description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file."
+					"description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file.",
+					"order": 27
 				},
 				"megaenvironment.sourceCodeControl.generateErrorListing": {
 					"type": "boolean",
 					"default": false,
-					"description": "Check this if you want every warning and error to be redirected in a text file. This will also suppress warnings automatically."
+					"description": "Check this if you want every warning and error to be redirected in a text file. This will also suppress warnings automatically.",
+					"order": 28
 				},
 				"megaenvironment.sourceCodeControl.errorFileName": {
 					"type": "string",
 					"default": "",
-					"description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file."
+					"description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file.",
+					"order": 29
 				},
 				"megaenvironment.sourceCodeControl.generateDebugFile": {
 					"type": "string",
@@ -349,41 +379,54 @@
 						"Atmel format used by the AVR tools."
 					],
 					"default": "None",
-					"description": "Check this to instruct AS to print a debug file containing the information of the program. The extension depends on the format you're choosing."
+					"description": "Check this to instruct AS to print a debug file containing the information of the program. The extension depends on the format you're choosing.",
+					"order": 30
+				},
+				"megaenvironment.sourceCodeControl.generateCrossReferencesListing": {
+					"type": "boolean",
+					"default": false,
+					"description": "Check this to generate a listing file that shows which (global) symbols are used in files and lines.",
+					"order": 31
 				},
 				"megaenvironment.sourceCodeControl.generateSectionListing": {
 					"type": "boolean",
 					"default": false,
-					"description": "Check this if you want a listing file representing all sections to be issued. Nesting is Pascal-like indentations."
+					"markdownDescription": "Check this if you want a listing file representing all [sections](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_ChapLocSyms) to be issued. Nesting is Pascal-like indentations.",
+					"order": 32
 				},
 				"megaenvironment.sourceCodeControl.generateMacroListing": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Check this if you want a listing file representing all macros that don't use ```NOEXPORT``` to be issued. File name is the same as the main source code, with extension \".mac\"."
+					"markdownDescription": "Check this if you want a listing file representing all macros that don't use ```NOEXPORT``` to be issued. File name is the same as the main source code, with extension \".mac\".",
+					"order": 33
 				},
 				"megaenvironment.sourceCodeControl.generateSourceListing": {
 					"type": "boolean",
 					"default": false,
-					"description": "Check this if you want a listing file representing the source text processed by the macro processor and conditional assembly. The file extension is \".i\"."
+					"description": "Check this if you want a listing file representing the source text processed by the macro processor and conditional assembly. The file extension is \".i\".",
+					"order": 34
 				},
 				"megaenvironment.sourceCodeControl.radixInListing": {
 					"type": "number",
 					"default": 16,
 					"description": "You can set the number base (radix) displayed in the code listing file. Default is base 16 (hexadecimal).",
 					"maximum": 36,
-					"minimum": 2
+					"minimum": 2,
+					"order": 35
 				},
 				"megaenvironment.sourceCodeControl.byteSplitInListing": {
 					"type": "string",
 					"default": "",
 					"description": "You can set a character of choice to split the numbers found in the code listing file in bytes. Leave it blank to disable this feature.",
 					"pattern": "^.$|^$",
-					"patternErrorMessage": "Value must be empty or one character only."
+					"patternErrorMessage": "Value must be empty or one character only.",
+					"order": 36
 				},
 				"megaenvironment.sourceCodeControl.listUnknownValues": {
 					"type": "boolean",
 					"default": false,
-					"description": "Check this to include unknown values in the first pass listing, showing them as question marks. Not supported in the Sonic disassembly version."
+					"description": "Check this to include unknown values in the first pass listing, showing them as question marks. Not supported in Sonic disasseblies.",
+					"order": 37
 				},
 				"megaenvironment.sourceCodeControl.cleaningExtensionSelector": {
 					"type": "array",
@@ -403,7 +446,8 @@
 						]
 					},
 					"default": [ ".gen", ".pre", ".lst", ".log", ".map", ".noi", ".obj", ".mac", ".i" ],
-					"markdownDescription": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do **NOT** rename your code with these extensions for any reason, or else your code can be permanently deleted!"
+					"markdownDescription": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do **NOT** rename your code with these extensions for any reason, or else your code can be permanently deleted!",
+					"order": 38
 				},
 				"megaenvironment.sourceCodeControl.currentWorkingFolders": {
 					"type": "array",
@@ -413,7 +457,8 @@
 					"items": {
 						"type": "string"
 					},
-					"markdownDescription": "The directories where the assembler will look for resources (when using [```include```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_2_) or [```binclude```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_3_), for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!"
+					"markdownDescription": "The directories where the assembler will look for resources (when using [```include```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_2_) or [```binclude```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_3_), for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!",
+					"order": 39
 				},
 				"megaenvironment.sourceCodeControl.templateSelector": {
 					"type": "array",
@@ -440,151 +485,178 @@
 						"Constants",
 						"Variables"
 					],
-					"description": "Choose which initialization template gets appended to every new project you create."
+					"description": "Choose which initialization template gets appended to every new project you create.",
+					"order": 40
 				},
 				"megaenvironment.backupOptions.includeBackupDate": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether the output backup file name should include date and time after the set name."
+					"description": "Whether the output backup file name should include date and time after the set name.",
+					"order": 41
 				},
 				"megaenvironment.backupOptions.backupFileName": {
 					"type": "string",
 					"default": "",
-					"description": "The name of the backup files. Default name is \"Backup\" when left blank."
+					"description": "The name of the backup files. Default name is \"Backup\" when left blank.",
+					"order": 42
 				},
 				"megaenvironment.miscellaneous.compactGlobalSymbols": {
 					"type": "boolean",
 					"default": true,
-					"description": "Stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time."
+					"description": "Stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time.",
+					"order": 43
 				},
 				"megaenvironment.miscellaneous.fillValue": {
 					"type": "string",
 					"default": "00",
 					"description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since these tend to skip writing to these areas.",
 					"pattern": "^[0-9A-Fa-f]{1,2}$",
-					"patternErrorMessage": "Value must be a valid 8-bit hex value (e.g. 00 to FF)."
+					"patternErrorMessage": "Value must be a valid 8-bit hex value (e.g. 00 to FF).",
+					"order": 44
 				},
 				"megaenvironment.miscellaneous.errorLevel": {
 					"type": "integer",
 					"default": 1,
 					"description": "The detail level of warning, error and fatal messages. The higher the value, the more information about a possible error will be printed.",
 					"minimum": 0,
-					"maximum": 2
+					"maximum": 2,
+					"order": 45
 				},
 				"megaenvironment.miscellaneous.maximumErrors": {
 					"type": "string",
 					"default": "",
 					"description": "The assembly terminates after the given number of errors. Leave it empty to make it unlimited, which is the default behavior.",
 					"pattern": "^\\d*$",
-					"patternErrorMessage": "Value must be empty or a number."
+					"patternErrorMessage": "Value must be empty or a number.",
+					"order": 46
 				},
 				"megaenvironment.miscellaneous.displayErrorNumber": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Whether the terminal should display errors along with their [internal error number](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_ChapErrMess) defined by the assembler."
+					"markdownDescription": "Whether the terminal should display errors along with their [internal error number](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_ChapErrMess) defined by the assembler.",
+					"order": 47
 				},
 				"megaenvironment.miscellaneous.AS-StyledErrors": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the terminal should display errors using the original AS syntax. You also gain the ability to localize macro-related errors."
-				},
-				"megaenvironment.miscellaneous.lowercaseHexadecimal": {
-					"type": "boolean",
-					"default": false,
-					"description": "Whether any hexadecimal value in the various outputs should be lowercase. Primarily for personal preference (and what a taste!)."
+					"description": "Whether the terminal should display errors using the original AS syntax. You also gain the ability to localize macro-related errors.",
+					"order": 48
 				},
 				"megaenvironment.miscellaneous.suppressWarnings": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the IDE and the terminal should suppress the assembler warnings."
+					"description": "Whether the IDE and the terminal should suppress the assembler warnings.",
+					"order": 49
+				},
+				"megaenvironment.miscellaneous.lowercaseHexadecimal": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether any hexadecimal value in the various outputs should be lowercase. Primarily for personal preference (and what a taste!).",
+					"order": 50
 				},
 				"megaenvironment.miscellaneous.quietOperation": {
 					"type": "boolean",
 					"default": false,
-					"description": "This development environment can get a bit invasive: turn this on if you want the IDE to suppress information messages."
+					"description": "This development environment can get a bit invasive: turn this on if you want the IDE to suppress information messages.",
+					"order": 51
 				},
 				"megaenvironment.miscellaneous.verboseOperation": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs."
+					"description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs.",
+					"order": 52
 				},
 				"megaenvironment.miscellaneous.warningsAsErrors": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the assembler should treat warnings as errors."
+					"description": "Whether the assembler should treat warnings as errors.",
+					"order": 53
 				},
 				"megaenvironment.miscellaneous.startBlastEmWithDebuggers": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether BlastEm should start with debuggers right away."
+					"description": "Whether BlastEm should start with the debugging console right away. Useful if you have a ROM that crashes during initialization.",
+					"order": 54
 				},
-				"megaenvironment.paths.BlastEm": {
+				"megaenvironment.paths.Blastem": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the BlastEm executable.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 55
 				},
-				"megaenvironment.paths.ClownMDEmu": {
+				"megaenvironment.paths.Clownmdemu": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the ClownMDEmu executable.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 56
 				},
 				"megaenvironment.paths.Regen": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the Regen executable.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 57
 				},
 				"megaenvironment.paths.Gens": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the Gens executable.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 58
 				},
-				"megaenvironment.paths.BizHawk": {
+				"megaenvironment.paths.Bizhawk": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the BizHawk executable.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 59
 				},
 				"megaenvironment.paths.Fusion": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the Fusion executable.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 60
 				},
-				"megaenvironment.paths.EASy68k": {
+				"megaenvironment.paths.Easy68k": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the EASy68k executable.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 61
 				},
 				"megaenvironment.paths.outputPathWithoutWorkspace": {
 					"type": "string",
 					"default": "",
 					"description": "The default path where the output files get generated when there isn't an opened workspace and there's only a standalone file.",
-					"ignoreSync": true
+					"ignoreSync": true,
+					"order": 62
 				},
 				"megaenvironment.extensionOptions.checkForUpdates": {
 					"type": "boolean",
 					"default": true,
-					"description": "Automatically check for new updates each time the extension activates. There could be important fixes, so leaving it on is advised."
+					"description": "Automatically check for new updates each time the extension activates. There could be important fixes, so leaving it on is advised.",
+					"order": 63
 				},
 				"megaenvironment.extensionOptions.showChecksumValue": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether the checksum should be shown in the terminal. Useful when you need to hard code it into your ROM to perform the integrity check."
+					"description": "Whether the checksum should be shown in the terminal. Useful when you need to hard code it into your ROM to perform the integrity check.",
+					"order": 64
 				},
 				"megaenvironment.extensionOptions.hideUnsupportedEmulators": {
 					"type": "boolean",
 					"default": false,
-					"description": "Choose to hide grayed out emulators that aren't compatible with your operative system."
+					"description": "Choose to hide grayed out emulators that aren't compatible with your operative system.",
+					"order": 65
 				},
 				"megaenvironment.extensionOptions.alwaysActive": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project or don't have an assembly file open. Changes take effect when you restart the extension."
+					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project or don't have an assembly file open. Changes take effect when you restart the extension.",
+					"order": 66
 				}
 			}
 		},

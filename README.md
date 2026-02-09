@@ -1,5 +1,6 @@
 # What does this thing do?
-MDE is a Visual Studio Code extension developed to integrate a cross-platform UI with [The Macroassembler AS](http://john.ccac.rwth-aachen.de:8000/as/).  
+> MDE is a Visual Studio Code extension developed to integrate a cross-platform UI with [The Macroassembler AS](http://john.ccac.rwth-aachen.de:8000/as/). 
+
 The purpose of this extension is primarily for Sega Mega Drive homebrew development. It also supports Sonic Disassemblies and aims to bring a familiar UI to fellow Sonic ROM hackers.  
 
 ## What it can do
@@ -55,9 +56,9 @@ This command will output your freshly packaged VSIX, ready to be installed in VS
 ![Fast debugging](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Debugging.png)
 ![One-click backups](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Backup.png)
 ![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings1.png)
-![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings2.png)
-![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings3.png)
-![Some settings](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings4.png)
+![Some more settings again](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings2.png)
+![Some more settings yet again](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings3.png)
+![Even more settings yet again](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Settings4.png)
 ## The Credits Section
 The assembler and compiler: http://john.ccac.rwth-aachen.de:8000/as/  
 How I learnt to make this extension: https://code.visualstudio.com/api/get-started/your-first-extension  

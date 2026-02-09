@@ -57,6 +57,7 @@ interface ExtensionSettings {
 	errorFile: boolean;
 	errorName: string;
 	debugFile: string;
+	crossReferencesListing: boolean;
 	sectionListing: boolean;
 	macroListing: boolean;
 	sourceListing: boolean;
@@ -122,6 +123,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	errorFile: false,
 	errorName: '',
 	debugFile: 'None',
+	crossReferencesListing: false,
 	sectionListing: false,
 	macroListing: false,
 	sourceListing: false,
@@ -686,7 +688,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		const selectedPath = uri[0].fsPath;
 
 		if ((await promises.readdir(selectedPath)).length > 0) {
-			const selection = await window.showWarningMessage('This directory is not empty, which means the selected files for cleaning can be accidentally wiped forever!', 'I take this risk!', 'Nevermind');
+			const selection = await window.showWarningMessage('This directory is not empty, which means the selected files for cleaning can be accidentally wiped forever!', 'I take this risk!', 'Never mind');
 
 			if (selection !== 'I take this risk!') {
 				return false;
@@ -752,6 +754,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		...(settings.errorNumber ? ['-n'] : []),
 		...(settings.lowercaseHex ? ['-h'] : []),
 		...(settings.suppressWarnings ? ['-w'] : []),
+		...(settings.crossReferencesListing ? ['-C'] : []),
 		...(settings.sectionListing ? ['-s'] : []),
 		...(settings.macroListing ? ['-M'] : []),
 		...(settings.sourceListing ? ['-P'] : []),
@@ -1456,7 +1459,7 @@ export async function activate(context: ExtensionContext) {
 	if (extensionSettings.checkUpdates && await downloadAssembler(false) === -1) { return; }
 
 	//
-	//	Commands
+	//	Main commands
 	//
 
 	const assemble = commands.registerCommand('megaenvironment.assemble', () => assembleROMWithProgress());
@@ -1976,7 +1979,7 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	context.subscriptions.push(
-		workspace.onDidChangeConfiguration(event => updateConfiguration(event)), workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidOpenTextDocument(projectCheck),
+		workspace.onDidChangeConfiguration(event => updateConfiguration(event)), workspace.onDidChangeWorkspaceFolders(projectCheck),// workspace.onDidOpenTextDocument(projectCheck),
 		assemble, clean_and_assemble,
 		run_BlastEm, run_ClownMdEmu, run_Regen, run_Gens, run_BizHawk, run_Fusion, run_OpenEmu,
 		assemble_and_run_BlastEm, assemble_and_run_ClownMDEmu, assemble_and_run_Regen, assemble_and_run_Gens, assemble_and_run_BizHawk, assemble_and_run_Fusion, assemble_and_run_OpenEmu,
@@ -2001,6 +2004,18 @@ async function projectCheck(): Promise<boolean> {
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = true;
 		sourceCodeFolder = projectFolders[0].uri.fsPath;
+
+		if ((await promises.readdir(sourceCodeFolder)).some(f => strings.sonicDisassemblyFolders.includes(f)) && !extensionSettings.sonicDisassembly) {
+			const selection = await window.showWarningMessage("It looks like you're using a Sonic disassembly. Please, turn on the associated compatibility setting to make compiling work, or else you'll get random errors!", 'Change Setting');
+			
+			if (selection === 'Change Setting') {
+				commands.executeCommand(
+					'workbench.action.openSettings',
+					'megaenvironment.buildControl.sonicDisassemblySupport'
+				);
+			}
+		}
+
 		return true;
 	} else if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the contributed languages
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
@@ -2084,7 +2099,7 @@ ROM_Start
 ; 68000 vectors (with its error code in square brackets, AAAAAAxx)
 ; ================================================================
 
-		dc.l M68K_STACK			; Initial stack pointer value (SP value)
+		dc.l M68K.STACK			; Initial stack pointer value (SP value)
 		dc.l EntryPoint			; Start of program (PC value)
 		dc.l BusError			; Bus error							[1]
 		dc.l AddressError		; Address error						[2]
@@ -2157,7 +2172,7 @@ ROM_Start
 
 BusError:
 	move.l	#$AAAAAAA1,d7
-	stop #$2700 ; some emulators might not recognize this instruction
+	stop #$2700 ; Don't use Gens, it doesn't recognize this instruction
 
 AddressError:
 	move.l	#$AAAAAAA2,d7
@@ -2252,7 +2267,7 @@ EntryPoint:`,
 ;		Motorola 68000
 ; --------------------------
 
-	org M68K_WRAM	; Main work RAM address space
+	org M68K.WRAM	; Main work RAM address space
 
 ; Your 68000 variables go here
 
@@ -2260,9 +2275,13 @@ EntryPoint:`,
 ;		Zilog Z80
 ; ----------------------
 
-	org $1000	; away from code and stack
+	padding off
+
+	org $1000	; Away from code and stack
 
 ; Your Z80 variables go here
+
+	padding on
 `,
 
 	megaDriveVDPInitialization: String.raw
@@ -2273,24 +2292,24 @@ EntryPoint:`,
 
 ; VDP setup reference: https://plutiedev.com/vdp-setup
 
-	lea	(VDP_CTRL),a0
+	lea	(VDP.CTRL),a0
 
-	tst.w 	(a0) ; Testing the VDP control port safely resets it
+	tst.w 	(a0) ; Reading the VDP control port safely resets it
 	
 ; Register reference: https://plutiedev.com/vdp-registers
 
-	move.l  #(VDPREG_MODE1|%00000100)<<16|(VDPREG_MODE2|%01110100),(a0)	; Mode register #1 and Mode register #2
-    move.l  #(VDPREG_MODE3|%00000000)<<16|(VDPREG_MODE4|%10000001),(a0)	; Mode register #3 and Mode Register #4
+	move.l  #(VDP_REG.MODE1|%00000100)<<16|(VDP_REG.MODE2|%01110100),(a0)	; Mode register #1 and Mode register #2
+	move.l  #(VDP_REG.MODE3|%00000000)<<16|(VDP_REG.MODE4|%10000001),(a0)	; Mode register #3 and Mode Register #4
     
 ; Planes reference: https://segaretro.org/Sega_Mega_Drive/Planes
 
-    move.l  #VDPREG_PLANEA|(VRAM_PLANEA>>10)<<16|(VDPREG_PLANEB|(VRAM_PLANEB>>13)),(a0)	; Plane A and Plane B address
-	move.l  #VDPREG_SPRITE|(VRAM_SPRITE>>9)<<16|(VDPREG_WINDOW|(VRAM_WINDOW>>10)),(a0)	; Sprite and Window address
-    move.w  #VDPREG_HSCROLL|(VRAM_HSCROLL>>10),(a0)										; Horizontal scroll address
+	move.l  #VDP_REG.PLANEA|(VDP_VRAM.PLANEA>>10)<<16|(VDP_REG.PLANEB|(VDP_VRAM.PLANEB>>13)),(a0)	; Plane A and Plane B address
+	move.l  #VDP_REG.SPRITE|(VDP_VRAM.SPRITE>>9)<<16|(VDP_REG.WINDOW|(VDP_VRAM.WINDOW>>10)),(a0)	; Sprite and Window address
+	move.w  #VDP_REG.HSCROLL|(VDP_VRAM.HSCROLL>>10),(a0)										; Horizontal scroll address
     
-    move.l  #(VDPREG_WINX|$00)<<16|(VDPREG_WINY|$00),(a0)			; Window X split and Window Y split
-    move.l  #(VDPREG_SIZE|%00000001)<<16|(VDPREG_BGCOL|$00),(a0)	; Tilemap size and Background color
-    move.l  #(VDPREG_INCR|$02)<<16|(VDPREG_HRATE|$FF),(a0)			; Autoincrement and HBlank IRQ rate
+	move.l  #(VDP_REG.WINX|$00)<<16|(VDP_REG.WINY|$00),(a0)			; Window X split and Window Y split
+	move.l  #(VDP_REG.SIZE|%00000001)<<16|(VDP_REG.BGCOL|$00),(a0)	; Tilemap size and Background color
+	move.l  #(VDP_REG.INCR|$02)<<16|(VDP_REG.HRATE|$FF),(a0)			; Autoincrement and HBlank IRQ rate
 `,
 
 	megaDriveJoystickInitialization: String.raw
@@ -2300,10 +2319,10 @@ EntryPoint:`,
 ; ================================================================
 
 	moveq 	#$40,d0
-	move.b	d0,(JOY1_CTRL)
-	move.b	d0,(JOY1_DATA)
-	move.b	d0,(JOY2_CTRL)
-	move.b	d0,(JOY2_DATA)
+	move.b	d0,(JOY1.CTRL)
+	move.b	d0,(JOY1.DATA)
+	move.b	d0,(JOY2.CTRL)
+	move.b	d0,(JOY2.DATA)
 `,
 
 	megaDriveCoprocessorInitialization: String.raw
@@ -2313,9 +2332,9 @@ EntryPoint:`,
 ; =================================================================================
 
 	lea (Z80_ROM_Start),a0
-	lea (Z80_WRAM),a1
-	lea (Z80_RESET),a2
-	lea (Z80_BUSREQ),a3
+	lea (Z80_CTRL.WRAM),a1
+	lea (Z80_CTRL.RESET),a2
+	lea (Z80_CTRL.BUSREQ),a3
 
 	move.w	#$000,a2	; Assert Z80 reset
 	move.w	#$100,a3	; Hold (or request) Z80 bus
@@ -2337,7 +2356,7 @@ $$loop:	; Load Z80 program into its RAM
 ; JOYx: controller related constant
 ; EXP: expansion related constant
 ; VDP: VDP memory map related constant
-; VDPREG: VDP register related constant
+; VDP_REG: VDP register related constant
 ; PSG: PSG related constant
 ; YM2612: YM2612 related constant
 ; REG: miscellaneous Mega Drive register related constant
@@ -2348,119 +2367,138 @@ $$loop:	; Load Z80 program into its RAM
 ; ---------------------------------
 
 ; Mega Drive memory spaces
-M68K_WRAM:	equ $FF0000		; 68000 memory start address
-M68K_STACK:	equ $FF0000		; 68000 stack
-JOY1_CTRL:	equ $A10009		; Controller 1 control port
-JOY1_DATA:	equ $A10003   	; Controller 1 data port
-JOY2_CTRL:	equ $A10005		; Controller 2 control port
-JOY2_DATA:	equ $A1000B   	; Controller 2 data port
-EXP_CTRL:	equ $A1000D		; Expansion control port
-EXP_DATA:	equ $A10006		; Expansion data port
+M68K:
+.WRAM:	equ $FF0000			; 68000 memory start address
+.STACK:	equ $FF0000			; 68000 stack
+.PSG:	equ $C00011			; PSG port
+JOY1:
+.CTRL:		equ $A10009		; Controller 1 control port
+.DATA:		equ $A10003   	; Controller 1 data port
+.SER_TRAN:	equ $A1000E		; Controller 1 serial transmit
+.SER_REC:	equ $A10010		; Controller 1 serial receive
+.SER_CTRL:	equ $A10012		; Controller 1 serial control
+JOY2:
+.CTRL:		equ $A10005		; Controller 2 control port
+.DATA:		equ $A1000B   	; Controller 2 data port
+.SER_TRAN:	equ $A10014		; Controller 2 serial transmit
+.SER_REC:	equ $A10016		; Controller 2 serial receive
+.SER_CTRL:	equ $A10018		; Controller 2 serial control
 
-JOY1_SER_TRAN:	equ $A1000E		; Controller 1 serial transmit
-JOY1_SER_REC:	equ $A10010		; Controller 1 serial receive
-JOY1_SER_CTRL:	equ $A10012		; Controller 1 serial control
-JOY2_SER_TRAN:	equ $A10014		; Controller 2 serial transmit
-JOY2_SER_REC:	equ $A10016		; Controller 2 serial receive
-JOY2_SER_CTRL:	equ $A10018		; Controller 2 serial control
-EXP_SER_TRAN:	equ $A1001A		; Expansion serial transmit
-EXP_SER_REC:	equ $A1001C		; Expansion serial receive
-EXP_SER_CTRL:	equ $A1001E		; Expansion serial control
+EXP:
+.CTRL:		equ $A1000D		; Expansion control port
+.DATA:		equ $A10006		; Expansion data port
+.SER_TRAN:	equ $A1001A		; Expansion serial transmit
+.SER_REC:	equ $A1001C		; Expansion serial receive
+.SER_CTRL:	equ $A1001E		; Expansion serial control
 
-REG_SRAM:		equ $A130F1		; SRAM access register
+REG:
+.SRAM:	equ $A130F1			; SRAM access register
 
-REG_VERSION:	equ $A10001		; Version register
-REG_MEMORYMODE:	equ $A11000		; Memory mode register
+.VERSION:		equ $A10001		; Version register
+.MEMORYMODE:	equ $A11000		; Memory mode register
 
-REG_TMSS:		equ $A14000		; TMSS "SEGA" register
-REG_TMSS_CART:	equ $A14101		; TMSS cartridge register
+.TMSS:		equ $A14000		; TMSS "SEGA" register
+.TMSS_CART:	equ $A14101		; TMSS cartridge register
 
-REG_TIME:	equ $A13000		; TIME signal to cartridge ($00-$FF)
-REG_32X:	equ $A130EC		; Becomes "MARS" when a 32X is attached
+.TIME:	equ $A13000		; TIME signal to cartridge ($00-$FF)
+.32X:	equ $A130EC		; Becomes "MARS" when a 32X is attached
 
 ; VDP memory addresses
-VDP_DATA:    	equ $C00000		; VDP data port
-VDP_CTRL:    	equ $C00004		; VDP control port and Status Register
-VDP_HVCOUNTER:  equ $C00008		; H/V counter
+VDP:
+.DATA:		equ $C00000		; VDP data port
+.CTRL:		equ $C00004		; VDP control port and Status Register
+.HVCOUNTER:	equ $C00008		; H/V counter
+.DEBUG:		equ $C0001C		; Debug register
 
-VDP_VRAM:	equ	$40000000	; Video memory address control port
-VDP_VSRAM:	equ $40000010	; Vertical scroll memory address control port
-VDP_CRAM: 	equ $C0000000	; Color memory address control port
+; VDP commands
+VDP_CMD:
+.VRAM:	equ	$40000000		; Video memory address command
+.VSRAM:	equ $40000010		; Vertical scroll memory address command
+.CRAM: 	equ $C0000000		; Color memory address command
 
-VDP_VRAM_DMA:   equ $40000080	; DMA VRAM control port
-VDP_VSRAM_DMA:  equ $40000090	; DMA VSRAM control port
-VDP_CRAM_DMA:   equ $C0000080	; DMA CRAM control port
-
-PSG_OUT:	equ $C00011		; PSG output (or input)
-
-VDP_DEBUG:	equ $C0001C		; Debug register
+.VDP_VRAM.DMA:	equ $40000080	; DMA video memory write command
+.VSRAM_DMA:		equ $40000090	; DMA vertical scroll memory write command
+.RAM_DMA:		equ $C0000080	; DMA color memory write command
 
 ; VDP registers
-VDPREG_MODE1:     equ $8000  ; Mode register #1
-VDPREG_MODE2:     equ $8100  ; Mode register #2
-VDPREG_MODE3:     equ $8B00  ; Mode register #3
-VDPREG_MODE4:     equ $8C00  ; Mode register #4
+VDP_REG:
+.MODE1:     equ $8000  ; Mode register #1
+.MODE2:     equ $8100  ; Mode register #2
+.MODE3:     equ $8B00  ; Mode register #3
+.MODE4:     equ $8C00  ; Mode register #4
 
-VDPREG_PLANEA:    equ $8200  ; Plane A table address
-VDPREG_PLANEB:    equ $8400  ; Plane B table address
-VDPREG_SPRITE:    equ $8500  ; Sprite table address
-VDPREG_WINDOW:    equ $8300  ; Window table address
-VDPREG_HSCROLL:   equ $8D00  ; HScroll table address
+.PLANEA:    equ $8200  ; Plane A table address
+.PLANEB:    equ $8400  ; Plane B table address
+.SPRITE:    equ $8500  ; Sprite table address
+.WINDOW:    equ $8300  ; Window table address
+.HSCROLL:   equ $8D00  ; HScroll table address
 
-VDPREG_SIZE:      equ $9000  ; Plane A and B size
-VDPREG_WINX:      equ $9100  ; Window X split position
-VDPREG_WINY:      equ $9200  ; Window Y split position
-VDPREG_INCR:      equ $8F00  ; Autoincrement
-VDPREG_BGCOL:     equ $8700  ; Background color
-VDPREG_HRATE:     equ $8A00  ; HBlank interrupt rate
+.SIZE:      equ $9000  ; Plane A and B size
+.WINX:      equ $9100  ; Window X split position
+.WINY:      equ $9200  ; Window Y split position
+.INCR:      equ $8F00  ; Autoincrement
+.BGCOL:     equ $8700  ; Background color
+.HRATE:     equ $8A00  ; HBlank interrupt rate
 
-VDPREG_DMALEN_L:  equ $9300  ; DMA length (low)
-VDPREG_DMALEN_H:  equ $9400  ; DMA length (high)
-VDPREG_DMASRC_L:  equ $9500  ; DMA source (low)
-VDPREG_DMASRC_M:  equ $9600  ; DMA source (mid)
-VDPREG_DMASRC_H:  equ $9700  ; DMA source (high)
+.DMALEN_L:  equ $9300  ; DMA length (low)
+.DMALEN_H:  equ $9400  ; DMA length (high)
+.DMASRC_L:  equ $9500  ; DMA source (low)
+.DMASRC_M:  equ $9600  ; DMA source (mid)
+.DMASRC_H:  equ $9700  ; DMA source (high)
 
 ; VRAM management (you can change these)
-VRAM_PLANEA:	equ $E000	; Plane A name table address
-VRAM_PLANEB:	equ $C000	; Plane B name table address
-VRAM_SPRITE:	equ $F000	; Sprite name table address
-VRAM_WINDOW:	equ $FFFF	; Window plane name table address
-VRAM_HSCROLL:	equ $FFFF	; Plane x coordinate
+VDP_VRAM:
+.PLANEA:	equ $E000	; Plane A name table address
+.PLANEB:	equ $C000	; Plane B name table address
+.SPRITE:	equ $F000	; Sprite name table address
+.WINDOW:	equ $FFFF	; Window plane name table address
+.HSCROLL:	equ $FFFF	; Plane x coordinate
 
 ; Z80 control from 68000
-Z80_WRAM:	equ $A00000  ; Z80 RAM start
-Z80_BUSREQ:	equ $A11100  ; Z80 bus request line
-Z80_RESET:	equ $A11200  ; Z80 reset line
+Z80_CTRL:
+.WRAM:		equ $A00000  ; Z80 RAM start
+.BUSREQ:	equ $A11100  ; Z80 bus request line
+.RESET:		equ $A11200  ; Z80 reset line
 
 ; YM2612 memory addresses from 68000
-YM2612_68K_CTRL0:	equ $A04000		; YM2612 bank 0 control port from 68000
-YM2612_68K_DATA0:	equ $A04001		; YM2612 bank 0 data port from 68000
-YM2612_68K_CTRL1:	equ $A04002		; YM2612 bank 1 control port from 68000
-YM2612_68K_DATA1:	equ $A04003		; YM2612 bank 1 data port from 68000
+YM2612_68K:
+.CTRL0:	equ $A04000		; YM2612 bank 0 control port from 68000
+.DATA0:	equ $A04001		; YM2612 bank 0 data port from 68000
+.CTRL1:	equ $A04002		; YM2612 bank 1 control port from 68000
+.DATA1:	equ $A04003		; YM2612 bank 1 data port from 68000
 
 ; ----------------------------
 ;		From: Zilog Z80
 ; ----------------------------
 
 ; Z80 side addresses
-Z80_STACK:	equ $2000
+Z80:
+.STACK:	equ $2000
+.PSG:	equ $7F11	; PSG port from Z80 on 68k bus
 
 ; YM2612 memory addresses from Z80
-YM2612_CTRL0:	equ $4000		; YM2612 bank 0 control port
-YM2612_DATA0:	equ $4001		; YM2612 bank 0 data port
-YM2612_CTRL1:	equ $4002		; YM2612 bank 1 control port
-YM2612_DATA1:	equ $4003		; YM2612 bank 1 data port
+YM2612:
+.CTRL0:	equ $4000		; YM2612 bank 0 control port
+.DATA0:	equ $4001		; YM2612 bank 0 data port
+.CTRL1:	equ $4002		; YM2612 bank 1 control port
+.DATA1:	equ $4003		; YM2612 bank 1 data port
+
+; Z80 bus arbiter
+Z80_BANK:
+.CTRL:		equ $6000	; Bank selector (9 LSB serial writes)
+.WINDOW:	equ $8000	; Access window (8000h-FFFFh)
 
 ; --------------------------
 ;		Generic Labels
 ; --------------------------
 
 ; Various memory spaces sizes in bytes
-SIZE_WRAM: 		equ 65535	; 68000 RAM size (64 KB)
-SIZE_VRAM:		equ 65535	; VDP VRAM size (64 KB)
-SIZE_VSRAM:		equ 80		; VDP vertical scroll RAM size (80 bytes)
-SIZE_CRAM:		equ 128		; VDP color RAM size (128 bytes, 64 colors)
-SIZE_Z80WRAM:	equ 8192	; Z80 RAM size (8 KB)
+SIZE:
+.WRAM: 		equ 65535	; 68000 RAM size (64 KB)
+.VRAM:		equ 65535	; VDP VRAM size (64 KB)
+.VSRAM:		equ 80		; VDP vertical scroll RAM size (80 bytes)
+.CRAM:		equ 128		; VDP color RAM size (128 bytes, 64 colors)
+.Z80WRAM:	equ 8192	; Z80 RAM size (8 KB)
 
 ; VDP name table addresses
 NOFLIP: equ $0000  ; Don't flip (default)
@@ -2477,12 +2515,13 @@ LOPRI:  equ $0000  ; Low priority (default)
 HIPRI:  equ $8000  ; High priority
 
 ; Controller labels
-JOY_C:	equ 5
-JOY_B:	equ 4
-JOY_R:	equ 3
-JOY_L:	equ 2
-JOY_D:	equ 1
-JOY_U:	equ 0
+JOY:
+.C:	equ 5
+.B:	equ 4
+.R:	equ 3
+.L:	equ 2
+.D:	equ 1
+.U:	equ 0
 
 ; YM2612 labels
 LFO_ENABLE:		equ $22		; Enable Low Frequency Oscillator
@@ -2493,6 +2532,7 @@ CH3_TIMERCTRL:	equ $27		; Channel 3 Mode and Timer control
 KEY_ON_OFF:		equ $28		; Key-on and Key-off
 DAC_OUT:		equ $2A		; DAC output (or input)
 DAC_ENABLE:		equ $2B		; DAC enable
+DAC_BOOST:		equ $2C		; Undocumented debug register that amplifies the DAC channel output
 
 CH1_4_OP1_MUL_DT:	equ $30		; Channel 1/4 operator 1 Multiply and Detune
 CH1_4_OP2_MUL_DT:	equ $38		; Channel 1/4 operator 2 Multiply and Detune
@@ -2607,15 +2647,15 @@ CH1_4_FREQ_L:	equ $A0		; Channel 1/4 frequency (low)
 CH2_5_FREQ_L:	equ $A1		; Channel 2/5 frequency (low)
 CH3_6_FREQ_L:	equ $A2		; Channel 3/6 frequency (low)
 
-CH3_OP1_FREQ_H:		equ $AD		; Channel 3 operator 1 frequency (high)
-CH3_OP2_FREQ_H:		equ $AE		; Channel 3 operator 2 frequency (high)
-CH3_OP3_FREQ_H:		equ $AC		; Channel 3 operator 3 frequency (high)
-CH3_OP4_FREQ_H:		equ $A6		; Channel 3 operator 4 frequency (high)
+CH3_OP1_FREQ_H:	equ $AD		; Channel 3 operator 1 frequency (high)
+CH3_OP2_FREQ_H:	equ $AE		; Channel 3 operator 2 frequency (high)
+CH3_OP3_FREQ_H:	equ $AC		; Channel 3 operator 3 frequency (high)
+CH3_OP4_FREQ_H:	equ $A6		; Channel 3 operator 4 frequency (high)
 
-CH3_OP1_FREQ_L:		equ $A9		; Channel 3 operator 1 frequency (low)
-CH3_OP2_FREQ_L:		equ $AA		; Channel 3 operator 2 frequency (low)
-CH3_OP3_FREQ_L:		equ $A8		; Channel 3 operator 3 frequency (low)
-CH3_OP4_FREQ_L:		equ $A2		; Channel 3 operator 4 frequency (low)
+CH3_OP1_FREQ_L:	equ $A9		; Channel 3 operator 1 frequency (low)
+CH3_OP2_FREQ_L:	equ $AA		; Channel 3 operator 2 frequency (low)
+CH3_OP3_FREQ_L:	equ $A8		; Channel 3 operator 3 frequency (low)
+CH3_OP4_FREQ_L:	equ $A2		; Channel 3 operator 4 frequency (low)
 
 CH1_4_ALG_FB:	equ $B0		; Channel 1/4 Algorithm and Feedback
 CH2_5_ALG_FB:	equ $B1		; Channel 2/5 Algorithm and Feedback
@@ -2623,7 +2663,17 @@ CH3_6_ALG_FB:	equ $B2		; Channel 3/6 Algorithm and Feedback
 
 CH1_4_PAN_PMS_AMS:	equ $B4		; Channel 1/4 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
 CH2_5_PAN_PMS_AMS:	equ $B5		; Channel 2/5 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
-CH3_6_PAN_PMS_AMS:	equ $B6		; Channel 3/6 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity`,
+CH3_6_PAN_PMS_AMS:	equ $B6		; Channel 3/6 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
+
+; Generic addresses for macros
+OP1:	equ %0000
+OP2:	equ %1000
+OP3:	equ %0100
+OP4:	equ %1100
+
+CH1_4:	equ %0000
+CH2_4:	equ %0001
+CH3_6:	equ %0010`,
 
 	megaDriveZ80Code: String.raw
 `	cpu Z80
@@ -2636,5 +2686,7 @@ Z80_ROM_Start
 Z80_ROM_End
 
 	dephase	; The rest of the labels are mapped normally
-	cpu 68000`
+	cpu 68000`,
+
+	sonicDisassemblyFolders: [ '_amin', '_inc', '_incObj', '_maps', 'artkos', 'artnem', 'artunc' ]
 };

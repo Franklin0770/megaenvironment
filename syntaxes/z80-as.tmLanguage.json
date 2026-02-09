@@ -64,7 +64,7 @@
 				},
 				{
 					"name": "directive.label.local.as",
-					"match": "(?:^\\.[\\w\\.]+:?)|(?:\\s\\.[\\w\\.]+:)"
+					"match": "(?:^\\.[\\w\\.]+:?)|(?:\\s\\.[\\w\\.]+:)|(?:\\w?\\K\\.[\\w\\.]+:?)"
 				},
 				{
 					"name": "directive.label.temporary.as",

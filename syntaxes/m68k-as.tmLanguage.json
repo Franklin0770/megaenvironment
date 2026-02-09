@@ -23,7 +23,7 @@
 	"repository": {
 		"instructions": {
 			"name": "instruction.mnemonic.as",
-			"match": "\\b(?i:move[qapm]?|[lp]ea|add[aiqx]?|sub[aiqx]?|cmp[aim]?|clr|tst|b(?:tst|chg|set|clr)|andi?|e?ori?|not|ls[lr]|as[lr]|rox?[lr]|negx?|ex[gt]|swap|[asn]bcd|mul[su]|div[su]|nop|tas|s(?:eq|ne|pl|mi|cc|cs|vs|vc|hi|ls|ge|lt|gt|le)|stop|chk|illegal|link|unlk|reset|trapv?)\\b"
+			"match": "\\b(?<!\\.)(?i:move[qapm]?|[lp]ea|add[aiqx]?|sub[aiqx]?|cmp[aim]?|clr|tst|b(?:tst|chg|set|clr)|andi?|e?ori?|not|ls[lr]|as[lr]|rox?[lr]|negx?|ex[gt]|swap|[asn]bcd|mul[su]|div[su]|nop|tas|s(?:eq|ne|pl|mi|cc|cs|vs|vc|hi|ls|ge|lt|gt|le)|stop|chk|illegal|link|unlk|reset|trapv?)\\b"
 		},
 		"instructions-jump": {
 			"name": "instruction.jump.as",
@@ -31,7 +31,7 @@
 		},
 		"sizes": {
 			"name": "instruction.size.as",
-			"match": "(?i:\\.[bwls])(?!\\w)"
+			"match": "(?<=[\\w)])(?i:\\.[bwls])(?!\\w)"
 		},
 		"autoincrements": {
 			"name": "instruction.autoincrement.as",
