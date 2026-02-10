@@ -267,7 +267,7 @@
 				"megaenvironment.buildControl.sonicDisassemblySupport": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Downloads an [alternative version](https://github.com/flamewing/asl-releases) that supports [Sonic disassemblies](https://github.com/sonicretro). Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being older.",
+					"markdownDescription": "Uses an [alternative version](https://github.com/flamewing/asl-releases) that supports [Sonic disassemblies](https://github.com/sonicretro). Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being older.",
 					"order": 17
 				},
 				"megaenvironment.buildControl.segmentCompression.compressionAlgorithm": {

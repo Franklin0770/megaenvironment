@@ -20,6 +20,7 @@ import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 
 import PcmProcessing from './PCM Processing';
+import { dirxml } from 'console';
 
 // Settings variable declaration (some of them are not here since they get read once)
 interface ExtensionSettings {
@@ -539,9 +540,17 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 			return false;
 		}
 
-		if (editor.document.isUntitled) {
-			await promises.writeFile(join(assemblerFolder, editor.document.fileName + '.asm'), Buffer.from(editor.document.getText(), 'utf8'));
+		console.log(editor.document.uri.scheme);
+
+		if (editor.document.uri.scheme !== 'file') { // Focus might shift onto the wrong text editor (such as the terminal)
+			window.showWarningMessage('Please, change focus on your code by clicking into it, then retry.');
+		}
+
+		if (editor.document.isUntitled) { // If we didn't save the document yet
+			await promises.writeFile(join(assemblerFolder, editor.document.fileName + '.asm'), Buffer.from(editor.document.getText(), 'utf8')); // AS assumes the extension is '.asm' when providing a blank extension file name
 			sourceCodeFolder = assemblerFolder;
+		} else {
+			sourceCodeFolder = dirname(editor.document.fileName);
 		}
 
 		if (temporary) { return true; } // We are only requesting to save the file since we have to run an emulator
@@ -566,9 +575,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		if ((await promises.readdir(selectedPath)).length > 0) {
 			const selection = await window.showWarningMessage('This directory is not empty, which means the selected files for cleaning can be accidentally wiped forever!', 'I take this risk!', 'Never mind');
 
-			if (selection !== 'I take this risk!') {
-				return false;
-			}
+			if (selection !== 'I take this risk!') { return false; }
 		}
 
 		await configuration.update(
@@ -616,7 +623,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	progress.report({ increment: !sonicDisassembly ? 15 : 0, message: 'Assembling...' }); // 0, 30
 
-	const sourceCode = onProject ? settings.mainName : window.activeTextEditor!.document.fileName + '.asm';
+	const sourceCode = onProject ? settings.mainName : basename(window.activeTextEditor!.document.fileName);
 
 	let warnings = false;
 
@@ -856,11 +863,6 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 				outputChannel.appendLine('===========================================================');
 				warnings = true;
 			}
-
-			/* if (!sonicDisassembly && !existsSync('rom.bin')) { // P2BIN doesn't output anything if there's no code in "code.p"
-				window.showWarningMessage('Looks like you wrote an empty program. No ROM will be compiled.');
-				return -1;
-			} */
 			break;
 
 		default:
@@ -1048,7 +1050,7 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 		const lastDot = extensionSettings.mainName.lastIndexOf('.');
 		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
 	} else { // If we aren't in a project, use the file name of the document
-		const name = window.activeTextEditor!.document.fileName;
+		const name = basename(window.activeTextEditor!.document.fileName);
 		const lastDot = name.lastIndexOf('.');
 		fileName = lastDot !== -1 ? name.substring(0, lastDot) : name;
 	}
@@ -1070,16 +1072,30 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 
 	progress.report({ increment: 10 }); // 90, 90
 
+	let selection: 'Show Terminal' | 'Open Folder' | undefined;
+
 	if (!warnings) {
 		if (extensionSettings.quietOperation) { return; }
-		window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`);
+		selection = onProject
+			? await window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`)
+			: await window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`, 'Open Folder');
 	} else {
-		window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal')
-		.then(selection => {
-			if (selection === 'Show Terminal') {
-				outputChannel.show();
-			}
-		});
+		selection = onProject
+			? await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal')
+			: await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal', 'Open Folder');
+	}
+
+	switch (selection) {
+		case 'Show Terminal':
+			outputChannel.show();
+			return;
+
+		case 'Open Folder':
+			commands.executeCommand('revealFileInOS', Uri.file(extensionSettings.singleFileOutput));
+			return;
+
+		default: // Undefined
+			return;
 	}
 }
 
@@ -1872,7 +1888,7 @@ async function projectCheck(): Promise<boolean> {
 		}
 
 		return true;
-	} else if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the contributed languages
+	} else if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the associated languages
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = false;
 		return true;
@@ -1990,20 +2006,20 @@ class ButtonProvider implements TreeDataProvider<TreeItem> {
 
 		if (!element) {
 			if (!hideEmulators) {
-				return EMULATORS
+				return EMULATORS // View with all emulators
 					.map(e => new EmulatorTreeItem(e.title, {
 						command: e.command,
 						title: e.title,
 						tooltip: e.tooltip
 					}, e.isCompatible()));
 			} else {
-				return EMULATORS
+				return EMULATORS // View with compatible emulators only
 					.filter(e => e.isCompatible())
 					.map(e => new EmulatorTreeItem(e.title, {
 						command: e.command,
 						title: e.title,
 						tooltip: e.tooltip
-					}, true));
+					}, true)); // The only emulators that are not hidden are the compatible ones, so
 			}
 		}
 
@@ -2249,11 +2265,11 @@ EntryPoint:`,
 
 	move.l  #VDP_REG.PLANEA|(VDP_VRAM.PLANEA>>10)<<16|(VDP_REG.PLANEB|(VDP_VRAM.PLANEB>>13)),(a0)	; Plane A and Plane B address
 	move.l  #VDP_REG.SPRITE|(VDP_VRAM.SPRITE>>9)<<16|(VDP_REG.WINDOW|(VDP_VRAM.WINDOW>>10)),(a0)	; Sprite and Window address
-	move.w  #VDP_REG.HSCROLL|(VDP_VRAM.HSCROLL>>10),(a0)										; Horizontal scroll address
+	move.w  #VDP_REG.HSCROLL|(VDP_VRAM.HSCROLL>>10),(a0)											; Horizontal scroll address
     
 	move.l  #(VDP_REG.WINX|$00)<<16|(VDP_REG.WINY|$00),(a0)			; Window X split and Window Y split
 	move.l  #(VDP_REG.SIZE|%00000001)<<16|(VDP_REG.BGCOL|$00),(a0)	; Tilemap size and Background color
-	move.l  #(VDP_REG.INCR|$02)<<16|(VDP_REG.HRATE|$FF),(a0)			; Autoincrement and HBlank IRQ rate
+	move.l  #(VDP_REG.INCR|$02)<<16|(VDP_REG.HRATE|$FF),(a0)		; Autoincrement and HBlank IRQ rate
 `,
 
 	megaDriveJoystickInitialization: String.raw
@@ -2609,7 +2625,7 @@ CH1_4_PAN_PMS_AMS:	equ $B4		; Channel 1/4 Panning, Phase Modulation Sensitivity 
 CH2_5_PAN_PMS_AMS:	equ $B5		; Channel 2/5 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
 CH3_6_PAN_PMS_AMS:	equ $B6		; Channel 3/6 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
 
-; Generic addresses for macros
+; Generic address selectors for macros
 OP1:	equ %0000
 OP2:	equ %1000
 OP3:	equ %0100
