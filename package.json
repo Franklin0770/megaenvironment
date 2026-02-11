@@ -166,44 +166,37 @@
 					"markdownDescription": "[Compatibility mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_8_) gets closer to the behavior of antique assemblers, by cutting down any possibile code optimization opportunity. Can be turned on by issuing the ```compmode on``` symbol, too.",
 					"order": 2
 				},
-				"megaenvironment.codeOptions.maximumForwardReferences": {
-					"type": "number",
-					"default": 1,
-					"minimum": 0,
-					"description": "The maximum number of additional passes that will be performend to resolve forward references. Increasing this number may impact assembly time in relation to how many forward references you have included in your code. Not supported in Sonic disassemblies.",
-					"order": 3
-				},
 				"megaenvironment.codeOptions.signExtensionWarning": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Gives a warning when using implicit sign extensions. Only effective with ```moveq``` instructions in 68K assembly. Not supported in Sonic disasseblies.",
-					"order": 4
+					"markdownDescription": "Gives a warning when using implicit sign extensions. Only effective with ```moveq <value>``` instructions in 68K assembly. Not supported in Sonic disasseblies.",
+					"order": 3
 				},
 				"megaenvironment.codeOptions.absoluteJumpsWarning": {
 					"type": "boolean",
 					"default": false,
 					"description": "Gives a warning when a relative jump can be used instead of an absolute one. Only effective in Z80 assembly. Not supported in Sonic disasseblies.",
-					"order": 5
+					"order": 4
 				},
 				"megaenvironment.codeOptions.caseSensitiveMode": {
 					"type": "boolean",
 					"default": true,
 					"description": "Check this to make any symbol case-sensitive in your code.",
-					"order": 6
+					"order": 5
 				},
 				"megaenvironment.codeOptions.radix": {
 					"type": "number",
 					"default": 10,
-					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the ```radix``` symbol).",
+					"markdownDescription": "This option changes the [number base](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_7_7_) (radix) of the entire assembler. Default is 10 (decimal). This value can be overridden in the code by its statement (the ```radix <number>``` symbol).",
 					"maximum": 36,
 					"minimum": 2,
-					"order": 7
+					"order": 6
 				},
 				"megaenvironment.codeOptions.RELAXEDMode": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any possible syntax for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the ```relaxed on``` symbol in code as well.",
-					"order": 8
+					"markdownDescription": "[RELAXED mode](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_7_) allows you to use any possible syntax for integer constants in every processor. By default, AS only grants usage of the selected processor's syntax. Can be overridden by using the ```relaxed <on|off>``` symbol in code as well.",
+					"order": 7
 				},
 				"megaenvironment.codeOptions.addIntegerSyntax": {
 					"type": "array",
@@ -214,7 +207,7 @@
 					},
 					"default": [],
 					"markdownDescription": "You can [add your custom syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) to the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in Sonic disasseblies.",
-					"order": 9
+					"order": 8
 				},
 				"megaenvironment.codeOptions.removeIntegerSyntax": {
 					"type": "array",
@@ -225,12 +218,19 @@
 					},
 					"default": [],
 					"markdownDescription": "You can [remove default syntax](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_6_) from the set of notations for integer constants in various number systems (such as hexadecimal and binary). Every entry shall be unique. Not supported in Sonic disasseblies.",
-					"order": 10
+					"order": 9
 				},
 				"megaenvironment.codeOptions.macroArgumentsWithUnderscore": {
 					"type": "boolean",
 					"default": false,
 					"markdownDescription": "Grants the opportunity to use the underscore character in [macro arguments](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_SectMacros). It can come with side effects. Not supported in Sonic disasseblies.",
+					"order": 10
+				},
+				"megaenvironment.codeOptions.maximumForwardReferences": {
+					"type": "number",
+					"default": 1,
+					"minimum": 0,
+					"description": "The maximum number of additional passes that will be performend to resolve forward references. Increasing this number may impact assembly time in relation to how many forward references you have included in your code. You may need to increase this number in special cases, like chained forward references. Not supported in Sonic disassemblies.",
 					"order": 11
 				},
 				"megaenvironment.buildControl.outputRomName": {
@@ -254,7 +254,7 @@
 				"megaenvironment.buildControl.previousRomsAmount": {
 					"type": "integer",
 					"default": 10,
-					"description": "The maximum amount of .pre ROMs before it starts replacing the oldest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds.",
+					"description": "The maximum amount of .pre ROMs before it starts replacing the oldest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds (it can flood your folder!).",
 					"minimum": 0,
 					"order": 15
 				},
@@ -457,7 +457,7 @@
 					"items": {
 						"type": "string"
 					},
-					"markdownDescription": "The directories where the assembler will look for resources (when using [```include```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_2_) or [```binclude```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_3_), for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!",
+					"markdownDescription": "The directories where the assembler will look for resources (when using [```include <path>```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_2_) or [```binclude <path>```](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#sect_3_9_3_), for instance). You can put relative paths as well, starting from the folder you've currently opened. No need to put double quotes!",
 					"order": 39
 				},
 				"megaenvironment.sourceCodeControl.templateSelector": {

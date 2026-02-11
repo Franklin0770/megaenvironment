@@ -126,7 +126,7 @@
 		},
 		"pseudo-instructions": {
 			"name": "directive.pseudo.as",
-			"match": "\\b(?i:set|equ|label|charset|codepage|pushv|popv|r?org|cpu|supmode|padding|segment|(?:de)?phase|save|restore|assume|(?:end)?expect|d[cs]|align|macro|irpc?|rept|while|exitm|shift|maxnest|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|page(?:size)?|newpage|macexp_(?:dft|ovr)|listing|title|(?:out)?radix|public|global|forward|shared|b?include|message|warning|error|fatal|read|intsyntax|relaxed|compmode)\\b"
+			"match": "\\b(?i:d[csbw]|set|equ|b?include|r?org|cpu|(?:de)?phase|rept|macro|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|while|page(?:size)?|listing|padding|save|restore|align|message|warning|error|fatal|(?:end)?section|label|charset|codepage|pushv|popv|(?:sup|comp)mode|intsyntax|relaxed|segment|assume|(?:end)?expect|irpc?|exitm|shift|maxnest|newpage|macexp_(?:dft|ovr)|title|(?:out)?radix|public|global|forward|shared|read)\\b"
 		},
 		"instruction-label-structure": {
 			"patterns": [

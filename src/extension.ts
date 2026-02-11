@@ -540,17 +540,20 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 			return false;
 		}
 
-		console.log(editor.document.uri.scheme);
+		const fileName = window.activeTextEditor!.document.fileName;
 
-		if (editor.document.uri.scheme !== 'file') { // Focus might shift onto the wrong text editor (such as the terminal)
+		// When the document it's an actual file and when the document is effectively unsaved
+		// (when we focus to another editor "editor.document.isUntitled" doesn't work later on)
+		if (editor.document.uri.scheme !== 'file' && !fileName.startsWith('Untitled')) { // Focus might shift onto the wrong text editor (such as the terminal)
 			window.showWarningMessage('Please, change focus on your code by clicking into it, then retry.');
+			return false;
 		}
 
-		if (editor.document.isUntitled) { // If we didn't save the document yet
-			await promises.writeFile(join(assemblerFolder, editor.document.fileName + '.asm'), Buffer.from(editor.document.getText(), 'utf8')); // AS assumes the extension is '.asm' when providing a blank extension file name
+		if (editor.document.isUntitled) { // If we didn't save the code document yet
+			await promises.writeFile(join(assemblerFolder, fileName + '.asm'), Buffer.from(editor.document.getText(), 'utf8')); // AS assumes the extension is '.asm' when providing a blank extension file name
 			sourceCodeFolder = assemblerFolder;
 		} else {
-			sourceCodeFolder = dirname(editor.document.fileName);
+			sourceCodeFolder = dirname(fileName);
 		}
 
 		if (temporary) { return true; } // We are only requesting to save the file since we have to run an emulator
