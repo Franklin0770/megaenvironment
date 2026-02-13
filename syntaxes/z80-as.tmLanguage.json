@@ -90,7 +90,7 @@
 		},
 		"pseudo-instructions": {
 			"name": "directive.pseudo.as",
-			"match": "\\b(?i:d[bw]|set|equ|b?include|r?org|cpu|(?:de)?phase|rept|macro|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|while|page(?:size)?|listing|padding|save|restore|align|message|warning|error|fatal|label|charset|codepage|pushv|popv|(?:sup|comp)mode|intsyntax|relaxed|segment|assume|(?:end)?expect|irpc?|exitm|shift|maxnest|newpage|macexp_(?:dft|ovr)|title|(?:out)?radix|public|global|forward|shared|read)\\b"
+			"match": "\\b(?i:d[bw]|set|equ|b?include|r?org|cpu|(?:de)?phase|rept|macro|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|while|page(?:size)?|listing|padding|save|restore|align|message|warning|error|fatal|(?:end)?section|warnrelative|label|charset|codepage|pushv|popv|(?:sup|comp)mode|intsyntax|relaxed|segment|assume|(?:end)?expect|irpc?|exitm|shift|maxnest|newpage|macexp_(?:dft|ovr)|title|(?:out)?radix|public|global|forward|shared|read)\\b"
 		},
 		"instruction-label-structure": {
 			"patterns": [
@@ -114,6 +114,21 @@
 					"captures": {
 						"1": { "name": "instruction.jump.as" },
 						"2": { "name": "variable.flag.as" }
+					}
+				},
+				{
+					"match": "\\b(?i:(j))\\b\\s+((?:\\.|\\$\\$)?[\\w\\.]+)\\b(?!\\s*,)",
+					"captures": {
+						"1": { "name": "directive.pseudo.as" },
+						"2": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
+					"match": "\\b(?i:(j))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))\\s*,\\s*((?:\\.|\\$\\$)?(?:[\\w\\.]+))",
+					"captures": {
+						"1": { "name": "directive.pseudo.as" },
+						"2": { "name": "variable.flag.as" },
+						"3": { "name": "directive.label.jump.as" }
 					}
 				}
 			]

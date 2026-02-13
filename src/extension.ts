@@ -20,14 +20,12 @@ import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 
 import PcmProcessing from './PCM Processing';
-import { dirxml } from 'console';
 
 // Settings variable declaration (some of them are not here since they get read once)
 interface ExtensionSettings {
 	defaultCpu: string;
 	superiorWarnings: boolean;
 	compatibilityMode: boolean;
-	forwardReferences: number;
 	caseSensitive: boolean;
 	radix: number,
 	relaxedMode: boolean;
@@ -36,6 +34,27 @@ interface ExtensionSettings {
 	addSyntax: Array<string>;
 	removeSyntax: Array<string>;
 	underscoreMacroArgs: boolean;
+	passWarning: string;
+	forwardReferences: number;
+
+	mainName: string;
+    constantsName: string;
+    variablesName: string;
+    listingFile: boolean;
+    listingName: string;
+	listingRadix: number;
+	listUnknown: boolean;
+	splitByte: string;
+	errorFile: boolean;
+	errorName: string;
+	debugFile: string;
+	crossReferencesListing: boolean;
+	sectionListing: boolean;
+	macroListing: boolean;
+	sourceListing: boolean;
+	workingFolders: Array<string>;
+	cleaningExtensions: Array<string>;
+	templateSelector: Array<string>;
 
     romName: string;
     romDate: boolean;
@@ -49,25 +68,6 @@ interface ExtensionSettings {
 	insertionMethod: string;
 	wavConversion: boolean;
 
-    mainName: string;
-    constantsName: string;
-    variablesName: string;
-    listingFile: boolean;
-    listingName: string;
-	errorFile: boolean;
-	errorName: string;
-	debugFile: string;
-	crossReferencesListing: boolean;
-	sectionListing: boolean;
-	macroListing: boolean;
-	sourceListing: boolean;
-	listingRadix: number;
-	splitByte: string;
-	cleaningExtensions: Array<string>;
-	workingFolders: Array<string>;
-	templateSelector: Array<string>;
-	listUnknown: boolean;
-
     backupName: string;
     backupDate: boolean;
 
@@ -77,11 +77,11 @@ interface ExtensionSettings {
 	maximumErrors: string;
 	errorNumber: boolean;
 	asErrors: boolean;
+	suppressWarnings: boolean;
+	warningsAsErrors: boolean;
 	lowercaseHex: boolean;
-    suppressWarnings: boolean;
     quietOperation: boolean;
     verboseOperation: boolean;
-	warningsAsErrors: boolean;
 	blastEmDebugger: boolean;
 
 	singleFileOutput: string;
@@ -94,7 +94,6 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	defaultCpu: '68000',
 	superiorWarnings: false,
 	compatibilityMode: false,
-	forwardReferences: 1,
 	caseSensitive: true,
 	radix: 10,
 	relaxedMode: false,
@@ -103,6 +102,27 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	addSyntax: [],
 	removeSyntax: [],
 	underscoreMacroArgs: false,
+	passWarning: '',
+	forwardReferences: 1,
+
+	mainName: '',
+    constantsName: '',
+    variablesName: '',
+    listingFile: true,
+    listingName: '',
+	listingRadix: 16,
+	listUnknown: false,
+	splitByte: '',
+	errorFile: false,
+	errorName: '',
+	debugFile: 'None',
+	crossReferencesListing: false,
+	sectionListing: false,
+	macroListing: false,
+	sourceListing: false,
+	workingFolders: [ '.' ],
+	cleaningExtensions: [ '.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i' ],
+	templateSelector: [ '68k vectors', 'ROM header', 'Jump table', 'VDP initialization', 'Controllers initialization', 'Z80 initialization', 'Constants', 'Variables' ],
 
     romName: '',
     romDate: true,
@@ -116,25 +136,6 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	insertionMethod: 'after',
 	wavConversion: true,
 
-    mainName: '',
-    constantsName: '',
-    variablesName: '',
-    listingFile: true,
-    listingName: '',
-	errorFile: false,
-	errorName: '',
-	debugFile: 'None',
-	crossReferencesListing: false,
-	sectionListing: false,
-	macroListing: false,
-	sourceListing: false,
-	listingRadix: 16,
-	splitByte: '',
-	cleaningExtensions: [ '.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i' ],
-	workingFolders: [ '.' ],
-	templateSelector: [ '68k vectors', 'ROM header', 'Jump table', 'VDP initialization', 'Controllers initialization', 'Z80 initialization', 'Constants', 'Variables' ],
-	listUnknown: false,
-
     backupName: '',
     backupDate: true,
 
@@ -144,11 +145,11 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	maximumErrors: '',
 	errorNumber: false,
 	asErrors: false,
+	suppressWarnings: false,
+	warningsAsErrors: false,
 	lowercaseHex: false,
-    suppressWarnings: false,
     quietOperation: false,
     verboseOperation: false,
-	warningsAsErrors: false,
 	blastEmDebugger: false,
 
 	singleFileOutput: '',
@@ -162,7 +163,6 @@ const settingDescriptors = [
 	{ key: 'codeOptions.defaultCPU',								target: 'defaultCpu' },
 	{ key: 'codeOptions.superiorModeWarnings',						target: 'superiorWarnings' },
 	{ key: 'codeOptions.compatibilityMode',							target: 'compatibilityMode' },
-	{ key: 'codeOptions.maximumForwardReferences',					target: 'forwardReferences' },
 	{ key: 'codeOptions.caseSensitiveMode',							target: 'caseSensitive' },
 	{ key: 'codeOptions.radix',										target: 'radix' },
 	{ key: 'codeOptions.RELAXEDMode',								target: 'relaxedMode' },
@@ -171,6 +171,25 @@ const settingDescriptors = [
 	{ key: 'codeOptions.addIntegerSyntax',							target: 'addSyntax' },
 	{ key: 'codeOptions.removeIntegerSyntax',						target: 'removeSyntax' },
 	{ key: 'codeOptions.macroArgumentsWithUnderscore',				target: 'underscoreMacroArgs' },
+	{ key: 'codeOptions.additionalPassWarning',						target: 'passWarning' },
+	{ key: 'codeOptions.maximumForwardReferences',					target: 'forwardReferences' },
+	{ key: 'sourceCodeControl.mainFileName',   						target: 'mainName' },
+	{ key: 'sourceCodeControl.constantsFileName',					target: 'constantsName' },
+	{ key: 'sourceCodeControl.variablesFileName',					target: 'variablesName' },
+	{ key: 'sourceCodeControl.generateCodeListing',					target: 'listingFile' },
+	{ key: 'sourceCodeControl.listingFileName',						target: 'listingName' },
+	{ key: 'sourceCodeControl.radixInListing',						target: 'listingRadix' },
+	{ key: 'sourceCodeControl.byteSplitInListing',					target: 'splitByte' },
+	{ key: 'sourceCodeControl.generateErrorListing',				target: 'errorFile' },
+	{ key: 'sourceCodeControl.errorListingFileName',				target: 'errorName' },
+	{ key: 'sourceCodeControl.generateDebugFile',					target: 'debugFile' },
+	{ key: 'sourceCodeControl.generateSectionListing',				target: 'sectionListing' },
+	{ key: 'sourceCodeControl.generateMacroListing',				target: 'macroListing' },
+	{ key: 'sourceCodeControl.generateSourceListing',				target: 'sourceListing' },
+	{ key: 'sourceCodeControl.currentWorkingFolders',				target: 'workingFolders' },
+	{ key: 'sourceCodeControl.cleaningExtensionSelector',			target: 'cleaningExtensions' },
+	{ key: 'sourceCodeControl.templateSelector',					target: 'templateSelector' },
+	{ key: 'sourceCodeControl.listUnknownValues',					target: 'listUnknown' },
 	{ key: 'buildControl.outputRomName',							target: 'romName' },
 	{ key: 'buildControl.includeRomDate',							target: 'romDate' },
 	{ key: 'buildControl.enablePreviousBuilds',						target: 'prevRoms' },
@@ -182,23 +201,6 @@ const settingDescriptors = [
 	{ key: 'buildControl.segmentCompression.segmentSize',			target: 'segmentSize' },
 	{ key: 'buildControl.segmentCompression.insertionMethod',		target: 'insertionMethod' },
 	{ key: 'buildControl.convertWavFilesInDirectory',				target: 'wavConversion' },
-	{ key: 'sourceCodeControl.mainFileName',   						target: 'mainName' },
-	{ key: 'sourceCodeControl.constantsFileName',					target: 'constantsName' },
-	{ key: 'sourceCodeControl.variablesFileName',					target: 'variablesName' },
-	{ key: 'sourceCodeControl.generateCodeListing',					target: 'listingFile' },
-	{ key: 'sourceCodeControl.listingFileName',						target: 'listingName' },
-	{ key: 'sourceCodeControl.generateErrorListing',				target: 'errorFile' },
-	{ key: 'sourceCodeControl.errorFileName',						target: 'errorName' },
-	{ key: 'sourceCodeControl.generateDebugFile',					target: 'debugFile' },
-	{ key: 'sourceCodeControl.generateSectionListing',				target: 'sectionListing' },
-	{ key: 'sourceCodeControl.generateMacroListing',				target: 'macroListing' },
-	{ key: 'sourceCodeControl.generateSourceListing',				target: 'sourceListing' },
-	{ key: 'sourceCodeControl.radixInListing',						target: 'listingRadix' },
-	{ key: 'sourceCodeControl.byteSplitInListing',					target: 'splitByte' },
-	{ key: 'sourceCodeControl.cleaningExtensionSelector',			target: 'cleaningExtensions' },
-	{ key: 'sourceCodeControl.currentWorkingFolders',				target: 'workingFolders' },
-	{ key: 'sourceCodeControl.templateSelector',					target: 'templateSelector' },
-	{ key: 'sourceCodeControl.listUnknownValues',					target: 'listUnknown' },
 	{ key: 'backupOptions.backupFileName',							target: 'backupName' },
 	{ key: 'backupOptions.includeBackupDate',						target: 'backupDate' },
 	{ key: 'miscellaneous.compactGlobalSymbols', 					target: 'compactSymbols' },
@@ -207,11 +209,11 @@ const settingDescriptors = [
 	{ key: 'miscellaneous.maximumErrors',							target: 'maximumErrors' },
 	{ key: 'miscellaneous.displayErrorNumber',						target: 'errorNumber' },
 	{ key: 'miscellaneous.AS-StyledErrors',							target: 'asErrors' },
-	{ key: 'miscellaneous.lowercaseHexadecimal',					target: 'lowercaseHex' },
 	{ key: 'miscellaneous.suppressWarnings',						target: 'suppressWarnings' },
+	{ key: 'miscellaneous.warningsAsErrors',						target: 'warningsAsErrors' },
+	{ key: 'miscellaneous.lowercaseHexadecimal',					target: 'lowercaseHex' },
 	{ key: 'miscellaneous.quietOperation',							target: 'quietOperation' },
 	{ key: 'miscellaneous.verboseOperation',						target: 'verboseOperation' },
-	{ key: 'miscellaneous.warningsAsErrors',						target: 'warningsAsErrors' },
 	{ key: 'miscellaneous.startBlastemWithDebuggers',				target: 'blastEmDebugger' },
 	{ key: 'paths.outputPathWithoutWorkspace',						target: 'singleFileOutput' },
 	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
@@ -220,17 +222,17 @@ const settingDescriptors = [
 	{ key: 'extensionOptions.showChecksumValue',					target: 'showChecksum' }
 ];
 
-let regenCompatible = false;
-let gensCompatible = false;
-let bizhawkCompatible = false;
-let openemuCompatible = false;
-
 // Global variables that get assigned during activation
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
 
-// Gets assigned in "projectCheck()"
+let regenCompatible: boolean;
+let gensCompatible: boolean;
+let bizhawkCompatible: boolean;
+let openemuCompatible: boolean;
+
+// These get assigned in "projectCheck()"
 let sourceCodeFolder: string;
 let onProject: boolean;
 
@@ -350,18 +352,18 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + [ 'latest', 'latest_fixed' ][type] + '/' + zipName);
 			} catch (error: any) {
 				if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
-					window.showWarningMessage(`Internet connection is either missing or insufficient to download ${assemblerName}, we'll have to stick with the assembler we have. ` + error.message);
+					window.showWarningMessage(`Internet connection is either missing or insufficient to download ${assemblerName}, we'll have to stick with the assembler we have. ${error.message}`);
 					return 1;
 				}
 
-				window.showErrorMessage(`Failed to download the latest AS compiler for ${assemblerName}. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. ` + error.message);
+				window.showErrorMessage(`Failed to download the latest AS compiler for ${assemblerName}. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. ${error.message}`);
 				return -1;
 			}
 
 			if (!response.ok || !response.body) {
 				if (response.status === 404) { // The classic "not found"
 					if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
-						window.showWarningMessage("Hmm, it appears the download source is missing, we can stick with what we have, though. It might be because I've forgotten to upload some files, sorry! If this doesn't get corrected in a few days, please let me know!");
+						window.showWarningMessage("Hmm, it appears the download source is missing, but we can stick with what we have. It might be because I've forgotten to upload some files, sorry! If this doesn't get corrected in a few days, please let me know!");
 						return 1;
 					}
 
@@ -369,7 +371,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 					return -1;
 				}
 
-				window.showErrorMessage(`Failed to download ${assemblerName}. ` + response.statusText);
+				window.showErrorMessage(`Failed to download ${assemblerName}. ${response.statusText}`);
 
 				unlink(zipName, (error) => {
 					if (error) {
@@ -426,7 +428,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 				zip = new AdmZip(zipName);
 			} catch {
 				if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
-					window.showWarningMessage("Hmm, it seems the file structure is incorrect, we can stick with what we have, though. This happens because I could have messed up the download, sorry! If this doesn't get corrected in a few days, please let me know!");
+					window.showWarningMessage("Hmm, it seems the file structure is incorrect, but we can stick with what we have. This happens because I could have messed up the download, sorry! If this doesn't get corrected in a few days, please let me know!");
 					return 1;
 				}
 
@@ -545,7 +547,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		// When the document it's an actual file and when the document is effectively unsaved
 		// (when we focus to another editor "editor.document.isUntitled" doesn't work later on)
 		if (editor.document.uri.scheme !== 'file' && !fileName.startsWith('Untitled')) { // Focus might shift onto the wrong text editor (such as the terminal)
-			window.showWarningMessage('Please, change focus on your code by clicking into it, then retry.');
+			window.showWarningMessage('Please, change focus on your code by clicking into it, then retry. If this message still pops up, start with a fresh new file instead.');
 			return false;
 		}
 
@@ -588,20 +590,6 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		);
 	}
 
-	if (toolsDownloading) {
-		return new Promise<boolean>((resolve) => {
-			const check = () => {
-				if (toolsDownloading) {
-					setTimeout(check, 200);
-				} else {
-					return resolve(true);
-				}
-			};
-			
-			check();
-		});
-	}
-
 	return true;
 }
 
@@ -640,6 +628,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		...(settings.errorNumber ? ['-n'] : []),
 		...(settings.lowercaseHex ? ['-h'] : []),
 		...(settings.suppressWarnings ? ['-w'] : []),
+		...(settings.passWarning ? ['-r', settings.passWarning] : []),
 		...(settings.crossReferencesListing ? ['-C'] : []),
 		...(settings.sectionListing ? ['-s'] : []),
 		...(settings.macroListing ? ['-M'] : []),
@@ -711,6 +700,20 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
 	}
 
+	if (toolsDownloading) {
+		new Promise<void>((resolve) => {
+			const check = () => {
+				if (toolsDownloading) {
+					setTimeout(check, 200);
+				} else {
+					resolve();
+				}
+			};
+			
+			check();
+		});
+	}
+
 	// AS exit code convention: 0 if successful, 1 if crash, 2 if error, 3 if fatal error
 	// My exit code convention: -1 if cancelled
 
@@ -775,6 +778,10 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 				case 3:
 					window.showErrorMessage(`Build failed. A fatal error was thrown by the assembler. Check the ${errorLocation} for more details.`);
+					return -1;
+
+				case 4:
+					window.showErrorMessage('Looks like the assembler got incorrectly set up by the extension! As a temporal fix, try to reset some settings. I apologize for the inconvenience and please, report this mistake as soon as possible!');
 					return -1;
 
 				case 255:
@@ -930,7 +937,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
 
-async function assembleROM(progress: Progress<{ message: string; increment?: number }>) {
+async function assembleRom(progress: Progress<{ message: string; increment?: number }>) {
 	progress.report({ message: 'Checking folders...' });
 
 	if (!await assemblerChecks(false)) { return; }
@@ -1094,7 +1101,7 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 			return;
 
 		case 'Open Folder':
-			commands.executeCommand('revealFileInOS', Uri.file(extensionSettings.singleFileOutput));
+			await commands.executeCommand('revealFileInOS', Uri.file(extensionSettings.singleFileOutput));
 			return;
 
 		default: // Undefined
@@ -1138,7 +1145,7 @@ async function findAndRunROM(emulator: string) {
 }
 
 // From QuickRun commands. It doesn't rename the ROM outside the assembler folder, then it gets deleted automatically after execution
-async function runTemporaryROM(emulator: string, progress: Progress<{ message?: string; increment?: number; }>) {
+async function runTemporaryRom(emulator: string, progress: Progress<{ message?: string; increment?: number; }>) {
 	progress.report({ message: 'Checking folders...' });
 
 	if (!await assemblerChecks(true) || !await promptEmulatorPath(emulator)) { return; }
@@ -1147,7 +1154,7 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 
 	const result = await executeAssemblyCommand(progress);
 
-	progress.report({ increment: 10 }); // 90, 90
+	progress.report({ increment: 100 }); // 90, 90
 
 	if (result === 1) {
 		warnings = true;
@@ -1186,7 +1193,7 @@ async function runTemporaryROM(emulator: string, progress: Progress<{ message?: 
 }
 
 function runTemporaryROMWithProgress(emulator: string) {
-	window.withProgress(
+	return window.withProgress(
 		{
 			location: ProgressLocation.Window,
 			cancellable: true
@@ -1197,7 +1204,7 @@ function runTemporaryROMWithProgress(emulator: string) {
 				activeAssembler = null;
 			});
 
-			await runTemporaryROM(emulator, progress);
+			await runTemporaryRom(emulator, progress);
 		}
 	);
 }
@@ -1211,7 +1218,7 @@ async function cleanProjectFolder() {
 		items = (await workspace.findFiles(`{${patterns.join(',')}}`)).map(uri => uri.fsPath);
 	} else {
 		const outputPath = extensionSettings.singleFileOutput;
-		items = (await promises.readdir(outputPath, { withFileTypes: true} ))
+		items = (await promises.readdir(outputPath, { withFileTypes: true }))
 			.filter(e => e.isFile())
 			.map(e => join(outputPath, e.name));
 	}
@@ -1339,7 +1346,8 @@ export async function activate(context: ExtensionContext) {
 	//
 
 	const assemble = commands.registerCommand('megaenvironment.assemble', () => {
-		window.withProgress(
+		console.log('started');
+		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
 				cancellable: true
@@ -1350,13 +1358,14 @@ export async function activate(context: ExtensionContext) {
 					activeAssembler = null;
 				});
 
-				await assembleROM(progress);
+				await assembleRom(progress);
+				console.log('done');
 			}
 		);
 	});
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', () => {
-		window.withProgress(
+		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
 				cancellable: true
@@ -1462,7 +1471,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		window.withProgress(
+		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
 				cancellable: true
@@ -1473,13 +1482,13 @@ export async function activate(context: ExtensionContext) {
 					activeAssembler = null;
 				});
 
-				await runTemporaryROM('ClownMDEmu', progress);
+				await runTemporaryRom('ClownMDEmu', progress);
 			}
 		);
 	});
 
 	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', () => {
-		window.withProgress(
+		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
 				cancellable: true

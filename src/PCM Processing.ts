@@ -112,7 +112,7 @@ export default class PcmProcessing {
 		return data;
 	}
 
-	// Repurposed code from https://github.com/sonicretro/s1disasm/blob/AS/build_tools/lua/common.lua
+	// Ported code from https://github.com/sonicretro/s1disasm/blob/AS/build_tools/lua/common.lua
 	private static convertPcmToAdpcm(samples: Uint8Array, deltasFile: Uint8Array): Uint8Array {
 		const output: number[] = [];
 		const deltas = new Int8Array(deltasFile);
@@ -144,7 +144,7 @@ export default class PcmProcessing {
 				accumulator = 0;
 			}
 
-			flipFlop = !flipFlop; // Every 2 samples, write a byte
+			flipFlop = !flipFlop; // Every 2 samples write a byte
 		}
 
 		if (flipFlop) { output.push((accumulator << 4) & 0xFF); }
@@ -158,29 +158,27 @@ export default class PcmProcessing {
 		const dpcmFolder = join(projectFolder, join('sound', 'dac', 'dpcm'));
 
 		if (!existsSync(pcmFolder)) {
-			window.showWarningMessage("PCM folder not found. If you don't use WAV conversion, please disable this feature.", 'Change Setting')
-			.then(result => {
-				if (result === 'Change Setting') {
-					commands.executeCommand(
-						'workbench.action.openSettings',
-						'megaenvironment.buildControl.convertWavFilesInDirectory'
-					);
-				}
-			});
+			const selection = await window.showWarningMessage("PCM folder not found. If you don't use WAV conversion, please disable this feature.", 'Change Setting');
+			
+			if (selection === 'Change Setting') {
+				commands.executeCommand(
+					'workbench.action.openSettings',
+					'megaenvironment.buildControl.convertWavFilesInDirectory'
+				);
+			}
 
 			return;
 		}
 
 		if (!existsSync(dpcmFolder)) {
-			window.showWarningMessage("DPCM folder not found. If you don't use WAV conversion, please disable this feature.", 'Change Setting')
-			.then(result => {
-				if (result === 'Change Setting') {
-					commands.executeCommand(
-						'workbench.action.openSettings',
-						'megaenvironment.buildControl.convertWavFilesInDirectory'
-					);
-				}
-			});
+			const selection = await window.showWarningMessage("DPCM folder not found. If you don't use WAV conversion, please disable this feature.", 'Change Setting');
+
+			if (selection === 'Change Setting') {
+				commands.executeCommand(
+					'workbench.action.openSettings',
+					'megaenvironment.buildControl.convertWavFilesInDirectory'
+				);
+			}
 
 			return;
 		}
