@@ -1082,31 +1082,34 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 
 	progress.report({ increment: 10 }); // 90, 90
 
-	let selection: 'Show Terminal' | 'Open Folder' | undefined;
+	// Detach this code block execution from the rest so the progress indicator doesn't hang until the messages disappear
+	void (async () => {
+		let selection: 'Show Terminal' | 'Open Folder' | undefined;
 
-	if (!warnings) {
-		if (extensionSettings.quietOperation) { return; }
-		selection = onProject
-			? await window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`)
-			: await window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`, 'Open Folder');
-	} else {
-		selection = onProject
-			? await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal')
-			: await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal', 'Open Folder');
-	}
+		if (!warnings) {
+			if (extensionSettings.quietOperation) { return; }
+			selection = onProject
+				? await window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`)
+				: await window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}. (Hurray!)`, 'Open Folder');
+		} else {
+			selection = onProject
+				? await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal')
+				: await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}.`, 'Show Terminal', 'Open Folder');
+		}
 
-	switch (selection) {
-		case 'Show Terminal':
-			outputChannel.show();
-			return;
+		switch (selection) {
+			case 'Show Terminal':
+				outputChannel.show();
+				return;
 
-		case 'Open Folder':
-			await commands.executeCommand('revealFileInOS', Uri.file(extensionSettings.singleFileOutput));
-			return;
+			case 'Open Folder':
+				await commands.executeCommand('revealFileInOS', Uri.file(extensionSettings.singleFileOutput));
+				return;
 
-		default: // Undefined
-			return;
-	}
+			default: // Undefined
+				return;
+		}
+	});
 }
 
 // Only works with workspaces, because it searches the project folder for ROMs to run with an emulator
@@ -1154,7 +1157,7 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 
 	const result = await executeAssemblyCommand(progress);
 
-	progress.report({ increment: 100 }); // 90, 90
+	progress.report({ increment: 10 }); // 90, 90
 
 	if (result === 1) {
 		warnings = true;
@@ -1912,7 +1915,7 @@ async function projectCheck(): Promise<boolean> {
 }
 
 async function updateConfiguration(event: ConfigurationChangeEvent) {
-	if (!event.affectsConfiguration('megaenvironment')) { return; }
+	if (!event.affectsConfiguration('megaenvironment')) { return; } // Quick return if the extension isn't involved
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 	// This setting requires different management
@@ -1923,7 +1926,7 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 		assemblerPath = join(assemblerFolder, 'asl' + windowsExtension);
 		compilerPath = join(assemblerFolder, 'p2bin' + windowsExtension);
 	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.hideUnsupportedEmulators')) {
-		buttonProvider.refresh();
+		buttonProvider.refresh(); // Update the TreeView with the new setting
 	}
 
 	// Updates "settingsDescriptors" each time a setting is changed
@@ -1955,7 +1958,7 @@ interface EmulatorEntry {
 	command: string;
 	title: string;
 	tooltip: string;
-	isCompatible(): boolean;
+	isCompatible(): boolean; // It must be a function or else it won't actively update
 }
 
 const EMULATORS: EmulatorEntry[] = [
@@ -2008,7 +2011,7 @@ class ButtonProvider implements TreeDataProvider<TreeItem> {
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	refresh(): void {
-		this._onDidChangeTreeData.fire(); // This doesn't work, whatever
+		this._onDidChangeTreeData.fire();
 	}
 
 	getTreeItem(element: EmulatorTreeItem): TreeItem { return element; }
@@ -2229,9 +2232,9 @@ EntryPoint:`,
 		dc.l ROM_End												; End address of ROM - 4 bytes
 		dc.l $FF0000												; Start address of WRAM - 4 bytes
 		dc.l $FFFFFF 												; End address of WRAM - 4 bytes
-		dc.b "                                                                " ; padding for reserved space - 64 bytes
+		dc.b "                                                                " ; Padding for reserved space - 64 bytes
 		dc.b "JUE"													; Region support - 16 bytes
-		dc.b "             "										; padding for reserved space (you can put a comment if you want!) - 13 bytes
+		dc.b "             "										; Padding for reserved space (you can put a comment if you want!) - 13 bytes
 `,
 
 	megaDriveVariables: String.raw
@@ -2648,7 +2651,8 @@ CH2_4:	equ %0001
 CH3_6:	equ %0010`,
 
 	megaDriveZ80Code: String.raw
-`	cpu Z80
+`	save	; Remember previous assembler options
+	cpu Z80	; Or set to Z80UNDOC if you want the additional undocumented opcodes
 	phase 0	; Set label addresses to the start of the Z80 RAM
 
 Z80_ROM_Start
@@ -2657,8 +2661,8 @@ Z80_ROM_Start
 
 Z80_ROM_End
 
-	dephase	; The rest of the labels are mapped normally
-	cpu 68000`,
+	dephase	; The rest of the labels resume normal mapping
+	restore	; Restore the previous assembler options`,
 
 	sonicDisassemblyFolders: [ '_amin', '_inc', '_incObj', '_maps', 'artkos', 'artnem', 'artunc' ]
 };
