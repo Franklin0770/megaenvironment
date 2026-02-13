@@ -67,3 +67,23 @@
 - Improved the safety of cleaning code;
 - Changed some message and information strings;
 - Other minor bug fixing.
+
+## [1.0.8] - 2026-2-13
+- Added "sourceCodeControl.crossReferencesListing" and "codeOptions.additionalPassWarning";
+- Added a warning about using a Sonic disassembly while not having the "buildControl.sonicDisassemblySupport" activated;
+- Added support for undocumented Z80 OP codes (that was a cool discovery);
+- Added generic operator and channel selectors for the YM2612;
+- Added a sanity check to see whether the code is being focused on while assembling a standalone file;
+- Added a button to open the output folder after assembling a standalone file;
+- Added AS' "J \<address>" pseudo-instruction in Z80 assembly;
+- Added another assembler error type description;
+- Removed the unnecessary emulator compatibility sorting in the treeView;
+- Fixed the progress indicator get stuck after done assembling the code;
+- Fixed the "Run Latest ROM" treeView not updating while changing "extensionOptions.hideUnsupportedEmulators";
+- Fixed some code highlighter bugs;
+- Corrected spelling and grammar mistakes;
+- Changed the way the assembler manages the original and fixed version (so you can have two different versions running at the same time);
+- Changed the naming convention of constants to distingush them from labels;
+- Tweaked the settings descriptions to be clearer and more precise;
+- Sorted the settings properly this time (I've finally found the way to do it!);
+- Some more fixed and minor code refinements here and there.

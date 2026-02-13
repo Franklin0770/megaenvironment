@@ -236,7 +236,7 @@
 					"type": "string",
 					"default": "",
 					"description": "Issue warnings if situations occur that force a further pass for evaluation. Specify the pass number where the issuing of these warnings shall start from or leave this empty to disable this feature.",
-					"pattern": "^[1-9]\\d*$",
+					"pattern": "^([1-9]\\d*)?$",
 					"patternErrorMessage": "Value must be empty or a number greater than 0.",
 					"order": 11
 				},
@@ -301,7 +301,7 @@
 					"type": "string",
 					"default": "",
 					"description": "You can set a character of choice to split the numbers found in the code listing file in bytes. Leave it blank to disable this feature.",
-					"pattern": "^.$|^$",
+					"pattern": "^.?$",
 					"patternErrorMessage": "Value must be empty or one character only.",
 					"order": 20
 				},

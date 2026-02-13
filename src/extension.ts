@@ -337,11 +337,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 					}
 				}
 			} else {
-				try {
-					await promises.mkdir(folderToUpdate);
-				} catch (error) {
-					console.log(error);
-				}
+				await promises.mkdir(folderToUpdate);
 			}
 
 			progress.report({ message: 'requesting version...', increment: 20 });
@@ -1109,7 +1105,7 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 			default: // Undefined
 				return;
 		}
-	});
+	})();
 }
 
 // Only works with workspaces, because it searches the project folder for ROMs to run with an emulator
@@ -1151,7 +1147,10 @@ async function findAndRunROM(emulator: string) {
 async function runTemporaryRom(emulator: string, progress: Progress<{ message?: string; increment?: number; }>) {
 	progress.report({ message: 'Checking folders...' });
 
-	if (!await assemblerChecks(true) || !await promptEmulatorPath(emulator)) { return; }
+	const result1 = await assemblerChecks(true);
+	const result2 = await promptEmulatorPath(emulator);
+
+	if (!result1 || !result2) { return; }
 
 	let warnings = false;
 
@@ -1181,18 +1180,21 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 			}
 		});
 	});
-	
-	const currentDate = new Date();
-	if (!warnings) {
-		if (extensionSettings.quietOperation) { return; }
-		window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
-	} else {
-		const selection = await window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal');
 
-		if (selection === 'Show Terminal') {
-			outputChannel.show();
+	// Detach this code block execution from the rest so the progress indicator doesn't hang until the messages disappear
+	void (async () => {
+		const currentDate = new Date();
+		if (!warnings) {
+			if (extensionSettings.quietOperation) { return; }
+			window.showInformationMessage(`Build succeded at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}. (Oh yes!)`);
+		} else {
+			const selection = await window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal');
+
+			if (selection === 'Show Terminal') {
+				outputChannel.show();
+			}
 		}
-	}
+	})();
 }
 
 function runTemporaryROMWithProgress(emulator: string) {
@@ -1349,7 +1351,6 @@ export async function activate(context: ExtensionContext) {
 	//
 
 	const assemble = commands.registerCommand('megaenvironment.assemble', () => {
-		console.log('started');
 		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
@@ -1362,7 +1363,6 @@ export async function activate(context: ExtensionContext) {
 				});
 
 				await assembleRom(progress);
-				console.log('done');
 			}
 		);
 	});

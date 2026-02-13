@@ -22,7 +22,7 @@
 			"patterns": [
 				{
 					"name": "instruction.mnemonic.as",
-					"match": "\\b(?i:ld[id]?|ld[id]r|inc|dec|ad[dc]|sub|sbc|and|x?or|cpl?|exx?|push|pop|cp[id]r?|nop|bit|s[lr]a|srl|r[rl]d|r[lr]c?a?|set|res|[ed]i|im|halt|daa|neg|[cs]cf|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
+					"match": "\\b(?i:ld[id]?|ld[id]r|inc|dec|ad[dc]|sub|sbc|and|x?or|cpl?|exx?|push|pop|cp[id]r?|nop|bit|s[lr]a|s[rl]l|r[rl]d|r[lr]c?a?|set|res|[ed]i|im|halt|daa|neg|[cs]cf|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
 				},
 				{
 					"name": "instruction.jump.as",
@@ -32,7 +32,7 @@
 		},
 		"variables": {
 			"name": "variable.register.as",
-			"match": "\\b(?i:af'?|bc|de|hl|i[xy]|sp|a|b|c|d|e|h|l|r|i)(?![\\w'])"
+			"match": "\\b(?i:af'?|bc|de|hl|i[xy][hl]?|sp|a|b|c|d|e|h|l|r|i)(?![\\w'])"
 		},
 		"constants": {
 			"name": "constant.numeric.as",
