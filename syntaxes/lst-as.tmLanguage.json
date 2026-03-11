@@ -46,7 +46,7 @@
 			"patterns": [
 				{
 					"name": "instruction.mnemonic.as",
-					"match": "\\b(?i:move[qapm]?|[lp]ea|add[aiqx]?|sub[aiqx]?|cmp[aim]?|clr|tst|b(?:tst|chg|set|clr)|andi?|e?ori?|not|ls[lr]|as[lr]|rox?[lr]|negx?|ex[gt]|swap|[asn]bcd|mul[su]|div[su]|nop|tas|s(?:eq|ne|pl|mi|cc|cs|vs|vc|hi|ls|ge|lt|gt|le)|stop|chk|illegal|link|unlk|reset|trapv?|ld[id]?|ld[id]r|inc|dec|ad[dc]|sub|sbc|and|x?or|cpl?|exx?|push|pop|cp[id]r?|nop|bit|s[lr]a|srl|r[rl]d|r[lr]c?a?|set|res|[ed]i|im|halt|daa|neg|[cs]cf|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
+					"match": "\\b(?i:move[qapm]?|[lp]ea|add[aiqx]?|sub[aiqx]?|cmp[aim]?|clr|tst|b(?:tst|chg|set|clr)|andi?|e?ori?|not|ls[lr]|as[lr]|rox?[lr]|negx?|ex[gt]|swap|[asn]bcd|mul[su]|div[su]|nop|tas|s(?:t|f|eq|ne|pl|mi|cc|cs|vs|vc|hi|ls|ge|lt|gt|le)|stop|chk|illegal|link|unlk|reset|trapv?|ld[id]?|ld[id]r|inc|dec|ad[dc]|sub|sbc|and|x?or|cpl?|exx?|push|pop|cp[id]r?|nop|bit|s[lr]a|srl|r[rl]d|r[lr]c?a?|set|res|[ed]i|im|halt|daa|neg|[cs]cf|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
 				},
 				{
 					"name": "instruction.jump.as",

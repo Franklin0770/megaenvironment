@@ -83,7 +83,11 @@
 - Fixed some code highlighter bugs;
 - Corrected spelling and grammar mistakes;
 - Changed the way the assembler manages the original and fixed version (so you can have two different versions running at the same time);
-- Changed the naming convention of constants to distingush them from labels;
+- Changed the naming convention of constants to distinguish them from labels;
 - Tweaked the settings descriptions to be clearer and more precise;
 - Sorted the settings properly this time (I've finally found the way to do it!);
-- Some more fixed and minor code refinements here and there.
+- Some more fixes and minor code refinements here and there.
+
+## [1.0.9] - 2026-3-11 (hotfix)
+- Fixed a critical bug that affects BlastEm and ClownMDEmu emulators not referencing to the right configuration setting;
+- Added SF and ST instructions for the Motorola 68000.

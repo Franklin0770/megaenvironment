@@ -1128,7 +1128,7 @@ async function findAndRunROM(emulator: string) {
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
-	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'BlastEm' ? ' -d' : '';
+	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'Blastem' ? ' -d' : '';
 
 	exec(`"${configuration.get<string>('paths.' + emulator)}" "${rom[0].fsPath}"` + debuggerFlag, (error) => {
 		if (error) {
@@ -1166,7 +1166,7 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
-	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'BlastEm' ? ' -d' : '';
+	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'Blastem' ? ' -d' : '';
 
 	exec(`"${configuration.get<string>('paths.' + emulator)}" "${join(assemblerFolder, 'rom.bin')}"` + debuggerFlag, (error) => {
 		if (error) {
@@ -1398,7 +1398,7 @@ export async function activate(context: ExtensionContext) {
 		);
 	});
 
-	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => findAndRunROM('BlastEm'));
+	const run_BlastEm = commands.registerCommand('megaenvironment.run_blastem', () => findAndRunROM('Blastem'));
 
 	const run_Regen = commands.registerCommand('megaenvironment.run_regen', () => findAndRunROM('Regen'));
 
@@ -1420,7 +1420,7 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		findAndRunROM('ClownMDEmu');
+		findAndRunROM('Clownmdemu');
 	});
 
 	const run_OpenEmu = commands.registerCommand('megaenvironment.run_openemu', async () => {
@@ -1452,7 +1452,7 @@ export async function activate(context: ExtensionContext) {
 		window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with OpenEmu.`);
 	});
 
-	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => runTemporaryROMWithProgress('BlastEm'));
+	const assemble_and_run_BlastEm = commands.registerCommand('megaenvironment.assemble_run_blastem', () => runTemporaryROMWithProgress('Blastem'));
 
 	const assemble_and_run_Regen = commands.registerCommand('megaenvironment.assemble_run_regen', () => runTemporaryROMWithProgress('Regen'));
 
@@ -1485,7 +1485,7 @@ export async function activate(context: ExtensionContext) {
 					activeAssembler = null;
 				});
 
-				await runTemporaryRom('ClownMDEmu', progress);
+				await runTemporaryRom('Clownmdemu', progress);
 			}
 		);
 	});

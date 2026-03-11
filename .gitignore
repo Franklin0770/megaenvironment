@@ -2,9 +2,7 @@
 node_modules
 out/
 *.vsix
-.vscode-test.mjs
-vscode/*
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/tasks.json
-vsc-extension-quickstart.md
+package-lock.json
