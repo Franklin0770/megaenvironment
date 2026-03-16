@@ -17,23 +17,27 @@
 	"onEnterRules": [
 		{
 			"beforeText": "^\\s*(?i:rept|irpc?)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "\n\tendm" }
+			"action": { "indent": "indent", "appendText": "\n\tendm" }
 		},
 		{
 			"beforeText": "^\\s*\\w+:?\\s*(?i:macro)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "\tendm" }
+			"action": { "indent": "indent", "appendText": "\tendm" }
 		},
 		{
 			"beforeText": "^\\s*(?i:if|ifn?def|ifn?symexist|ifn?used|ifn?exist|ifn?b)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "\n\tendif" }
+			"action": { "indent": "indent", "appendText": "\n\tendif" }
 		},
 		{
 			"beforeText": "^\\s*(?i:struct)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "\n\tendstruct" }
+			"action": { "indent": "indent", "appendText": "\n\tendstruct" }
 		},
 		{
 			"beforeText": "^\\s*(?i:switch)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "\n\tendcase" }
+			"action": { "indent": "indent", "appendText": "\n\tendcase" }
+		},
+		{
+			"beforeText": "^\\s*(?i:elseif)\\b.*$",
+			"action": { "indent": "indent" }
 		},
 		{
 			"beforeText": "^\\s*(?i:case)\\b.*$",
@@ -45,15 +49,27 @@
 		},
 		{
 			"beforeText": "^\\s*(?i:section)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "\n\tendsection" }
+			"action": { "indent": "none", "appendText": "\n\tendsection" }
     	},
 		{
 			"beforeText": "^\\s*(?i:expect)\\b.*$",
-			"action": { "indent": "indentOutdent", "appendText": "\n\tendexpect" }
+			"action": { "indent": "none", "appendText": "\n\tendexpect" }
 		},
 		{
 			"beforeText": "^\\s*(?i:phase)\\b",
-			"action": { "indent": "indentOutdent", "appendText": "\n\tdephase" }
+			"action": { "indent": "none", "appendText": "\n\tdephase" }
     	}
-	]
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s+(?i:macro|ifn?(?:def|symexist|used|exist|b)?|rept|irpc?|section|while|function|struct|switch)\\b\\s+\\w+",
+			"end": "^\\s+(?i:end(?:if|m|section|struct|case))\\b"
+		}
+	},
+	"comments": {
+		"lineComment": {
+			"comment": ";",
+			"noIndent": false
+		}
+	}
 }

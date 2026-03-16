@@ -91,3 +91,10 @@
 ## [1.0.9] - 2026-3-11 (hotfix)
 - Fixed a critical bug that affects BlastEm and ClownMDEmu emulators not referencing to the right configuration setting;
 - Added SF and ST instructions for the Motorola 68000.
+
+## [1.0.10] - 2026-3-16 (hotfix)
+- Fixed a(nother) critical bug that affects EASy68k not referencing to the right configuration setting;
+- Fixed Z80 syntax mistakenly highlighting local labels;
+- Fixed code indentation;
+- Some adjustments to code completion;
+- Tweaked some README new lines.

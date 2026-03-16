@@ -1613,7 +1613,7 @@ export async function activate(context: ExtensionContext) {
 			text = `; Code\n\n\torg\t0\n\nstart:\n\n${selectedText}\n\n\tsimhalt\n\n\tend\tstart`;
 		}
 
-		if (!await promptEmulatorPath('EASy68k')) { return; }
+		if (!await promptEmulatorPath('Easy68k')) { return; }
 
 		try {
 			await promises.writeFile('temp.txt', new TextEncoder().encode(text));
@@ -1624,7 +1624,7 @@ export async function activate(context: ExtensionContext) {
 
 		let success = true;
 		
-		exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>('EASy68k')}" "temp.txt"`, (error) => {
+		exec(`"${workspace.getConfiguration('megaenvironment.paths').get<string>('Easy68k')}" "temp.txt"`, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run EASy68k for testing. ' + error.message);
 				success = false;
