@@ -34,16 +34,16 @@ Then, after installing Node, you must get the node modules by issuing the follow
 cd megaenvironment
 npm install
 ```
-This way you have all the packages you need (including VS Code API and [Adm-Zip](https://www.npmjs.com/package/adm-zip)).  
+This way you have all the packages you need (including VS Code API and [Adm-Zip](https://www.npmjs.com/package/adm-zip)) and you can start contributing the code. Make all the changes you want, then perform a pull request if you wish!  
 
-Now that you're almost done, you'll want to compile the extension, so you can run it and do all of the experimentation you want by yourself:
+Now that you're done programming, you'll want to compile the extension, so you can run it and do all of the experimentation you want by yourself:
 ```
 cd megaenvironment
 npm run compile
 ```
 After done compiling, you should see an "out" folder. This contains all of your compiled code in JavaScript.  
 
-To publish it as an installable extension for VS Code, you should package it by doing so:
+To publish it (don't worry, with "publishing" we mean creating a file ready for release) as an installable extension for VS Code for further testing, you should package it by doing so:
 ```
 cd megaenvironment
 vsce package
