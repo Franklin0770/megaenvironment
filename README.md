@@ -18,6 +18,8 @@ The purpose of this extension is primarily for Sega Mega Drive homebrew developm
 ![Assembly](https://raw.githubusercontent.com/Franklin0770/megaenvironment/main/papers/Assembly1.png)
 
 ## What you need to set up this (in case you want to modify it)
+`Please note that this tutorial is useful solely whether you wish to contribute to the development of this extension. You don't need to perform these steps if you want to use it normally. To install this extension without debugging, simply search it on the Markeplace inside VS Code, found in the Extensions section.`
+
 You can check [this tutorial](https://code.visualstudio.com/api) out if you don't know much about VS extensions.
 
 First of all, make sure you have [Node.js](https://nodejs.org/) installed. [Git](https://git-scm.com) is recommended if you want to clone this repository.  
