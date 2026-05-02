@@ -89,12 +89,20 @@
 - Some more fixes and minor code refinements here and there.
 
 ## [1.0.9] - 2026-3-11 (hotfix)
-- Fixed a critical bug that affects BlastEm and ClownMDEmu emulators not referencing to the right configuration setting;
+- Fixed a critical bug that affects BlastEm and ClownMDEmu emulators not referencing the right configuration setting;
 - Added SF and ST instructions for the Motorola 68000.
 
 ## [1.0.10] - 2026-3-16 (hotfix)
-- Fixed a(nother) critical bug that affects EASy68k not referencing to the right configuration setting;
+- Fixed a(nother) critical bug that affects EASy68k not referencing the right configuration setting;
 - Fixed Z80 syntax mistakenly highlighting local labels;
 - Fixed code indentation;
 - Some adjustments to code completion;
 - Tweaked some README new lines.
+
+## [1.0.11] - 2026-5-1 (hotfix)
+- Fixed yet another critical bug that affects BizHawk not referencing the right configuration setting;
+- Fixed progress wheel not disappearing until messages close in some cases;
+- Added checks to make sure the user knows the opened folder cannot be worked on if it's not a Mega Drive project;
+- Added a command to check for updates (in case you want to do it manually);
+- Removed the unnecessary configuration generator for EASy68k;
+- The README has now the old screenshot I wasn't finding for a good while.

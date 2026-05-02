@@ -7,7 +7,7 @@ TODOS:
 
 // Import just what we need
 import { 
-	ExtensionContext, workspace, commands, debug, window, env, Uri, 
+	ExtensionContext, workspace, commands, window, env, Uri, 
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, EventEmitter,
 	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress
 } from 'vscode';
@@ -226,6 +226,7 @@ const settingDescriptors = [
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
+let shouldActivate: boolean;
 
 let regenCompatible: boolean;
 let gensCompatible: boolean;
@@ -243,11 +244,12 @@ let buttonProvider: ButtonProvider;
 
 const outputChannel = window.createOutputChannel('AS');
 
-async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promise<0 | 1 | -1> {
+async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promise<0 | 1 | 2 | -1> {
 	toolsDownloading = true;
-	// A progress indicator that shows in the Status Bar at the bottom.
-	// Returns 0 if successfull, 1 if there was an error but the code can continue, -1 if the code can't continue due to an error.
-	// Every report there's an increment value.
+	/* A progress indicator that shows in the Status Bar at the bottom.
+	   Returns 0 if successful with no newly downloaded builds, 1 if it downloaded a new build, 
+	   2 if there was an error but the code can continue, -1 if the code can't continue due to an error.
+	   In every report there's an increment value. */
 	const exitCode = await window.withProgress(
 		{
 			location: ProgressLocation.Window,
@@ -315,7 +317,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 					if (!response || !response.ok || !response.body) {
 						if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 							window.showWarningMessage(`Failed to get version to check for updates for ${assemblerName}. Internet connection is either missing or insufficient, we'll have to stick with the assembler we have.`);
-							return 1;
+							return 2;
 						} else {
 							const selection = await window.showErrorMessage(`Failed to get version to check for updates for ${assemblerName} and we can't continue since there's no previously downloaded versions. Make sure you have an Internet connection.`, 'Retry');
 
@@ -333,7 +335,16 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 					if (localBuild >= onlineBuild) { return 0; } // No need for updates
 
 					if (!extensionSettings.quietOperation) {
-						window.showInformationMessage(`Upgrading ${assemblerName} from build ${localBuild} to build ${onlineBuild}.`);
+						window.showInformationMessage(`Upgrading ${assemblerName} from build ${localBuild} to build ${onlineBuild}.`, 'Open Changelog')
+						.then(selection => { // Using .then() instead to avoid getting the rest of the code stuck from awaiting
+							if (selection === 'Open Changelog') {
+								if (!fixedAssembler) {
+									env.openExternal(Uri.parse('http://john.ccac.rwth-aachen.de:8000/as/changelog'));
+								} else {
+									env.openExternal(Uri.parse('https://github.com/flamewing/asl-releases/releases'));
+								}
+							}
+						});
 					}
 				}
 			} else {
@@ -349,7 +360,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 			} catch (error: any) {
 				if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 					window.showWarningMessage(`Internet connection is either missing or insufficient to download ${assemblerName}, we'll have to stick with the assembler we have. ${error.message}`);
-					return 1;
+					return 2;
 				}
 
 				window.showErrorMessage(`Failed to download the latest AS compiler for ${assemblerName}. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. ${error.message}`);
@@ -360,7 +371,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 				if (response.status === 404) { // The classic "not found"
 					if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 						window.showWarningMessage("Hmm, it appears the download source is missing, but we can stick with what we have. It might be because I've forgotten to upload some files, sorry! If this doesn't get corrected in a few days, please let me know!");
-						return 1;
+						return 2;
 					}
 
 					window.showErrorMessage("Unfortunately, the download source is missing, and we may not proceed since there isn't a previously downloaded version in your system. It might be because I've forgotten to upload some files, sorry! If this doesn't get corrected in a few days, please let me know!");
@@ -425,7 +436,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 			} catch {
 				if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 					window.showWarningMessage("Hmm, it seems the file structure is incorrect, but we can stick with what we have. This happens because I could have messed up the download, sorry! If this doesn't get corrected in a few days, please let me know!");
-					return 1;
+					return 2;
 				}
 
 				window.showErrorMessage("Unfortunately, the download source is deprecated and incorrect, and we may not proceed since there isn't a previously downloaded version in your system. This happens because I could have messed up the download, sorry! If this doesn't get corrected in a few days, please let me know!");
@@ -467,12 +478,12 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 				}
 			} catch (error: any) {
 				window.showWarningMessage('Cannot read the assembler folder to cleanup files. ' + error.message);
-				return 1;
+				return 2;
 			}
 
 			progress.report({ message: 'done! (This message will almost never be seen...)', increment: 10 });
 
-			return 0;
+			return 1;
 		}
 	);
 
@@ -519,14 +530,15 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		}
 
 		if (!existsSync(join(sourceCodeFolder, extensionSettings.mainName))) {
-			const selection = await window.showErrorMessage(`The main source code could not be located. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Change Setting');
-			
-			if (selection === 'Change Setting') {
-				commands.executeCommand(
-					'workbench.action.openSettings',
-					'megaenvironment.sourceCodeControl.mainFileName'
-				);
-			}
+			window.showErrorMessage(`The main source code could not be located. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Change Setting')
+			.then(selection => {
+				if (selection === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.sourceCodeControl.mainFileName'
+					);
+				}
+			});
 
 			return false;
 		}
@@ -574,7 +586,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 		const selectedPath = uri[0].fsPath;
 
 		if ((await promises.readdir(selectedPath)).length > 0) {
-			const selection = await window.showWarningMessage('This directory is not empty, which means the selected files for cleaning can be accidentally wiped forever!', 'I take this risk!', 'Never mind');
+			const selection = await window.showWarningMessage('This directory is not empty, which means the files selected for cleaning can be accidentally wiped forever!', 'I take this risk!', 'Never mind');
 
 			if (selection !== 'I take this risk!') { return false; }
 		}
@@ -810,12 +822,12 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 	process.chdir(assemblerFolder);
 
 	const p2binArgs = !sonicDisassembly 
-		? [ 'code.p', 'rom.bin', '-l', `0x${settings.fillValue}`, '-k' ]
+		? [ 'code.p', 'rom.gen', '-l', `0x${settings.fillValue}`, '-k' ]
 		: [
 			`-p=${settings.fillValue}`,
 			`-z=${settings.startingAddress},${settings.compressionAlg},${settings.segmentSize},${settings.insertionMethod}`,
 			'code.p',
-			'rom.bin',
+			'rom.gen',
 			'code.h'
 		];
 
@@ -889,7 +901,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	if (settings.generateChecksum) {
 		try {
-			const fileHandler = await promises.open('rom.bin', 'r+');
+			const fileHandler = await promises.open('rom.gen', 'r+');
 
 			const size = (await fileHandler.stat()).size - 0x200; // Need to subtract the skipped values
 
@@ -1041,7 +1053,7 @@ async function assembleRom(progress: Progress<{ message: string; increment?: num
 	await renameRom(outputPath, warnings, progress);
 }
 
-// After versioning, we can rename the lastest ROM from "rom.bin" to whatever we need
+// After versioning, we can rename the lastest ROM from "rom.gen" to whatever we need
 async function renameRom(outputPath: string, warnings: boolean, progress: Progress<{ message?: string; increment?: number; }>) {
 	const currentDate = new Date();
 	const hours = currentDate.getHours().toString().padStart(2, '0');
@@ -1065,8 +1077,8 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 		fileName += `_${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}_${hours}.${minutes}.${seconds}`;
 	}
 
-	// Renames and moves the "rom.bin" file outside "assemblerFolder"
-	rename(join(assemblerFolder, 'rom.bin'), `${join(outputPath, fileName)}.gen`, (error) => {
+	// Renames and moves the "rom.gen" file outside "assemblerFolder"
+	rename(join(assemblerFolder, 'rom.gen'), `${join(outputPath, fileName)}.gen`, (error) => {
 		if (error) {
 			if (error.code !== 'ENOENT') {
 				window.showWarningMessage(`Could not rename your ROM, try to take it from "${assemblerFolder}" if it exists. ${error.message}`);
@@ -1110,6 +1122,11 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 
 // Only works with workspaces, because it searches the project folder for ROMs to run with an emulator
 async function findAndRunROM(emulator: string) {
+	if (!shouldActivate) {
+		window.showErrorMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+		return;
+	}
+
 	if (!workspace.workspaceFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 		return;
@@ -1168,12 +1185,12 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 
 	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'Blastem' ? ' -d' : '';
 
-	exec(`"${configuration.get<string>('paths.' + emulator)}" "${join(assemblerFolder, 'rom.bin')}"` + debuggerFlag, (error) => {
+	exec(`"${configuration.get<string>('paths.' + emulator)}" "${join(assemblerFolder, 'rom.gen')}"` + debuggerFlag, (error) => {
 		if (error) {
 			window.showErrorMessage('Cannot run the build. ' + error.message);
 		}
 
-		unlink(join(assemblerFolder, 'rom.bin'), (error) => {
+		unlink(join(assemblerFolder, 'rom.gen'), (error) => {
 			if (error && error.code !== 'ENOENT') {
 				window.showErrorMessage('Could not delete the temporary ROM for cleanup. You may want to do this by yourself. ' + error.message);
 				return;
@@ -1198,6 +1215,11 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 }
 
 function runTemporaryROMWithProgress(emulator: string) {
+	if (!shouldActivate) {
+		window.showErrorMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+		return;
+	}
+
 	return window.withProgress(
 		{
 			location: ProgressLocation.Window,
@@ -1216,6 +1238,11 @@ function runTemporaryROMWithProgress(emulator: string) {
 
 // Cleans the project folder or the output folder when in standalone mode by matching the extensions
 async function cleanProjectFolder() {
+	if (!shouldActivate) {
+		window.showErrorMessage("You can't clean this folder on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+		return;
+	}
+
 	let items: string[];
 
 	if (onProject) {
@@ -1261,96 +1288,46 @@ async function cleanProjectFolder() {
 // This method is called when the extension is activated
 // This extension gets activated when it detects a project or when the user is using a contributed language
 export async function activate(context: ExtensionContext) {
-	if (!projectCheck()) { return; }
+	const configuration = workspace.getConfiguration('megaenvironment');
+	extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
 
-	const sonicDisassembly = workspace.getConfiguration('megaenvironment.buildControl').get('sonicDisassemblySupport', false);
-
-	assemblerFolder = join(context.globalStorageUri.fsPath, !sonicDisassembly ? 'Original' : 'Fixed');
+	assemblerFolder = join(context.globalStorageUri.fsPath, !extensionSettings.sonicDisassembly ? 'Original' : 'Fixed');
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerPath = join(assemblerFolder, 'p2bin');
 
-	switch (process.platform) {
-		case 'win32':
-			assemblerPath += '.exe';
-			compilerPath += '.exe';
-			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
-			regenCompatible = true;
-			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
-			gensCompatible = true;
-			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', true);
-			bizhawkCompatible = true;
-			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
-			openemuCompatible = false;
-			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', true);
-			break;
-		case 'darwin':
-			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
-			regenCompatible = false;
-			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', false);
-			gensCompatible = false;
-			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
-			bizhawkCompatible = false;
-			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
-			openemuCompatible = true;
-			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
-			break;
-		case 'linux':
-			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
-			regenCompatible = true;
-			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
-			gensCompatible = true;
-			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
-			bizhawkCompatible = false;
-			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
-			openemuCompatible = false;
-			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
-			break;
-		default:
-			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
-			return;
-	}
+	shouldActivate = await projectCheck();
 
-	const configuration = workspace.getConfiguration('megaenvironment');
-	
-	for (const setting of settingDescriptors) {
-		(extensionSettings as any)[setting.target] = configuration.get(setting.key);
-	}
-
-	extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
-
-	buttonProvider = new ButtonProvider();
-
-	const treeView = window.registerTreeDataProvider('run_emulator', buttonProvider);
+	//
+	//	Main commands
+	//
 
 	const redownloadTools = commands.registerCommand('megaenvironment.redownload_tools', async () => {
 		if (toolsDownloading) {
 			window.showInformationMessage('Please, be patient! Your tools are already downloading.');
 			return;
 		}
+
+		const result = await downloadAssembler(extensionSettings.sonicDisassembly, true);
 		
-		if (await downloadAssembler(extensionSettings.sonicDisassembly, true) !== 0 || extensionSettings.quietOperation) { return; }
+		if ((result !== 0 && result !== 1) || extensionSettings.quietOperation) { return; }
 
 		window.showInformationMessage('Build tools successfully re-downloaded.');
 	});
 
 	// A small button located at the bottom of the screen to force download the assembler
-	const runButton = window.createStatusBarItem(StatusBarAlignment.Left, 49); // As close as possible to the problems counter
-	runButton.name = 'Force Assembler Download';
-	runButton.text = '$(cloud-download)';
-	runButton.tooltip = 'Re-download the Assembler';
-	runButton.command = 'megaenvironment.redownload_tools';
-	runButton.show();
-
-	const result1 = await downloadAssembler(false, false);
-	const result2 = await downloadAssembler(true, false);
-
-	if (extensionSettings.checkUpdates && result1 === -1 && result2 === -1) { return; }
-
-	//
-	//	Main commands
-	//
+	const downloadButton = window.createStatusBarItem(StatusBarAlignment.Left, 49); // As close as possible to the problems counter
+	downloadButton.name = 'Force Assembler Download';
+	downloadButton.text = '$(cloud-download)';
+	downloadButton.tooltip = 'Re-download the Assembler';
+	downloadButton.command = 'megaenvironment.redownload_tools';
+	downloadButton.show();
 
 	const assemble = commands.registerCommand('megaenvironment.assemble', () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't assemble on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			return;
+		}
+
 		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
@@ -1368,6 +1345,11 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't assemble on this workspace, because no Mega Drive project has been detected! Please, follow the correct structure.");
+			return;
+		}
+
 		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
@@ -1404,14 +1386,19 @@ export async function activate(context: ExtensionContext) {
 
 	const run_Gens = commands.registerCommand('megaenvironment.run_gens', () => findAndRunROM('Gens'));
 
-	const run_BizHawk = commands.registerCommand('megaenvironment.run_bizhawk', () => findAndRunROM('BizHawk'));
+	const run_BizHawk = commands.registerCommand('megaenvironment.run_bizhawk', () => findAndRunROM('Bizhawk'));
 
 	const run_Fusion = commands.registerCommand('megaenvironment.run_fusion', () => findAndRunROM('Fusion'));
 
 	const run_ClownMdEmu = commands.registerCommand('megaenvironment.run_clownmdemu', async () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			return;
+		}
+
 		const platform = process.platform;
 		if (platform !== 'win32' && platform !== 'linux') {
-			const selection = await window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site');
+			const selection = await window.showErrorMessage('This command is not supported on your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site');
 			
 			if (selection === 'Visit Site') {
 				env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
@@ -1420,10 +1407,15 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		findAndRunROM('Clownmdemu');
+		findAndRunROM('Clownmdemu'); // It will run the "shouldActivate" check two times here... meh
 	});
 
 	const run_OpenEmu = commands.registerCommand('megaenvironment.run_openemu', async () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			return;
+		}
+
 		if (!workspace.workspaceFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
@@ -1458,14 +1450,19 @@ export async function activate(context: ExtensionContext) {
 
 	const assemble_and_run_Gens = commands.registerCommand('megaenvironment.assemble_run_gens', () => runTemporaryROMWithProgress('Gens'));
 
-	const assemble_and_run_BizHawk = commands.registerCommand('megaenvironment.assemble_run_bizhawk', () => runTemporaryROMWithProgress('BizHawk'));
+	const assemble_and_run_BizHawk = commands.registerCommand('megaenvironment.assemble_run_bizhawk', () => runTemporaryROMWithProgress('Bizhawk'));
 
 	const assemble_and_run_Fusion = commands.registerCommand('megaenvironment.assemble_run_fusion', () => runTemporaryROMWithProgress('Fusion'));
 
 	const assemble_and_run_ClownMDEmu = commands.registerCommand('megaenvironment.assemble_run_clownmdemu', async () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			return;
+		}
+
 		const platform = process.platform;
 		if (platform !== 'win32' && platform !== 'linux') {
-			const selection = await window.showErrorMessage('This command is not supported in your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site');
+			const selection = await window.showErrorMessage('This command is not supported on your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site');
 
 			if (selection === 'Visit Site') {
 				env.openExternal(Uri.parse('http://clownmdemu.clownacy.com/'));
@@ -1485,12 +1482,17 @@ export async function activate(context: ExtensionContext) {
 					activeAssembler = null;
 				});
 
-				await runTemporaryRom('Clownmdemu', progress);
+				await runTemporaryRom('Clownmdemu', progress); // Same thing here... meh
 			}
 		);
 	});
 
 	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			return;
+		}
+
 		return window.withProgress(
 			{
 				location: ProgressLocation.Window,
@@ -1530,7 +1532,7 @@ export async function activate(context: ExtensionContext) {
 				const romPath = join(assemblerFolder, `Temporary ROM at ${hours}:${minutes}:${seconds}.bin`);
 
 				try {
-					await promises.rename(join(assemblerFolder, 'rom.bin'), romPath);
+					await promises.rename(join(assemblerFolder, 'rom.gen'), romPath);
 				} catch (error: any) {
 					window.showErrorMessage('Cannot rename the ROM for OpenEmu. ' + error.message);
 					return;
@@ -1550,21 +1552,28 @@ export async function activate(context: ExtensionContext) {
 					});
 				});
 
-				if (!warnings) {
-					if (extensionSettings.quietOperation) { return; }
-					window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}, running it with OpenEmu. (Oh yes!)`);
-				} else {
-					const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal');
+				void (async () => {
+					if (!warnings) {
+						if (extensionSettings.quietOperation) { return; }
+						window.showInformationMessage(`Build succeded at ${hours}:${minutes}:${seconds}, running it with OpenEmu. (Oh yes!)`);
+					} else {
+						const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal');
 
-					if (selection === 'Show Terminal') {
-						outputChannel.show();
+						if (selection === 'Show Terminal') {
+							outputChannel.show();
+						}
 					}
-				}
+				})();
 			}
 		);
 	});
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', async () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't debug with EASy68k on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			return;
+		}
+
 		const editor = window.activeTextEditor;
 
 		if (!editor) {
@@ -1644,6 +1653,11 @@ export async function activate(context: ExtensionContext) {
 	});
 
 	const backup = commands.registerCommand('megaenvironment.backup', async () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't backup this folder on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			return;
+		}
+
 		if (!workspace.workspaceFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
@@ -1750,16 +1764,7 @@ export async function activate(context: ExtensionContext) {
 
 		let templates = '';
 
-		if (selector.includes('Constants')) {
-			templates += '\tinclude "Constants.asm"\n';
-
-			writeFile(join(newPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
-				if (error) {
-					window.showErrorMessage('Unable to create the constants source file. ' + error.message);
-					return;
-				}
-			});
-		} else {
+		if (!selector.includes('Constants')) {
 			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are in use by code templates.', 'Change Setting', 'Ignore');
 
 			if (selection === 'Change Setting') {
@@ -1769,6 +1774,17 @@ export async function activate(context: ExtensionContext) {
 				);
 				return;
 			}
+		}
+
+		if (selector.includes('Constants')) { // Re-check in case the user just changed the setting in the previous if block
+			templates += '\tinclude "Constants.asm"\n';
+
+			writeFile(join(newPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
+				if (error) {
+					window.showErrorMessage('Unable to create the constants source file. ' + error.message);
+					return;
+				}
+			});
 		}
 
 		const map: Record<string, string> = {
@@ -1832,45 +1848,88 @@ export async function activate(context: ExtensionContext) {
 		commands.executeCommand('vscode.openFolder', Uri.file(newPath), true);
 	});
 
-	const generateConfiguration = commands.registerCommand('megaenvironment.generate_configuration', async () => {
-		if (!workspace.workspaceFolders) {
-			window.showErrorMessage('Please, have an opened project to make it possible to write your configuration into it!');
+	const checkForUpdates = commands.registerCommand('megaenvironment.check_updates', async () => {
+		if (!shouldActivate) {
+			window.showErrorMessage("You can't check for updates on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
-		const vscodeFolder = join(sourceCodeFolder, '.vscode');
-		if (!existsSync(vscodeFolder)) {
-			await promises.mkdir(sourceCodeFolder);
-		}
+		switch (await downloadAssembler(extensionSettings.sonicDisassembly, false)) {
+			case 0:
+				window.showInformationMessage('No new updates.');
+				return;
 
-		if (existsSync(join(vscodeFolder, 'launch.json'))) {
-			const selection = await window.showWarningMessage('\"launch.json\" is already present! Are you sure you want to replace it?', 'Replace!', 'I change my mind');
-			
-			if (selection !== 'Replace!') { return; }
-		}
-
-		writeFile(join(vscodeFolder, 'launch.json'), strings.launchJson, (error) => {
-			if (error) {
-				window.showErrorMessage('Cannot create the "launch.json" file for custom settings. You need manually to set the main file name to "Main.asm" and a current working folder to "Assets". ' + error.message);
-			}
-		});
-	});
-
-	// Hacky way to get a somewhat-debugger integrated into VS Code
-	const fakeDebugger = debug.registerDebugConfigurationProvider('megaenvironment-nondebugger', {
-		resolveDebugConfiguration() {
-			commands.executeCommand('megaenvironment.open_easy68k');
-			return undefined; // Prevent actual debug session
+			case 1:
+				window.showInformationMessage('Update installed successfully.');
+				return;
 		}
 	});
 
 	context.subscriptions.push(
-		workspace.onDidChangeConfiguration(event => updateConfiguration(event)), workspace.onDidChangeWorkspaceFolders(projectCheck),// workspace.onDidOpenTextDocument(projectCheck),
+		workspace.onDidChangeConfiguration(event => updateConfiguration(event)), workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidOpenTextDocument(projectCheck),
 		assemble, clean_and_assemble,
 		run_BlastEm, run_ClownMdEmu, run_Regen, run_Gens, run_BizHawk, run_Fusion, run_OpenEmu,
 		assemble_and_run_BlastEm, assemble_and_run_ClownMDEmu, assemble_and_run_Regen, assemble_and_run_Gens, assemble_and_run_BizHawk, assemble_and_run_Fusion, assemble_and_run_OpenEmu,
-		backup, cleanup, open_EASy68k, newProject, redownloadTools, runButton, generateConfiguration, fakeDebugger, treeView
+		backup, cleanup, open_EASy68k, newProject, redownloadTools, downloadButton, checkForUpdates
 	);
+
+	if (!shouldActivate) { return; }
+
+	switch (process.platform) {
+		case 'win32':
+			assemblerPath += '.exe';
+			compilerPath += '.exe';
+			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			regenCompatible = true;
+			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
+			gensCompatible = true;
+			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', true);
+			bizhawkCompatible = true;
+			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			openemuCompatible = false;
+			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', true);
+			break;
+		case 'darwin':
+			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', false);
+			regenCompatible = false;
+			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', false);
+			gensCompatible = false;
+			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
+			bizhawkCompatible = false;
+			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', true);
+			openemuCompatible = true;
+			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
+			break;
+		case 'linux':
+			commands.executeCommand('setContext', 'megaenvironment.Regen.compatiblePlatform', true);
+			regenCompatible = true;
+			commands.executeCommand('setContext', 'megaenvironment.Gens.compatiblePlatform', true);
+			gensCompatible = true;
+			commands.executeCommand('setContext', 'megaenvironment.BizHawk.compatiblePlatform', false);
+			bizhawkCompatible = false;
+			commands.executeCommand('setContext', 'megaenvironment.OpenEmu.compatiblePlatform', false);
+			openemuCompatible = false;
+			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
+			break;
+		default:
+			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
+			return;
+	}
+	
+	for (const setting of settingDescriptors) {
+		(extensionSettings as any)[setting.target] = configuration.get(setting.key);
+	}
+
+	buttonProvider = new ButtonProvider();
+
+	const treeView = window.registerTreeDataProvider('run_emulator', buttonProvider);
+
+	context.subscriptions.push(treeView);
+
+	if (extensionSettings.checkUpdates || !existsSync(assemblerFolder)) {
+		await downloadAssembler(false, false);
+		await downloadAssembler(true, false);
+	}
 }
 
 // Performs various checks to see it the extension should activate while being in a project (valid workspace) or in an opened assembly file
@@ -1892,14 +1951,15 @@ async function projectCheck(): Promise<boolean> {
 		sourceCodeFolder = projectFolders[0].uri.fsPath;
 
 		if ((await promises.readdir(sourceCodeFolder)).some(f => strings.sonicDisassemblyFolders.includes(f)) && !extensionSettings.sonicDisassembly) {
-			const selection = await window.showWarningMessage("It looks like you're using a Sonic disassembly. Please, turn on the associated compatibility setting to make compiling work, or else you'll get random errors!", 'Change Setting');
-			
-			if (selection === 'Change Setting') {
-				commands.executeCommand(
-					'workbench.action.openSettings',
-					'megaenvironment.buildControl.sonicDisassemblySupport'
-				);
-			}
+			window.showWarningMessage("It looks like you're using a Sonic disassembly. Please, turn on the associated compatibility setting to make compiling work, or else you'll get random errors!", 'Change Setting')
+			.then(selection => {
+				if (selection === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.buildControl.sonicDisassemblySupport'
+					);
+				}
+			});
 		}
 
 		return true;
@@ -2051,19 +2111,6 @@ const strings = {
 	"megaenvironment.sourceCodeControl.currentWorkingFolders": [ "Assets" ],
 	"megaenvironment.sourceCodeControl.mainFileName": "Main.68k"
 }`,
-
-	launchJson: String.raw
-`{
-	"version": "0.2.0",
-	"configurations": [
-		{
-			"name": "Debug selection with EASy68k",
-			"type": "megaenvironment-nondebugger", // Ignore the eventual warnings, everything is fine
-			"request": "launch"
-		}
-	]
-}`,
-
 	megaDriveVectors: String.raw
 `
 ROM_Start

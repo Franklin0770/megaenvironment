@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.10",
+	"version": "1.0.11",
 	"engines": {
 		"vscode": "^1.96.0"
 	},
@@ -146,9 +146,8 @@
 				"title": "Re-download The Assembler"
 			},
 			{
-				"command": "megaenvironment.generate_configuration",
-				"title": "Generate configuration file for Run and Debug",
-				"when": "megaenvironment.shouldActivate && megaenvironment.EASy68k.compatiblePlatform"
+				"command": "megaenvironment.check_updates",
+				"title": "Check for new AS builds"
 			}
 		],
 		"configuration": {
@@ -716,7 +715,7 @@
 				"megaenvironment.extensionOptions.alwaysActive": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project or don't have an assembly file open. Changes take effect when you restart the extension.",
+					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project or don't have an assembly file open. Errors can pop up if your folder isn't a project. Changes take effect when you restart the extension.",
 					"order": 67
 				}
 			}
