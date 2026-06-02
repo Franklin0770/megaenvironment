@@ -115,6 +115,13 @@
 					}
 				},
 				{
+					"match": "\\b(?i:(rst)\\b\\s+([0123][08]h))",
+					"captures": {
+						"1": { "name": "instruction.jump.as" },
+						"2": { "name": "directive.label.jump.as" }
+					}
+				},
+				{
 					"match": "\\b(?i:(j))\\b\\s+((?:\\.|\\$\\$)?[\\w\\.]+)\\b(?!\\s*,)",
 					"captures": {
 						"1": { "name": "directive.pseudo.as" },

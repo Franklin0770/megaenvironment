@@ -9,12 +9,13 @@ TODOS:
 import { 
 	ExtensionContext, workspace, commands, window, env, Uri, 
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, EventEmitter,
-	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress
+	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress,
+	RelativePattern
 } from 'vscode';
 import {
 	existsSync, writeFile, rename, unlink, createWriteStream, promises
 } from 'fs';
-import { join, basename, extname, normalize, dirname } from 'path';
+import { join, basename, normalize, dirname, extname, posix } from 'path';
 import { ChildProcess, exec, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
@@ -54,6 +55,7 @@ interface ExtensionSettings {
 	sourceListing: boolean;
 	workingFolders: Array<string>;
 	cleaningExtensions: Array<string>;
+	cleaningFolders: Array<string>;
 	templateSelector: Array<string>;
 
     romName: string;
@@ -105,9 +107,9 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	passWarning: '',
 	forwardReferences: 1,
 
-	mainName: '',
-    constantsName: '',
-    variablesName: '',
+	mainName: 'Sonic.68k',
+    constantsName: 'Constants.asm',
+    variablesName: 'Variables.asm',
     listingFile: true,
     listingName: '',
 	listingRadix: 16,
@@ -122,6 +124,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	sourceListing: false,
 	workingFolders: [ '.' ],
 	cleaningExtensions: [ '.gen', '.pre', '.lst', '.log', '.map', '.noi', '.obj', '.mac', '.i' ],
+	cleaningFolders: [ '.' ],
 	templateSelector: [ '68k vectors', 'ROM header', 'Jump table', 'VDP initialization', 'Controllers initialization', 'Z80 initialization', 'Constants', 'Variables' ],
 
     romName: '',
@@ -188,6 +191,7 @@ const settingDescriptors = [
 	{ key: 'sourceCodeControl.generateSourceListing',				target: 'sourceListing' },
 	{ key: 'sourceCodeControl.currentWorkingFolders',				target: 'workingFolders' },
 	{ key: 'sourceCodeControl.cleaningExtensionSelector',			target: 'cleaningExtensions' },
+	{ key: 'sourceCodeControl.cleaningFolders',						target: 'cleaningFolders' },
 	{ key: 'sourceCodeControl.templateSelector',					target: 'templateSelector' },
 	{ key: 'sourceCodeControl.listUnknownValues',					target: 'listUnknown' },
 	{ key: 'buildControl.outputRomName',							target: 'romName' },
@@ -528,7 +532,7 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return false;
 		}
-
+		
 		if (!existsSync(join(sourceCodeFolder, extensionSettings.mainName))) {
 			window.showErrorMessage(`The main source code could not be located. Name it to "${extensionSettings.mainName}", or change it through the settings.`, 'Change Setting')
 			.then(selection => {
@@ -536,6 +540,54 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 					commands.executeCommand(
 						'workbench.action.openSettings',
 						'megaenvironment.sourceCodeControl.mainFileName'
+					);
+				}
+			});
+
+			return false;
+		}
+
+		const listingFolder = dirname(extensionSettings.listingName);
+
+		if (!existsSync(join(sourceCodeFolder, listingFolder))) {
+			window.showErrorMessage(`The destination folder to generate your code listing file doesn't exist. Create a folder named "${listingFolder}", or change the path through the settings.`, 'Change Setting')
+			.then(selection => {
+				if (selection === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.sourceCodeControl.listingFileName'
+					);
+				}
+			});
+
+			return false;
+		}
+
+		const romFolder = dirname(extensionSettings.romName);
+
+		if (!existsSync(join(sourceCodeFolder, romFolder))) {
+			window.showErrorMessage(`The destination folder to generate your ROM file doesn't exist. Create a folder named "${romFolder}", or change the path through the settings.`, 'Change Setting')
+			.then(selection => {
+				if (selection === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.sourceCodeControl.outputRomName'
+					);
+				}
+			});
+
+			return false;
+		}
+
+		const errorFolder = dirname(extensionSettings.errorName);
+
+		if (!existsSync(join(sourceCodeFolder, errorFolder))) {
+			window.showErrorMessage(`The destination folder to generate your error listing file doesn't exist. Create a folder named "${errorFolder}", or change the path through the settings.`, 'Change Setting')
+			.then(selection => {
+				if (selection === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.sourceCodeControl.errorListingFileName'
 					);
 				}
 			});
@@ -613,83 +665,88 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	// We proceed with the assembler, which creates the program file
 	outputChannel.clear();
-	const settings = extensionSettings;
-	const sonicDisassembly = settings.sonicDisassembly;
+	const sonicDisassembly = extensionSettings.sonicDisassembly;
 
-	if (sonicDisassembly && settings.wavConversion && onProject) {
+	if (sonicDisassembly && extensionSettings.wavConversion && onProject) {
 		await PcmProcessing.generateAudioFiles(progress);
 	}
 
 	progress.report({ increment: !sonicDisassembly ? 15 : 0, message: 'Assembling...' }); // 0, 30
 
-	const sourceCode = onProject ? settings.mainName : basename(window.activeTextEditor!.document.fileName);
+	const sourceCode = onProject ? extensionSettings.mainName : basename(window.activeTextEditor!.document.fileName);
 
 	let warnings = false;
 
 	const aslArgs: string[] = [
 		join(sourceCodeFolder, sourceCode),
 		...['-o', join(assemblerFolder, 'code.p')],
-		...(settings.compactSymbols ? ['-A'] : []),
-		...(settings.listingFile ? ['-L'] : []),
-		...(settings.caseSensitive ? ['-U'] : []),
-		...(settings.errorLevel ? ['-x'.repeat(settings.errorLevel)] : []),
-		...(settings.errorNumber ? ['-n'] : []),
-		...(settings.lowercaseHex ? ['-h'] : []),
-		...(settings.suppressWarnings ? ['-w'] : []),
-		...(settings.passWarning ? ['-r', settings.passWarning] : []),
-		...(settings.crossReferencesListing ? ['-C'] : []),
-		...(settings.sectionListing ? ['-s'] : []),
-		...(settings.macroListing ? ['-M'] : []),
-		...(settings.sourceListing ? ['-P'] : []),
-		...(settings.warningsAsErrors ? ['-Werror'] : []),
-		...(!settings.asErrors ? ['-gnuerrors'] : []),
-		...(!settings.superiorWarnings ? ['-supmode'] : []),
-		...(settings.compatibilityMode ? ['-compmode'] : []),
-		...(settings.relaxedMode ? ['-relaxed'] : []),
-		...(!settings.signWarning && !sonicDisassembly ? ['-wno-implicit-sign-extension'] : []),
-		...(settings.jumpsWarning && !sonicDisassembly ? ['-wrelative'] : []),
-		...(settings.listUnknown && !sonicDisassembly ? ['-list-unknown-values'] : []),
-		...(settings.forwardReferences !== 1 && !sonicDisassembly ? ['-maxsympass', settings.forwardReferences.toString()] : []),
-		...(settings.underscoreMacroArgs && !sonicDisassembly ? ['-underscore-macroargs'] : []),
-		...(settings.debugFile !== 'None' && onProject ? ['-g', settings.debugFile] : []),
-		...(settings.defaultCpu ? ['-cpu', settings.defaultCpu] : []),
-		...(settings.radix !== 10 ? ['-RADIX', settings.radix.toString()] : []),
-		...(settings.listingRadix !== 16 ? ['-LISTRADIX', settings.listingRadix.toString()] : []),
-		...(settings.splitByte ? ['-SPLITBYTE', settings.splitByte] : []),
-		...(settings.maximumErrors ? ['-maxerrors', settings.maximumErrors] : []),
-		...(settings.sonicDisassembly ? ['-c', '-shareout', join(assemblerFolder, 'code.h')] : [])
+		...(extensionSettings.compactSymbols ? ['-A'] : []),
+		...(extensionSettings.listingFile ? ['-L'] : []),
+		...(extensionSettings.caseSensitive ? ['-U'] : []),
+		...(extensionSettings.errorLevel ? ['-x'.repeat(extensionSettings.errorLevel)] : []),
+		...(extensionSettings.errorNumber ? ['-n'] : []),
+		...(extensionSettings.lowercaseHex ? ['-h'] : []),
+		...(extensionSettings.suppressWarnings ? ['-w'] : []),
+		...(extensionSettings.passWarning ? ['-r', extensionSettings.passWarning] : []),
+		...(extensionSettings.crossReferencesListing ? ['-C'] : []),
+		...(extensionSettings.sectionListing ? ['-s'] : []),
+		...(extensionSettings.macroListing ? ['-M'] : []),
+		...(extensionSettings.sourceListing ? ['-P'] : []),
+		...(extensionSettings.warningsAsErrors ? ['-Werror'] : []),
+		...(!extensionSettings.asErrors ? ['-gnuerrors'] : []),
+		...(!extensionSettings.superiorWarnings ? ['-supmode'] : []),
+		...(extensionSettings.compatibilityMode ? ['-compmode'] : []),
+		...(extensionSettings.relaxedMode ? ['-relaxed'] : []),
+		...(!extensionSettings.signWarning && !sonicDisassembly ? ['-wno-implicit-sign-extension'] : []),
+		...(extensionSettings.jumpsWarning && !sonicDisassembly ? ['-wrelative'] : []),
+		...(extensionSettings.listUnknown && !sonicDisassembly ? ['-list-unknown-values'] : []),
+		...(extensionSettings.forwardReferences !== 1 && !sonicDisassembly ? ['-maxsympass', extensionSettings.forwardReferences.toString()] : []),
+		...(extensionSettings.underscoreMacroArgs && !sonicDisassembly ? ['-underscore-macroargs'] : []),
+		...(extensionSettings.debugFile !== 'None' && onProject ? ['-g', extensionSettings.debugFile] : []),
+		...(extensionSettings.defaultCpu ? ['-cpu', extensionSettings.defaultCpu] : []),
+		...(extensionSettings.radix !== 10 ? ['-RADIX', extensionSettings.radix.toString()] : []),
+		...(extensionSettings.listingRadix !== 16 ? ['-LISTRADIX', extensionSettings.listingRadix.toString()] : []),
+		...(extensionSettings.splitByte ? ['-SPLITBYTE', extensionSettings.splitByte] : []),
+		...(extensionSettings.maximumErrors ? ['-maxerrors', extensionSettings.maximumErrors] : []),
+		...(extensionSettings.sonicDisassembly ? ['-c', '-shareout', join(assemblerFolder, 'code.h')] : [])
 	];
 
-	// We must output the listing file in the right spot when we have a standalone file,
-	// because AS automatically puts the listing file to where the source code is located (and not in relation to CWD)
-	if (!onProject && settings.listingFile) {
-		aslArgs.push(
-			'-OLIST',
-			join(settings.singleFileOutput,
-			(settings.listingName ? settings.listingName : 'Code') + '.lst')
-		);
-	} else if (settings.listingName) {
-		aslArgs.push('-OLIST', settings.listingName, '.lst');
-	}
-
-	if (settings.errorFile) {
-		if (settings.errorName !== '') {
-			const errorPath = onProject
-				? settings.errorName + '.log'
-				: join(settings.singleFileOutput, settings.errorName + '.log');
-			aslArgs.push('-E', errorPath);
-		} else {
-			aslArgs.push('-E');
-			if (!onProject) {
-				aslArgs.push(join(settings.singleFileOutput, settings.errorName + '.log'));
+	if (extensionSettings.listingFile) {
+		if (onProject) {
+			if (!extensionSettings.listingName) {
+				const fileName = extensionSettings.mainName;
+				aslArgs.push('-OLIST', join(sourceCodeFolder, basename(fileName, extname(fileName))) + '.lst');
+			} else {
+				aslArgs.push('-OLIST', join(sourceCodeFolder, extensionSettings.listingName) + '.lst');
 			}
+		} else {
+			aslArgs.push(
+				'-OLIST', join(extensionSettings.singleFileOutput, (extensionSettings.listingName ? 
+				basename(extensionSettings.listingName) : 'Code') + '.lst')
+			);
 		}
 	}
 
-	if (!sonicDisassembly && (settings.addSyntax.length || settings.removeSyntax.length)) { // If we filled at least one setting
+	if (extensionSettings.errorFile) {
+		if (onProject) {
+			if (!extensionSettings.errorName) {
+				const fileName = extensionSettings.mainName;
+				aslArgs.push('-E', join(sourceCodeFolder, basename(fileName, extname(fileName))) + '.log');
+			} else {
+				aslArgs.push('-E', join(sourceCodeFolder, extensionSettings.errorName) + '.log');
+			}
+		} else {
+			aslArgs.push(
+				'-E', join(extensionSettings.singleFileOutput, (extensionSettings.errorName ? 
+				basename(extensionSettings.errorName) : 'Code') + '.log')
+			);
+		}
+	}
+
+	if (!sonicDisassembly && (extensionSettings.addSyntax.length || extensionSettings.removeSyntax.length)) { // If we filled at least one setting
 		const parts: string[] = [];
-		const addSyntax = settings.addSyntax;
-		const removeSyntax = settings.removeSyntax;
+		const addSyntax = extensionSettings.addSyntax;
+		const removeSyntax = extensionSettings.removeSyntax;
 
 		if (addSyntax.length) {
 			parts.push('+' + addSyntax.join(',+')); // Add syntax with + so AS knows what to do
@@ -702,8 +759,8 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		aslArgs.push('-INTSYNTAX', parts.join(','));
 	}
 
-	if (settings.workingFolders.length > 0 && onProject) {
-		aslArgs.push('-i', settings.workingFolders.join(';'));
+	if (extensionSettings.workingFolders.length > 0 && onProject) {
+		aslArgs.push('-i', extensionSettings.workingFolders.join(';'));
 	} else if (sonicDisassembly && !onProject) {
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
 	}
@@ -757,11 +814,11 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	switch (aslCode) {
 		case 0:
-			if (settings.verboseOperation) {
+			if (extensionSettings.verboseOperation) {
 				outputChannel.show();
 			}
 
-			if (aslErr && !settings.suppressWarnings) {
+			if (aslErr && !extensionSettings.suppressWarnings) {
 				outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
 				outputChannel.appendLine(aslErr);
 				outputChannel.appendLine('============================================================');
@@ -772,7 +829,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		default:
 			let errorLocation = 'log file';
 
-			if (!settings.errorFile) {
+			if (!extensionSettings.errorFile) {
 				outputChannel.appendLine('\n==================== ASSEMBLER ERRORS ====================\n');
 				outputChannel.append(aslErr);
 				outputChannel.show();
@@ -789,11 +846,11 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 					return -1;
 
 				case 4:
-					window.showErrorMessage('Looks like the assembler got incorrectly set up by the extension! As a temporal fix, try to reset some settings. I apologize for the inconvenience and please, report this mistake as soon as possible!');
+					window.showErrorMessage('Looks like the assembler got incorrectly set up by the extension! Try to reset some settings and press the \"Re-download the Assembler\" button (or command). I apologize for the inconvenience and please, report this mistake as soon as possible!');
 					return -1;
 
 				case 255:
-					window.showErrorMessage("Looks like some files are missing because I messed up the structure, sorry! If this doesn't get fixed in a few days, please let me know!");
+					window.showErrorMessage("Looks like some files are missing because I messed up the structure, sorry! If this doesn't get fixed by pressing the \"Re-download the Assembler\" button (or command), please let me know!");
 					return -1;
 					
 				default:
@@ -815,17 +872,17 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	if (activeAssembler) {
 		outputChannel.show();
-		window.showErrorMessage("One more second! I'm still compiling.");
+		window.showErrorMessage("Just a second! I'm still compiling.");
 		return -1;
 	}
 
 	process.chdir(assemblerFolder);
 
 	const p2binArgs = !sonicDisassembly 
-		? [ 'code.p', 'rom.gen', '-l', `0x${settings.fillValue}`, '-k' ]
+		? [ 'code.p', 'rom.gen', '-l', `0x${extensionSettings.fillValue}`, '-k' ]
 		: [
-			`-p=${settings.fillValue}`,
-			`-z=${settings.startingAddress},${settings.compressionAlg},${settings.segmentSize},${settings.insertionMethod}`,
+			`-p=${extensionSettings.fillValue}`,
+			`-z=${extensionSettings.startingAddress},${extensionSettings.compressionAlg},${extensionSettings.segmentSize},${extensionSettings.insertionMethod}`,
 			'code.p',
 			'rom.gen',
 			'code.h'
@@ -875,7 +932,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	switch (p2binCode) {
 		case 0:
-			if (p2binErr && settings.suppressWarnings) {
+			if (p2binErr && extensionSettings.suppressWarnings) {
 				outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
 				outputChannel.appendLine(p2binErr);
 				outputChannel.appendLine('===========================================================');
@@ -899,7 +956,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	progress.report({ increment: !sonicDisassembly ? 30 : 20, message: 'Generating checksum...' }); // 60, 70
 
-	if (settings.generateChecksum) {
+	if (extensionSettings.generateChecksum) {
 		try {
 			const fileHandler = await promises.open('rom.gen', 'r+');
 
@@ -929,12 +986,12 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 			await fileHandler.write(writeBuffer, 0, 2, 0x18E); // Patch by writing the value to the ROM
 			await fileHandler.close();
 
-			if (settings.showChecksum) {
+			if (extensionSettings.showChecksum) {
 				outputChannel.append('\nChecksum value: 0x' + sum[0].toString(16).toUpperCase());
 			}
 		} catch (error: any) {
 			window.showErrorMessage('Cannot patch your ROM with its checksum. ' + error.message);
-			if (settings.showChecksum) {
+			if (extensionSettings.showChecksum) {
 				outputChannel.append('\nChecksum not generated due to unexpected error.');
 			}
 
@@ -967,7 +1024,19 @@ async function assembleRom(progress: Progress<{ message: string; increment?: num
 	progress.report({ message: 'Versioning...', increment: 10 });
 
 	// If we are in a workspace (project) the output folder is the same as the source code one, else we have to take the user's custom one
-	const outputPath = onProject ? sourceCodeFolder : extensionSettings.singleFileOutput;
+
+	let outputPath;
+	let relativePattern;
+
+	if (onProject) {
+		outputPath = sourceCodeFolder;
+		relativePattern = new RelativePattern(
+			workspace.workspaceFolders![0],
+			posix.join(dirname(extensionSettings.romName), '*.{gen,pre*}') // Using posix.join() to make sure there are forward slashes only
+		);
+	} else {
+		outputPath = extensionSettings.singleFileOutput;
+	}
 
 	process.chdir(outputPath);
 
@@ -990,7 +1059,7 @@ async function assembleRom(progress: Progress<{ message: string; increment?: num
 
 	try {
 		// We can save some performance by using VS Code's indexed search if we are in a workspace
-		const items = onProject ? (await workspace.findFiles('*.{gen,pre*}')).map(uri => uri.fsPath) : await promises.readdir(extensionSettings.singleFileOutput);
+		const items = onProject ? (await workspace.findFiles(relativePattern!)).map(uri => uri.fsPath) : await promises.readdir(extensionSettings.singleFileOutput);
 
 		// Precompute .pre<number> files once
 		const preFiles = items
@@ -1063,14 +1132,13 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 	let fileName: string;
 
 	if (extensionSettings.romName) { // If the user has set a custom name, we use it
-		fileName = extensionSettings.romName;
+		fileName = normalize(extensionSettings.romName);
 	} else if (onProject) { // If not, strip the extension from path if we're in a project
-		const lastDot = extensionSettings.mainName.lastIndexOf('.');
-		fileName = lastDot !== -1 ? extensionSettings.mainName.substring(0, lastDot) : extensionSettings.mainName;
+		const name = extensionSettings.mainName;
+		fileName = basename(name, extname(name));
 	} else { // If we aren't in a project, use the file name of the document
-		const name = basename(window.activeTextEditor!.document.fileName);
-		const lastDot = name.lastIndexOf('.');
-		fileName = lastDot !== -1 ? name.substring(0, lastDot) : name;
+		const name = window.activeTextEditor!.document.fileName;
+		fileName = basename(name, extname(name));
 	}
 
 	if (extensionSettings.romDate) {
@@ -1123,21 +1191,36 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 // Only works with workspaces, because it searches the project folder for ROMs to run with an emulator
 async function findAndRunROM(emulator: string) {
 	if (!shouldActivate) {
-		window.showErrorMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+		failedActivationMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 		return;
 	}
 
-	if (!workspace.workspaceFolders) {
+	const projectFolders = workspace.workspaceFolders;
+
+	if (!projectFolders) {
 		window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 		return;
 	}
 
 	if (!await promptEmulatorPath(emulator)) { return; }
+
+	const relativePattern = new RelativePattern(
+		projectFolders[0],
+		posix.join(dirname(extensionSettings.romName), '*.gen')
+	);
 	
-	const rom = await workspace.findFiles('*.gen', undefined, 1);
+	const rom = await workspace.findFiles(relativePattern, undefined, 1);
 
 	if (rom.length === 0) {
-		window.showErrorMessage('There are no ROMs to run. Build something first!');
+		const selection = await window.showErrorMessage("There are no ROMs to run. Build something first! If this doesn't work, change the ROM output folder in the settings.", 'Change Setting');
+
+		if (selection === 'Change Setting') {
+			commands.executeCommand(
+				'workbench.action.openSettings',
+				'megaenvironment.sourceCodeControl.outputRomName'
+			);
+		}
+
 		return;
 	}
 
@@ -1216,7 +1299,7 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 
 function runTemporaryROMWithProgress(emulator: string) {
 	if (!shouldActivate) {
-		window.showErrorMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+		failedActivationMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 		return;
 	}
 
@@ -1239,48 +1322,90 @@ function runTemporaryROMWithProgress(emulator: string) {
 // Cleans the project folder or the output folder when in standalone mode by matching the extensions
 async function cleanProjectFolder() {
 	if (!shouldActivate) {
-		window.showErrorMessage("You can't clean this folder on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+		failedActivationMessage("You can't clean this folder on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 		return;
 	}
 
 	let items: string[];
 
-	if (onProject) {
-		const patterns = extensionSettings.cleaningExtensions.map(ext => ext !== '.pre' ? `*${ext}` : '*.pre*');
-		items = (await workspace.findFiles(`{${patterns.join(',')}}`)).map(uri => uri.fsPath);
-	} else {
-		const outputPath = extensionSettings.singleFileOutput;
-		items = (await promises.readdir(outputPath, { withFileTypes: true }))
-			.filter(e => e.isFile())
-			.map(e => join(outputPath, e.name));
-	}
-	
-	const failedItems: string[] = [];
+	const cleaningFolders = extensionSettings.cleaningFolders;
+	let foldersLength = cleaningFolders.length;
 
-	for (const item of items) {
-		unlink(item, (error) => {
-			if (error) {
-				failedItems.push(basename(item));
+	if (foldersLength > 0) {
+		if (onProject) {
+			// Clean up extensions list (e.g., ["*.gen", "*.pre*"])
+			const extensions = extensionSettings.cleaningExtensions.map(ext => ext.replace(/\.pre/g, '.pre*'));
+			const extensionsPattern = `{${extensions.join(',')}}`;
+
+			// Collect and normalize the directories, checking if settings exist
+			const dirs = new Array<string>(foldersLength);
+
+			for (let i = 0; i < foldersLength; i++) {
+				let dir = posix.normalize(cleaningFolders[i]);
+				// If dirname is '.' (root), normalize it to '*' for VS Code globbing
+				// Otherwise, append '/*' to target the files inside that folder
+				dirs[i] = dir === '.' ? '*' : `${dir}/*`;
 			}
-		});
-	}
 
-	if (failedItems.length > 0) {
-		window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems.join(', '));
-		return;
+			// Remove duplicate directories to keep the glob efficient
+			const uniqueDirs = [...new Set(dirs)];
+
+			// Combine directories and extensions without nesting braces
+			// Resulting pattern structure: {*,Code/*,build/*}*{.gen,.pre*,.lst}
+			const relativePattern = new RelativePattern(
+				workspace.workspaceFolders![0],
+				`{${uniqueDirs.join(',')}}*${extensionsPattern}`
+			);
+
+			items = (await workspace.findFiles(relativePattern)).map(uri => uri.fsPath);
+		} else {
+			const outputPath = extensionSettings.singleFileOutput;
+			items = (await promises.readdir(outputPath, { withFileTypes: true }))
+				.filter(e => e.isFile())
+				.map(e => join(outputPath, e.name));
+		}
+
+		const failedItems: string[] = [];
+
+		for (const item of items) {
+			unlink(item, (error) => {
+				if (error) {
+					failedItems.push(basename(item));
+				}
+			});
+		}
+
+		if (failedItems.length > 0) {
+			window.showErrorMessage("Cleanup wasn't completed because the following files couldn't be deleted: " + failedItems.join(', '));
+			return;
+		}
+	} else if (onProject) {
+		if (foldersLength === 0 && onProject) {
+			window.showWarningMessage('No items to wipe, no folders are selected for cleaning.', 'Change Setting')
+			.then(selection => {
+				if (selection === 'Change Setting') {
+					commands.executeCommand(
+						'workbench.action.openSettings',
+						'megaenvironment.sourceCodeControl.cleaningFolders'
+					);
+				}
+			});
+
+			return;
+		}
 	}
 
 	if (extensionSettings.quietOperation) { return; }
 
-	switch (items.length) {
+	switch (items!.length) {
 		default:
-			window.showInformationMessage(`Cleanup completed. ${items.length} items were removed.`);
+			window.showInformationMessage(`Cleanup completed. ${items!.length} files were removed.`);
 			return;
 		case 0:
 			window.showInformationMessage('No items to wipe this time.');
 			return;
 		case 1:
-			window.showInformationMessage('Cleanup completed. 1 item was removed.');
+			window.showInformationMessage('Cleanup completed. 1 file was removed.');
 			return;
 	}
 }
@@ -1290,12 +1415,19 @@ async function cleanProjectFolder() {
 export async function activate(context: ExtensionContext) {
 	const configuration = workspace.getConfiguration('megaenvironment');
 	extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
+	extensionSettings.mainName = configuration.get<string>('sourceCodeControl.mainFileName', 'Sonic.68k');
 
-	assemblerFolder = join(context.globalStorageUri.fsPath, !extensionSettings.sonicDisassembly ? 'Original' : 'Fixed');
+	const extensionFolder = context.globalStorageUri.fsPath;
+
+	if (!existsSync(extensionFolder)) {
+		await promises.mkdir(extensionFolder);
+	}
+
+	assemblerFolder = join(extensionFolder, !extensionSettings.sonicDisassembly ? 'Original' : 'Fixed');
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerPath = join(assemblerFolder, 'p2bin');
 
-	shouldActivate = await projectCheck();
+	await projectCheck();
 
 	//
 	//	Main commands
@@ -1324,7 +1456,7 @@ export async function activate(context: ExtensionContext) {
 
 	const assemble = commands.registerCommand('megaenvironment.assemble', () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't assemble on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't assemble on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
@@ -1346,7 +1478,7 @@ export async function activate(context: ExtensionContext) {
 
 	const clean_and_assemble = commands.registerCommand('megaenvironment.clean_assemble', () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't assemble on this workspace, because no Mega Drive project has been detected! Please, follow the correct structure.");
+			failedActivationMessage("You can't assemble on this workspace, because no Mega Drive project has been detected! Please, follow the correct structure.");
 			return;
 		}
 
@@ -1392,7 +1524,7 @@ export async function activate(context: ExtensionContext) {
 
 	const run_ClownMdEmu = commands.registerCommand('megaenvironment.run_clownmdemu', async () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
@@ -1412,11 +1544,13 @@ export async function activate(context: ExtensionContext) {
 
 	const run_OpenEmu = commands.registerCommand('megaenvironment.run_openemu', async () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
-		if (!workspace.workspaceFolders) {
+		const projectFolders = workspace.workspaceFolders;
+
+		if (!projectFolders) {
 			window.showErrorMessage('You have no opened projects. Please, open a folder containing the correct structure.');
 			return;
 		}
@@ -1426,7 +1560,12 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
-		const rom = await workspace.findFiles('*.gen', undefined, 1);
+		const relativePattern = new RelativePattern(
+			projectFolders[0],
+			'*.gen'
+		);
+
+		const rom = await workspace.findFiles(relativePattern, undefined, 1);
 
 		if (rom.length === 0) {
 			window.showErrorMessage('There are no ROMs to run. Build something first.');
@@ -1456,7 +1595,7 @@ export async function activate(context: ExtensionContext) {
 
 	const assemble_and_run_ClownMDEmu = commands.registerCommand('megaenvironment.assemble_run_clownmdemu', async () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
@@ -1489,7 +1628,7 @@ export async function activate(context: ExtensionContext) {
 
 	const assemble_and_run_OpenEmu = commands.registerCommand('megaenvironment.assemble_run_openemu', () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't assemble and run a ROM on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
@@ -1570,7 +1709,7 @@ export async function activate(context: ExtensionContext) {
 
 	const open_EASy68k = commands.registerCommand('megaenvironment.open_easy68k', async () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't debug with EASy68k on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't debug with EASy68k on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
@@ -1586,7 +1725,7 @@ export async function activate(context: ExtensionContext) {
 		const selectedText = editor.document.getText(editor.selection);
 		let text: string;
 
-		if (workspace.workspaceFolders) {				
+		if (workspace.workspaceFolders) {
 			let constantsLocation = '';
 			const constantsName = extensionSettings.constantsName;
 
@@ -1654,7 +1793,7 @@ export async function activate(context: ExtensionContext) {
 
 	const backup = commands.registerCommand('megaenvironment.backup', async () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't backup this folder on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't backup this folder on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
@@ -1687,14 +1826,6 @@ export async function activate(context: ExtensionContext) {
 					zip.addLocalFile(item);
 				} else {
 					zip.addLocalFolder(item, basename(item));
-				}
-
-				if (extensionSettings.cleaningExtensions.includes(extname(item).toLowerCase())) {
-					unlink(item, (error) => {
-						if (error) {
-							window.showWarningMessage(`Could not remove "${item}" for cleanup. You may want to do this by yourself. ${error.message}`);
-						}
-					});
 				}
 
 				files++;
@@ -1764,19 +1895,7 @@ export async function activate(context: ExtensionContext) {
 
 		let templates = '';
 
-		if (!selector.includes('Constants')) {
-			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are in use by code templates.', 'Change Setting', 'Ignore');
-
-			if (selection === 'Change Setting') {
-				commands.executeCommand(
-					'workbench.action.openSettings',
-					'megaenvironment.sourceCodeControl.templateSelector'
-				);
-				return;
-			}
-		}
-
-		if (selector.includes('Constants')) { // Re-check in case the user just changed the setting in the previous if block
+		if (selector.includes('Constants')) {
 			templates += '\tinclude "Constants.asm"\n';
 
 			writeFile(join(newPath, 'Constants.asm'), strings.megaDriveConstants, (error) => {
@@ -1785,6 +1904,16 @@ export async function activate(context: ExtensionContext) {
 					return;
 				}
 			});
+		} else {
+			const selection = await window.showWarningMessage('The use of constants is strongly recommended since they are used by code templates!', 'Change Setting', 'Ignore');
+
+			if (selection === 'Change Setting') {
+				commands.executeCommand(
+					'workbench.action.openSettings',
+					'megaenvironment.sourceCodeControl.templateSelector'
+				);
+				return;
+			}
 		}
 
 		const map: Record<string, string> = {
@@ -1845,12 +1974,14 @@ export async function activate(context: ExtensionContext) {
 			}
 		});
 
-		commands.executeCommand('vscode.openFolder', Uri.file(newPath), true);
+		await commands.executeCommand('vscode.openFolder', Uri.file(newPath), true);
+
+		await projectCheck();
 	});
 
 	const checkForUpdates = commands.registerCommand('megaenvironment.check_updates', async () => {
 		if (!shouldActivate) {
-			window.showErrorMessage("You can't check for updates on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
+			failedActivationMessage("You can't check for updates on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
 
@@ -1912,7 +2043,7 @@ export async function activate(context: ExtensionContext) {
 			commands.executeCommand('setContext', 'megaenvironment.EASy68k.compatiblePlatform', false);
 			break;
 		default:
-			window.showErrorMessage("Hey, what platform is this? Please, let me know which operative system you're running VS Code on!");
+			window.showErrorMessage("Hey, whatever operative system you're using is not supported! Please, let me know which operative system you're running VS Code on!");
 			return;
 	}
 	
@@ -1933,22 +2064,32 @@ export async function activate(context: ExtensionContext) {
 }
 
 // Performs various checks to see it the extension should activate while being in a project (valid workspace) or in an opened assembly file
-// It also assigns the source code folder path to "sourceCodeFolder"
-// If false the code cannot continue
-async function projectCheck(): Promise<boolean> {
+// It also assigns the source code folder path to "sourceCodeFolder" and initializes "shouldActivate"
+async function projectCheck(): Promise<void> {
 	if (workspace.getConfiguration('megaenvironment.extensionOptions').get<boolean>('alwaysActive')) { // There's only this check, this is why putting it to extensionSettings is redundant
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = true;
-		return true;
+		shouldActivate = true;
+		return;
 	}
 
 	const projectFolders = workspace.workspaceFolders;
 	const editor = window.activeTextEditor;
+
+	let relativePatten;
+
+	if (projectFolders) {
+		relativePatten = new RelativePattern(
+			projectFolders[0],
+			'{*,*/*,*/*/*,*/*/*/*}.{68k,z80,asm}'
+		);
+	}
 	
-	if (projectFolders && (await workspace.findFiles('*.{68k,z80,asm}', undefined, 1)).length > 0) { // If it finds a project with the right files
+	if (projectFolders && ((await workspace.findFiles(relativePatten!, undefined, 1)).length > 0
+		|| (await workspace.findFiles(extensionSettings.mainName, undefined, 1)).length > 0)) { // If it finds a project with the right files
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
-		onProject = true;
 		sourceCodeFolder = projectFolders[0].uri.fsPath;
+		onProject = true;
 
 		if ((await promises.readdir(sourceCodeFolder)).some(f => strings.sonicDisassemblyFolders.includes(f)) && !extensionSettings.sonicDisassembly) {
 			window.showWarningMessage("It looks like you're using a Sonic disassembly. Please, turn on the associated compatibility setting to make compiling work, or else you'll get random errors!", 'Change Setting')
@@ -1962,23 +2103,52 @@ async function projectCheck(): Promise<boolean> {
 			});
 		}
 
-		return true;
-	} else if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the associated languages
+		shouldActivate = true;
+		return;
+	}
+	
+	if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the associated languages
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = false;
-		return true;
+		shouldActivate = true;
+		return;
 	}
 
 	commands.executeCommand('setContext', 'megaenvironment.shouldActivate', false); // If we didn't find anything, we have no reason to activate, so
 	onProject = false;
-	return false;
+	shouldActivate = false;
+}
+
+async function failedActivationMessage(message: string) {
+	const selection = await window.showErrorMessage(message, 'Retry', 'Force Activation');
+
+	switch (selection) {
+		case 'Retry':
+			await projectCheck();
+
+			if (!shouldActivate) {
+				failedActivationMessage('Unfortunately, your folder cannot be evaluated as a project. Try to reorganize your file structure if possible.');
+			}
+
+			return;
+
+		case 'Force Activation':
+			commands.executeCommand(
+				'workbench.action.openSettings',
+				'megaenvironment.extensionOptions.alwaysActive'
+			);
+			return;
+
+		default:
+			return;
+	}
 }
 
 async function updateConfiguration(event: ConfigurationChangeEvent) {
 	if (!event.affectsConfiguration('megaenvironment')) { return; } // Quick return if the extension isn't involved
 
 	const configuration = workspace.getConfiguration('megaenvironment');
-	// This setting requires different management
+	// Do additional stuff when certain settings get changed
 	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
 		extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
 		assemblerFolder = join(dirname(normalize(assemblerFolder)), !extensionSettings.sonicDisassembly ? 'Original' : 'Fixed');
@@ -1987,6 +2157,8 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 		compilerPath = join(assemblerFolder, 'p2bin' + windowsExtension);
 	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.hideUnsupportedEmulators')) {
 		buttonProvider.refresh(); // Update the TreeView with the new setting
+	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
+		await projectCheck();
 	}
 
 	// Updates "settingsDescriptors" each time a setting is changed
@@ -2121,31 +2293,31 @@ ROM_Start
 ; 68000 vectors (with its error code in square brackets, AAAAAAxx)
 ; ================================================================
 
-		dc.l M68K.STACK			; Initial stack pointer value (SP value)
-		dc.l EntryPoint			; Start of program (PC value)
-		dc.l BusError			; Bus error							[1]
-		dc.l AddressError		; Address error						[2]
-		dc.l IllegalInstruction	; Illegal instruction				[3]
-		dc.l DivisionByZero		; Division by zero					[4]
+		dc.l M68K.STACK			; initial stack pointer value (SP value)
+		dc.l EntryPoint			; start of program (PC value)
+		dc.l BusError			; bus error							[1]
+		dc.l AddressError		; address error						[2]
+		dc.l IllegalInstruction	; illegal instruction				[3]
+		dc.l DivisionByZero		; division by zero					[4]
 		dc.l CHKException		; CHK exception						[5]
 		dc.l TRAPVException		; TRAPV exception					[6]
-		dc.l PrivilegeViolation	; Privilege violation				[7]
+		dc.l PrivilegeViolation	; privilege violation				[7]
 		dc.l TRACEException		; TRACE exception					[8]
 		dc.l LineAEmulator		; Line-A emulator					[9]
 		dc.l LineFEmulator		; Line-F emulator					[10]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l SpuriousException	; Spurious exception				[11]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l SpuriousException	; spurious exception				[11]
 		dc.l InterruptRequest	; IRQ level 1						[12]
 		dc.l InterruptRequest	; IRQ level 2						[12]
 		dc.l InterruptRequest	; IRQ level 3 						[12]
@@ -2169,22 +2341,22 @@ ROM_Start
 		dc.l TRAPException		; TRAP #13 exception				[13]
 		dc.l TRAPException		; TRAP #14 exception				[13]
 		dc.l TRAPException		; TRAP #15 exception				[13]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
-		dc.l UnknownError		; Unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
+		dc.l UnknownError		; unused (reserved)					[14]
 `,
 	megaDriveJumpTable: String.raw
 `
@@ -2194,7 +2366,7 @@ ROM_Start
 
 BusError:
 	move.l	#$AAAAAAA1,d7
-	stop #$2700 ; Don't use Gens, it doesn't recognize this instruction
+	stop #$2700
 
 AddressError:
 	move.l	#$AAAAAAA2,d7
@@ -2268,20 +2440,20 @@ EntryPoint:`,
 ; Mega Drive ROM header (reference: https://plutiedev.com/rom-header)
 ; ===================================================================
 
-		dc.b "SEGA MEGA DRIVE "										; System type - 16 bytes
-		dc.b "(C).... YYYY.MMM"										; Copyright, release year and month (e.g. "(C)SEGA 1991.APR") - 16 bytes
-		dc.b "                                                "		; Domestic name - 48 bytes
-		dc.b "                                                "		; Overseas name - 48 bytes
-		dc.b "GM-12345678-00"										; Serial number ("xx-yyyyyyyy-zz") - 14 bytes
-		dc.w $0000													; Where this ROM gets patched with a 16-bit checksum - 2 bytes
-		dc.b "J               "										; Device support (e.g. "J" for 3-button controller) - 16 bytes
-		dc.l ROM_Start												; Start address of ROM - 4 bytes
-		dc.l ROM_End												; End address of ROM - 4 bytes
-		dc.l $FF0000												; Start address of WRAM - 4 bytes
-		dc.l $FFFFFF 												; End address of WRAM - 4 bytes
-		dc.b "                                                                " ; Padding for reserved space - 64 bytes
-		dc.b "JUE"													; Region support - 16 bytes
-		dc.b "             "										; Padding for reserved space (you can put a comment if you want!) - 13 bytes
+		dc.b "SEGA MEGA DRIVE "										; system type - 16 bytes
+		dc.b "(C).... YYYY.MMM"										; copyright, release year and month (e.g. "(C)SEGA 1991.APR") - 16 bytes
+		dc.b "                                                "		; domestic name - 48 bytes
+		dc.b "                                                "		; overseas name - 48 bytes
+		dc.b "GM-12345678-00"										; serial number ("xx-yyyyyyyy-zz") - 14 bytes
+		dc.w $0000													; where this ROM gets patched with a 16-bit checksum - 2 bytes
+		dc.b "J               "										; device support (e.g. "J" for 3-button controller) - 16 bytes
+		dc.l ROM_Start												; start address of ROM - 4 bytes
+		dc.l ROM_End												; end address of ROM - 4 bytes
+		dc.l $FF0000												; start address of WRAM - 4 bytes
+		dc.l $FFFFFF 												; end address of WRAM - 4 bytes
+		dc.b "                                                                " ; padding for reserved space (anything goes) - 64 bytes
+		dc.b "JUE"													; region support - 16 bytes
+		dc.b "             "										; padding for reserved space (anything goes) - 13 bytes
 `,
 
 	megaDriveVariables: String.raw
@@ -2289,7 +2461,7 @@ EntryPoint:`,
 ;		Motorola 68000
 ; --------------------------
 
-	org M68K.WRAM	; Main work RAM address space
+	org M68K.WRAM	; main work RAM address space
 
 ; Your 68000 variables go here
 
@@ -2299,7 +2471,7 @@ EntryPoint:`,
 
 	padding off
 
-	org $1000	; Away from code and stack
+	org $1000	; away from code and stack
 
 ; Your Z80 variables go here
 
@@ -2316,22 +2488,22 @@ EntryPoint:`,
 
 	lea	(VDP.CTRL),a0
 
-	tst.w 	(a0) ; Reading the VDP control port safely resets it
+	tst.w 	(a0) ; reading the VDP control port safely resets it
 	
 ; Register reference: https://plutiedev.com/vdp-registers
 
-	move.l  #(VDP_REG.MODE1|%00000100)<<16|(VDP_REG.MODE2|%01110100),(a0)	; Mode register #1 and Mode register #2
-	move.l  #(VDP_REG.MODE3|%00000000)<<16|(VDP_REG.MODE4|%10000001),(a0)	; Mode register #3 and Mode Register #4
+	move.l  #(VDP_REG.MODE1|%00000100)<<16|(VDP_REG.MODE2|%01110100),(a0)	; mode register #1 and Mode register #2
+	move.l  #(VDP_REG.MODE3|%00000000)<<16|(VDP_REG.MODE4|%10000001),(a0)	; mode register #3 and Mode Register #4
     
 ; Planes reference: https://segaretro.org/Sega_Mega_Drive/Planes
 
-	move.l  #VDP_REG.PLANEA|(VDP_VRAM.PLANEA>>10)<<16|(VDP_REG.PLANEB|(VDP_VRAM.PLANEB>>13)),(a0)	; Plane A and Plane B address
-	move.l  #VDP_REG.SPRITE|(VDP_VRAM.SPRITE>>9)<<16|(VDP_REG.WINDOW|(VDP_VRAM.WINDOW>>10)),(a0)	; Sprite and Window address
-	move.w  #VDP_REG.HSCROLL|(VDP_VRAM.HSCROLL>>10),(a0)											; Horizontal scroll address
+	move.l  #VDP_REG.PLANEA|(VDP_VRAM.PLANEA>>10)<<16|(VDP_REG.PLANEB|(VDP_VRAM.PLANEB>>13)),(a0)	; plane A and Plane B address
+	move.l  #VDP_REG.SPRITE|(VDP_VRAM.SPRITE>>9)<<16|(VDP_REG.WINDOW|(VDP_VRAM.WINDOW>>10)),(a0)	; sprite and Window address
+	move.w  #VDP_REG.HSCROLL|(VDP_VRAM.HSCROLL>>10),(a0)											; horizontal scroll address
     
-	move.l  #(VDP_REG.WINX|$00)<<16|(VDP_REG.WINY|$00),(a0)			; Window X split and Window Y split
-	move.l  #(VDP_REG.SIZE|%00000001)<<16|(VDP_REG.BGCOL|$00),(a0)	; Tilemap size and Background color
-	move.l  #(VDP_REG.INCR|$02)<<16|(VDP_REG.HRATE|$FF),(a0)		; Autoincrement and HBlank IRQ rate
+	move.l  #(VDP_REG.WINX|$00)<<16|(VDP_REG.WINY|$00),(a0)			; window X split and Window Y split
+	move.l  #(VDP_REG.SIZE|%00000001)<<16|(VDP_REG.BGCOL|$00),(a0)	; tilemap size and Background color
+	move.l  #(VDP_REG.INCR|$02)<<16|(VDP_REG.HRATE|$FF),(a0)		; autoincrement and HBlank IRQ rate
 `,
 
 	megaDriveJoystickInitialization: String.raw
@@ -2358,18 +2530,18 @@ EntryPoint:`,
 	lea (Z80_CTRL.RESET),a2
 	lea (Z80_CTRL.BUSREQ),a3
 
-	move.w	#$000,a2	; Assert Z80 reset
-	move.w	#$100,a3	; Hold (or request) Z80 bus
-	move.w	#$100,a2	; Deassert Z80 reset
+	move.w	#$000,a2	; assert Z80 reset
+	move.w	#$100,a3	; hold (or request) Z80 bus
+	move.w	#$100,a2	; deassert Z80 reset
 
 	move.w	#(Z80_ROM_Start-Z80_ROM_End)-1,d0
 
-$$loop:	; Load Z80 program into its RAM
+$$loop:	; load Z80 program into its RAM
 	move.b	(a0)+,(a1)+
 	dbf	d0,$$loop
 
-	move.w	#$100,a2	; Release Z80 reset
-	move.w	#$000,a3	; Release Z80 bus
+	move.w	#$100,a2	; release Z80 reset
+	move.w	#$000,a3	; release Z80 bus
 `,
 
 	megaDriveConstants: String.raw
@@ -2394,49 +2566,49 @@ M68K:
 .STACK:	equ $FF0000			; 68000 stack
 .PSG:	equ $C00011			; PSG port
 JOY1:
-.CTRL:		equ $A10009		; Controller 1 control port
-.DATA:		equ $A10003   	; Controller 1 data port
-.SER_TRAN:	equ $A1000E		; Controller 1 serial transmit
-.SER_REC:	equ $A10010		; Controller 1 serial receive
-.SER_CTRL:	equ $A10012		; Controller 1 serial control
+.CTRL:		equ $A10009		; controller 1 control port
+.DATA:		equ $A10003   	; controller 1 data port
+.SER_TRAN:	equ $A1000E		; controller 1 serial transmit
+.SER_REC:	equ $A10010		; controller 1 serial receive
+.SER_CTRL:	equ $A10012		; controller 1 serial control
 JOY2:
-.CTRL:		equ $A10005		; Controller 2 control port
-.DATA:		equ $A1000B   	; Controller 2 data port
-.SER_TRAN:	equ $A10014		; Controller 2 serial transmit
-.SER_REC:	equ $A10016		; Controller 2 serial receive
-.SER_CTRL:	equ $A10018		; Controller 2 serial control
+.CTRL:		equ $A10005		; controller 2 control port
+.DATA:		equ $A1000B   	; controller 2 data port
+.SER_TRAN:	equ $A10014		; controller 2 serial transmit
+.SER_REC:	equ $A10016		; controller 2 serial receive
+.SER_CTRL:	equ $A10018		; controller 2 serial control
 
 EXP:
-.CTRL:		equ $A1000D		; Expansion control port
-.DATA:		equ $A10006		; Expansion data port
-.SER_TRAN:	equ $A1001A		; Expansion serial transmit
-.SER_REC:	equ $A1001C		; Expansion serial receive
-.SER_CTRL:	equ $A1001E		; Expansion serial control
+.CTRL:		equ $A1000D		; expansion control port
+.DATA:		equ $A10006		; expansion data port
+.SER_TRAN:	equ $A1001A		; expansion serial transmit
+.SER_REC:	equ $A1001C		; expansion serial receive
+.SER_CTRL:	equ $A1001E		; expansion serial control
 
 REG:
 .SRAM:	equ $A130F1			; SRAM access register
 
-.VERSION:		equ $A10001		; Version register
-.MEMORYMODE:	equ $A11000		; Memory mode register
+.VERSION:		equ $A10001		; version register
+.MEMORYMODE:	equ $A11000		; memory mode register
 
 .TMSS:		equ $A14000		; TMSS "SEGA" register
 .TMSS_CART:	equ $A14101		; TMSS cartridge register
 
 .TIME:	equ $A13000		; TIME signal to cartridge ($00-$FF)
-.32X:	equ $A130EC		; Becomes "MARS" when a 32X is attached
+.32X:	equ $A130EC		; becomes "MARS" when a 32X is attached
 
 ; VDP memory addresses
 VDP:
 .DATA:		equ $C00000		; VDP data port
 .CTRL:		equ $C00004		; VDP control port and Status Register
 .HVCOUNTER:	equ $C00008		; H/V counter
-.DEBUG:		equ $C0001C		; Debug register
+.DEBUG:		equ $C0001C		; debug register
 
 ; VDP commands
 VDP_CMD:
-.VRAM:	equ	$40000000		; Video memory address command
-.VSRAM:	equ $40000010		; Vertical scroll memory address command
-.CRAM: 	equ $C0000000		; Color memory address command
+.VRAM:	equ	$40000000		; video memory address command
+.VSRAM:	equ $40000010		; vertical scroll memory address command
+.CRAM: 	equ $C0000000		; color memory address command
 
 .VDP_VRAM.DMA:	equ $40000080	; DMA video memory write command
 .VSRAM_DMA:		equ $40000090	; DMA vertical scroll memory write command
@@ -2444,22 +2616,22 @@ VDP_CMD:
 
 ; VDP registers
 VDP_REG:
-.MODE1:     equ $8000  ; Mode register #1
-.MODE2:     equ $8100  ; Mode register #2
-.MODE3:     equ $8B00  ; Mode register #3
-.MODE4:     equ $8C00  ; Mode register #4
+.MODE1:     equ $8000  ; mode register #1
+.MODE2:     equ $8100  ; mode register #2
+.MODE3:     equ $8B00  ; mode register #3
+.MODE4:     equ $8C00  ; mode register #4
 
-.PLANEA:    equ $8200  ; Plane A table address
-.PLANEB:    equ $8400  ; Plane B table address
-.SPRITE:    equ $8500  ; Sprite table address
-.WINDOW:    equ $8300  ; Window table address
+.PLANEA:    equ $8200  ; plane A table address
+.PLANEB:    equ $8400  ; plane B table address
+.SPRITE:    equ $8500  ; sprite table address
+.WINDOW:    equ $8300  ; window table address
 .HSCROLL:   equ $8D00  ; HScroll table address
 
-.SIZE:      equ $9000  ; Plane A and B size
-.WINX:      equ $9100  ; Window X split position
-.WINY:      equ $9200  ; Window Y split position
-.INCR:      equ $8F00  ; Autoincrement
-.BGCOL:     equ $8700  ; Background color
+.SIZE:      equ $9000  ; plane A and B size
+.WINX:      equ $9100  ; window X split position
+.WINY:      equ $9200  ; window Y split position
+.INCR:      equ $8F00  ; autoincrement
+.BGCOL:     equ $8700  ; background color
 .HRATE:     equ $8A00  ; HBlank interrupt rate
 
 .DMALEN_L:  equ $9300  ; DMA length (low)
@@ -2470,11 +2642,11 @@ VDP_REG:
 
 ; VRAM management (you can change these)
 VDP_VRAM:
-.PLANEA:	equ $E000	; Plane A name table address
-.PLANEB:	equ $C000	; Plane B name table address
-.SPRITE:	equ $F000	; Sprite name table address
-.WINDOW:	equ $FFFF	; Window plane name table address
-.HSCROLL:	equ $FFFF	; Plane x coordinate
+.PLANEA:	equ $E000	; plane A name table address
+.PLANEB:	equ $C000	; plane B name table address
+.SPRITE:	equ $F000	; sprite name table address
+.WINDOW:	equ $FFFF	; window plane name table address
+.HSCROLL:	equ $FFFF	; plane x coordinate
 
 ; Z80 control from 68000
 Z80_CTRL:
@@ -2507,8 +2679,8 @@ YM2612:
 
 ; Z80 bus arbiter
 Z80_BANK:
-.CTRL:		equ $6000	; Bank selector (9 LSB serial writes)
-.WINDOW:	equ $8000	; Access window (8000h-FFFFh)
+.CTRL:		equ $6000	; bank selector (9 LSB serial writes)
+.WINDOW:	equ $8000	; access window (8000h-FFFFh)
 
 ; --------------------------
 ;		Generic Labels
@@ -2523,18 +2695,18 @@ SIZE:
 .Z80WRAM:	equ 8192	; Z80 RAM size (8 KB)
 
 ; VDP name table addresses
-NOFLIP: equ $0000  ; Don't flip (default)
-HFLIP:  equ $0800  ; Flip horizontally
-VFLIP:  equ $1000  ; Flip vertically
-HVFLIP: equ $1800  ; Flip both ways (180° flip)
+NOFLIP: equ $0000  ; don't flip (default)
+HFLIP:  equ $0800  ; flip horizontally
+VFLIP:  equ $1000  ; flip vertically
+HVFLIP: equ $1800  ; flip both ways (180° flip)
 
-PAL0:   equ $0000  ; Use palette 0 (default)
-PAL1:   equ $2000  ; Use palette 1
-PAL2:   equ $4000  ; Use palette 2
-PAL3:   equ $6000  ; Use palette 3
+PAL0:   equ $0000  ; use palette 0 (default)
+PAL1:   equ $2000  ; use palette 1
+PAL2:   equ $4000  ; use palette 2
+PAL3:   equ $6000  ; use palette 3
 
-LOPRI:  equ $0000  ; Low priority (default)
-HIPRI:  equ $8000  ; High priority
+LOPRI:  equ $0000  ; low priority (default)
+HIPRI:  equ $8000  ; high priority
 
 ; Controller labels
 JOY:
@@ -2546,146 +2718,147 @@ JOY:
 .U:	equ 0
 
 ; YM2612 labels
-LFO_ENABLE:		equ $22		; Enable Low Frequency Oscillator
-TIMER_A_H:		equ $24		; Timer A frequency (high)
-TIMER_A_L:		equ $25		; Timer A frequency (low)
-TIMER_B:		equ $26		; Timer B frequency
-CH3_TIMERCTRL:	equ $27		; Channel 3 Mode and Timer control
+LFO_ENABLE:		equ $22		; enable Low Frequency Oscillator
+TIMER_A_H:		equ $24		; timer A frequency (high)
+TIMER_A_L:		equ $25		; timer A frequency (low)
+TIMER_B:		equ $26		; timer B frequency
+CH3_TIMERCTRL:	equ $27		; channel 3 Mode and Timer control
 KEY_ON_OFF:		equ $28		; Key-on and Key-off
 DAC_OUT:		equ $2A		; DAC output (or input)
 DAC_ENABLE:		equ $2B		; DAC enable
-DAC_BOOST:		equ $2C		; Undocumented debug register that amplifies the DAC channel output
+; Undocumented debug register that amplifies the DAC channel output and holds the 9th bit
+DAC_DEBUG:		equ $2C
 
-CH1_4_OP1_MUL_DT:	equ $30		; Channel 1/4 operator 1 Multiply and Detune
-CH1_4_OP2_MUL_DT:	equ $38		; Channel 1/4 operator 2 Multiply and Detune
-CH1_4_OP3_MUL_DT:	equ $34		; Channel 1/4 operator 3 Multiply and Detune
-CH1_4_OP4_MUL_DT:	equ $3C		; Channel 1/4 operator 4 Multiply and Detune
+CH1_4_OP1_MUL_DT:	equ $30		; channel 1/4 operator 1 Multiply and Detune
+CH1_4_OP2_MUL_DT:	equ $38		; channel 1/4 operator 2 Multiply and Detune
+CH1_4_OP3_MUL_DT:	equ $34		; channel 1/4 operator 3 Multiply and Detune
+CH1_4_OP4_MUL_DT:	equ $3C		; channel 1/4 operator 4 Multiply and Detune
 
-CH2_5_OP1_MUL_DT:	equ $31		; Channel 2/5 operator 1 Multiply and Detune
-CH2_5_OP2_MUL_DT:	equ $39		; Channel 2/5 operator 2 Multiply and Detune
-CH2_5_OP3_MUL_DT:	equ $35		; Channel 2/5 operator 3 Multiply and Detune
-CH2_5_OP4_MUL_DT:	equ $3D		; Channel 2/5 operator 4 Multiply and Detune
+CH2_5_OP1_MUL_DT:	equ $31		; channel 2/5 operator 1 Multiply and Detune
+CH2_5_OP2_MUL_DT:	equ $39		; channel 2/5 operator 2 Multiply and Detune
+CH2_5_OP3_MUL_DT:	equ $35		; channel 2/5 operator 3 Multiply and Detune
+CH2_5_OP4_MUL_DT:	equ $3D		; channel 2/5 operator 4 Multiply and Detune
 
-CH3_6_OP1_MUL_DT:	equ $32		; Channel 3/6 operator 1 Multiply and Detune
-CH3_6_OP2_MUL_DT:	equ $3A		; Channel 3/6 operator 2 Multiply and Detune
-CH3_6_OP3_MUL_DT:	equ $36		; Channel 3/6 operator 3 Multiply and Detune
-CH3_6_OP4_MUL_DT:	equ $3E		; Channel 3/6 operator 4 Multiply and Detune
+CH3_6_OP1_MUL_DT:	equ $32		; channel 3/6 operator 1 Multiply and Detune
+CH3_6_OP2_MUL_DT:	equ $3A		; channel 3/6 operator 2 Multiply and Detune
+CH3_6_OP3_MUL_DT:	equ $36		; channel 3/6 operator 3 Multiply and Detune
+CH3_6_OP4_MUL_DT:	equ $3E		; channel 3/6 operator 4 Multiply and Detune
 
-CH1_4_OP1_TL:	equ $40		; Channel 1/4 operator 1 Total Level
-CH1_4_OP2_TL:	equ $48		; Channel 1/4 operator 2 Total Level
-CH1_4_OP3_TL:	equ $44		; Channel 1/4 operator 3 Total Level
-CH1_4_OP4_TL:	equ $4C		; Channel 1/4 operator 4 Total Level
+CH1_4_OP1_TL:	equ $40		; channel 1/4 operator 1 Total Level
+CH1_4_OP2_TL:	equ $48		; channel 1/4 operator 2 Total Level
+CH1_4_OP3_TL:	equ $44		; channel 1/4 operator 3 Total Level
+CH1_4_OP4_TL:	equ $4C		; channel 1/4 operator 4 Total Level
 
-CH2_5_OP1_TL:	equ $41		; Channel 2/5 operator 1 Total Level
-CH2_5_OP2_TL:	equ $49		; Channel 2/5 operator 2 Total Level
-CH2_5_OP3_TL:	equ $45		; Channel 2/5 operator 3 Total Level
-CH2_5_OP4_TL:	equ $4D		; Channel 2/5 operator 4 Total Level
+CH2_5_OP1_TL:	equ $41		; channel 2/5 operator 1 Total Level
+CH2_5_OP2_TL:	equ $49		; channel 2/5 operator 2 Total Level
+CH2_5_OP3_TL:	equ $45		; channel 2/5 operator 3 Total Level
+CH2_5_OP4_TL:	equ $4D		; channel 2/5 operator 4 Total Level
 
-CH3_6_OP1_TL:	equ $42		; Channel 3/6 operator 1 Total Level
-CH3_6_OP2_TL:	equ $4A		; Channel 3/6 operator 2 Total Level
-CH3_6_OP3_TL:	equ $46		; Channel 3/6 operator 3 Total Level
-CH3_6_OP4_TL:	equ $4E		; Channel 3/6 operator 4 Total Level
+CH3_6_OP1_TL:	equ $42		; channel 3/6 operator 1 Total Level
+CH3_6_OP2_TL:	equ $4A		; channel 3/6 operator 2 Total Level
+CH3_6_OP3_TL:	equ $46		; channel 3/6 operator 3 Total Level
+CH3_6_OP4_TL:	equ $4E		; channel 3/6 operator 4 Total Level
 
-CH1_4_OP1_AR_RS:	equ $50		; Channel 1/4 operator 1 Attack Rate and Rate Scaling
-CH1_4_OP2_AR_RS:	equ $58		; Channel 1/4 operator 2 Attack Rate and Rate Scaling
-CH1_4_OP3_AR_RS:	equ $54		; Channel 1/4 operator 3 Attack Rate and Rate Scaling
-CH1_4_OP4_AR_RS:	equ $5C		; Channel 1/4 operator 4 Attack Rate and Rate Scaling
+CH1_4_OP1_AR_RS:	equ $50		; channel 1/4 operator 1 Attack Rate and Rate Scaling
+CH1_4_OP2_AR_RS:	equ $58		; channel 1/4 operator 2 Attack Rate and Rate Scaling
+CH1_4_OP3_AR_RS:	equ $54		; channel 1/4 operator 3 Attack Rate and Rate Scaling
+CH1_4_OP4_AR_RS:	equ $5C		; channel 1/4 operator 4 Attack Rate and Rate Scaling
 
-CH2_5_OP1_AR_RS:	equ $51		; Channel 2/5 operator 1 Attack Rate and Rate Scaling
-CH2_5_OP2_AR_RS:	equ $59		; Channel 2/5 operator 2 Attack Rate and Rate Scaling
-CH2_5_OP3_AR_RS:	equ $55		; Channel 2/5 operator 3 Attack Rate and Rate Scaling
-CH2_5_OP4_AR_RS:	equ $5D		; Channel 2/5 operator 4 Attack Rate and Rate Scaling
+CH2_5_OP1_AR_RS:	equ $51		; channel 2/5 operator 1 Attack Rate and Rate Scaling
+CH2_5_OP2_AR_RS:	equ $59		; channel 2/5 operator 2 Attack Rate and Rate Scaling
+CH2_5_OP3_AR_RS:	equ $55		; channel 2/5 operator 3 Attack Rate and Rate Scaling
+CH2_5_OP4_AR_RS:	equ $5D		; channel 2/5 operator 4 Attack Rate and Rate Scaling
 
-CH3_6_OP1_AR_RS:	equ $52		; Channel 3/6 operator 1 Attack Rate and Rate Scaling
-CH3_6_OP2_AR_RS:	equ $5A		; Channel 3/6 operator 2 Attack Rate and Rate Scaling
-CH3_6_OP3_AR_RS:	equ $56		; Channel 3/6 operator 3 Attack Rate and Rate Scaling
-CH3_6_OP4_AR_RS:	equ $5E		; Channel 3/6 operator 4 Attack Rate and Rate Scaling
+CH3_6_OP1_AR_RS:	equ $52		; channel 3/6 operator 1 Attack Rate and Rate Scaling
+CH3_6_OP2_AR_RS:	equ $5A		; channel 3/6 operator 2 Attack Rate and Rate Scaling
+CH3_6_OP3_AR_RS:	equ $56		; channel 3/6 operator 3 Attack Rate and Rate Scaling
+CH3_6_OP4_AR_RS:	equ $5E		; channel 3/6 operator 4 Attack Rate and Rate Scaling
 
-CH1_4_OP1_DR_AM:	equ $60		; Channel 1/4 operator 1 Decay Rate and Amplitude Modulation enable
-CH1_4_OP2_DR_AM:	equ $68		; Channel 1/4 operator 2 Decay Rate and Amplitude Modulation enable
-CH1_4_OP3_DR_AM:	equ $64		; Channel 1/4 operator 3 Decay Rate and Amplitude Modulation enable
-CH1_4_OP4_DR_AM:	equ $6C		; Channel 1/4 operator 4 Decay Rate and Amplitude Modulation enable
+CH1_4_OP1_DR_AM:	equ $60		; channel 1/4 operator 1 Decay Rate and Amplitude Modulation enable
+CH1_4_OP2_DR_AM:	equ $68		; channel 1/4 operator 2 Decay Rate and Amplitude Modulation enable
+CH1_4_OP3_DR_AM:	equ $64		; channel 1/4 operator 3 Decay Rate and Amplitude Modulation enable
+CH1_4_OP4_DR_AM:	equ $6C		; channel 1/4 operator 4 Decay Rate and Amplitude Modulation enable
 
-CH2_5_OP1_DR_AM:	equ $61		; Channel 2/5 operator 1 Decay Rate and Amplitude Modulation enable
-CH2_5_OP2_DR_AM:	equ $69		; Channel 2/5 operator 2 Decay Rate and Amplitude Modulation enable
-CH2_5_OP3_DR_AM:	equ $65		; Channel 2/5 operator 3 Decay Rate and Amplitude Modulation enable
-CH2_5_OP4_DR_AM:	equ $6D		; Channel 2/5 operator 4 Decay Rate and Amplitude Modulation enable
+CH2_5_OP1_DR_AM:	equ $61		; channel 2/5 operator 1 Decay Rate and Amplitude Modulation enable
+CH2_5_OP2_DR_AM:	equ $69		; channel 2/5 operator 2 Decay Rate and Amplitude Modulation enable
+CH2_5_OP3_DR_AM:	equ $65		; channel 2/5 operator 3 Decay Rate and Amplitude Modulation enable
+CH2_5_OP4_DR_AM:	equ $6D		; channel 2/5 operator 4 Decay Rate and Amplitude Modulation enable
 
-CH3_6_OP1_DR_AM:	equ $62		; Channel 3/6 operator 1 Decay Rate and Amplitude Modulation enable
-CH3_6_OP2_DR_AM:	equ $6A		; Channel 3/6 operator 2 Decay Rate and Amplitude Modulation enable
-CH3_6_OP3_DR_AM:	equ $66		; Channel 3/6 operator 3 Decay Rate and Amplitude Modulation enable
-CH3_6_OP4_DR_AM:	equ $6E		; Channel 3/6 operator 4 Decay Rate and Amplitude Modulation enable
+CH3_6_OP1_DR_AM:	equ $62		; channel 3/6 operator 1 Decay Rate and Amplitude Modulation enable
+CH3_6_OP2_DR_AM:	equ $6A		; channel 3/6 operator 2 Decay Rate and Amplitude Modulation enable
+CH3_6_OP3_DR_AM:	equ $66		; channel 3/6 operator 3 Decay Rate and Amplitude Modulation enable
+CH3_6_OP4_DR_AM:	equ $6E		; channel 3/6 operator 4 Decay Rate and Amplitude Modulation enable
 
-CH1_4_OP1_SR:	equ $70		; Channel 1/4 operator 1 Sustain Rate
-CH1_4_OP2_SR:	equ $78		; Channel 1/4 operator 2 Sustain Rate
-CH1_4_OP3_SR:	equ $74		; Channel 1/4 operator 3 Sustain Rate
-CH1_4_OP4_SR:	equ $7C		; Channel 1/4 operator 4 Sustain Rate
+CH1_4_OP1_SR:	equ $70		; channel 1/4 operator 1 Sustain Rate
+CH1_4_OP2_SR:	equ $78		; channel 1/4 operator 2 Sustain Rate
+CH1_4_OP3_SR:	equ $74		; channel 1/4 operator 3 Sustain Rate
+CH1_4_OP4_SR:	equ $7C		; channel 1/4 operator 4 Sustain Rate
 
-CH2_5_OP1_SR:	equ $71		; Channel 2/5 operator 1 Sustain Rate
-CH2_5_OP2_SR:	equ $79		; Channel 2/5 operator 2 Sustain Rate
-CH2_5_OP3_SR:	equ $75		; Channel 2/5 operator 3 Sustain Rate
-CH2_5_OP4_SR:	equ $7D		; Channel 2/5 operator 4 Sustain Rate
+CH2_5_OP1_SR:	equ $71		; channel 2/5 operator 1 Sustain Rate
+CH2_5_OP2_SR:	equ $79		; channel 2/5 operator 2 Sustain Rate
+CH2_5_OP3_SR:	equ $75		; channel 2/5 operator 3 Sustain Rate
+CH2_5_OP4_SR:	equ $7D		; channel 2/5 operator 4 Sustain Rate
 
-CH3_6_OP1_SR:	equ $72		; Channel 3/6 operator 1 Sustain Rate
-CH3_6_OP2_SR:	equ $7A		; Channel 3/6 operator 2 Sustain Rate
-CH3_6_OP3_SR:	equ $76		; Channel 3/6 operator 3 Sustain Rate
-CH3_6_OP4_SR:	equ $7E		; Channel 3/6 operator 4 Sustain Rate
+CH3_6_OP1_SR:	equ $72		; channel 3/6 operator 1 Sustain Rate
+CH3_6_OP2_SR:	equ $7A		; channel 3/6 operator 2 Sustain Rate
+CH3_6_OP3_SR:	equ $76		; channel 3/6 operator 3 Sustain Rate
+CH3_6_OP4_SR:	equ $7E		; channel 3/6 operator 4 Sustain Rate
 
-CH1_4_OP1_RR_SL:	equ $80		; Channel 1/4 operator 1 Release Rate and Sustain Level
-CH1_4_OP2_RR_SL:	equ $88		; Channel 1/4 operator 2 Release Rate and Sustain Level
-CH1_4_OP3_RR_SL:	equ $84		; Channel 1/4 operator 3 Release Rate and Sustain Level
-CH1_4_OP4_RR_SL:	equ $8C		; Channel 1/4 operator 4 Release Rate and Sustain Level
+CH1_4_OP1_RR_SL:	equ $80		; channel 1/4 operator 1 Release Rate and Sustain Level
+CH1_4_OP2_RR_SL:	equ $88		; channel 1/4 operator 2 Release Rate and Sustain Level
+CH1_4_OP3_RR_SL:	equ $84		; channel 1/4 operator 3 Release Rate and Sustain Level
+CH1_4_OP4_RR_SL:	equ $8C		; channel 1/4 operator 4 Release Rate and Sustain Level
 
-CH2_5_OP1_RR_SL:	equ $81		; Channel 2/5 operator 1 Release Rate and Sustain Level
-CH2_5_OP2_RR_SL:	equ $89		; Channel 2/5 operator 2 Release Rate and Sustain Level
-CH2_5_OP3_RR_SL:	equ $85		; Channel 2/5 operator 3 Release Rate and Sustain Level
-CH2_5_OP4_RR_SL:	equ $8D		; Channel 2/5 operator 4 Release Rate and Sustain Level
+CH2_5_OP1_RR_SL:	equ $81		; channel 2/5 operator 1 Release Rate and Sustain Level
+CH2_5_OP2_RR_SL:	equ $89		; channel 2/5 operator 2 Release Rate and Sustain Level
+CH2_5_OP3_RR_SL:	equ $85		; channel 2/5 operator 3 Release Rate and Sustain Level
+CH2_5_OP4_RR_SL:	equ $8D		; channel 2/5 operator 4 Release Rate and Sustain Level
 
-CH3_6_OP1_RR_SL:	equ $82		; Channel 3/6 operator 1 Release Rate and Sustain Level
-CH3_6_OP2_RR_SL:	equ $8A		; Channel 3/6 operator 2 Release Rate and Sustain Level
-CH3_6_OP3_RR_SL:	equ $86		; Channel 3/6 operator 3 Release Rate and Sustain Level
-CH3_6_OP4_RR_SL:	equ $8E		; Channel 3/6 operator 4 Release Rate and Sustain Level
+CH3_6_OP1_RR_SL:	equ $82		; channel 3/6 operator 1 Release Rate and Sustain Level
+CH3_6_OP2_RR_SL:	equ $8A		; channel 3/6 operator 2 Release Rate and Sustain Level
+CH3_6_OP3_RR_SL:	equ $86		; channel 3/6 operator 3 Release Rate and Sustain Level
+CH3_6_OP4_RR_SL:	equ $8E		; channel 3/6 operator 4 Release Rate and Sustain Level
 
-CH1_4_OP1_SSG_EG:	equ $90		; Channel 1/4 operator 1 envelope shape
-CH1_4_OP2_SSG_EG:	equ $98		; Channel 1/4 operator 2 envelope shape
-CH1_4_OP3_SSG_EG:	equ $94		; Channel 1/4 operator 3 envelope shape
-CH1_4_OP4_SSG_EG:	equ $9C		; Channel 1/4 operator 4 envelope shape
+CH1_4_OP1_SSG_EG:	equ $90		; channel 1/4 operator 1 envelope shape
+CH1_4_OP2_SSG_EG:	equ $98		; channel 1/4 operator 2 envelope shape
+CH1_4_OP3_SSG_EG:	equ $94		; channel 1/4 operator 3 envelope shape
+CH1_4_OP4_SSG_EG:	equ $9C		; channel 1/4 operator 4 envelope shape
 
-CH2_5_OP1_SSG_EG:	equ $91		; Channel 2/5 operator 1 envelope shape
-CH2_5_OP2_SSG_EG:	equ $99		; Channel 2/5 operator 2 envelope shape
-CH2_5_OP3_SSG_EG:	equ $95		; Channel 2/5 operator 3 envelope shape
-CH2_5_OP4_SSG_EG:	equ $9D		; Channel 2/5 operator 4 envelope shape
+CH2_5_OP1_SSG_EG:	equ $91		; channel 2/5 operator 1 envelope shape
+CH2_5_OP2_SSG_EG:	equ $99		; channel 2/5 operator 2 envelope shape
+CH2_5_OP3_SSG_EG:	equ $95		; channel 2/5 operator 3 envelope shape
+CH2_5_OP4_SSG_EG:	equ $9D		; channel 2/5 operator 4 envelope shape
 
-CH3_6_OP1_SSG_EG:	equ $92		; Channel 3/6 operator 1 envelope shape
-CH3_6_OP2_SSG_EG:	equ $9A		; Channel 3/6 operator 2 envelope shape
-CH3_6_OP3_SSG_EG:	equ $96		; Channel 3/6 operator 3 envelope shape
-CH3_6_OP4_SSG_EG:	equ $9E		; Channel 3/6 operator 4 envelope shape
+CH3_6_OP1_SSG_EG:	equ $92		; channel 3/6 operator 1 envelope shape
+CH3_6_OP2_SSG_EG:	equ $9A		; channel 3/6 operator 2 envelope shape
+CH3_6_OP3_SSG_EG:	equ $96		; channel 3/6 operator 3 envelope shape
+CH3_6_OP4_SSG_EG:	equ $9E		; channel 3/6 operator 4 envelope shape
 
-CH1_4_FREQ_H:	equ $A4		; Channel 1/4 frequency (high)
-CH2_5_FREQ_H:	equ $A5		; Channel 2/5 frequency (high)
-CH3_6_FREQ_H:	equ $A6		; Channel 3/6 frequency (high)
+CH1_4_FREQ_H:	equ $A4		; channel 1/4 frequency (high)
+CH2_5_FREQ_H:	equ $A5		; channel 2/5 frequency (high)
+CH3_6_FREQ_H:	equ $A6		; channel 3/6 frequency (high)
 
-CH1_4_FREQ_L:	equ $A0		; Channel 1/4 frequency (low)
-CH2_5_FREQ_L:	equ $A1		; Channel 2/5 frequency (low)
-CH3_6_FREQ_L:	equ $A2		; Channel 3/6 frequency (low)
+CH1_4_FREQ_L:	equ $A0		; channel 1/4 frequency (low)
+CH2_5_FREQ_L:	equ $A1		; channel 2/5 frequency (low)
+CH3_6_FREQ_L:	equ $A2		; channel 3/6 frequency (low)
 
-CH3_OP1_FREQ_H:	equ $AD		; Channel 3 operator 1 frequency (high)
-CH3_OP2_FREQ_H:	equ $AE		; Channel 3 operator 2 frequency (high)
-CH3_OP3_FREQ_H:	equ $AC		; Channel 3 operator 3 frequency (high)
-CH3_OP4_FREQ_H:	equ $A6		; Channel 3 operator 4 frequency (high)
+CH3_OP1_FREQ_H:	equ $AD		; channel 3 operator 1 frequency (high)
+CH3_OP2_FREQ_H:	equ $AE		; channel 3 operator 2 frequency (high)
+CH3_OP3_FREQ_H:	equ $AC		; channel 3 operator 3 frequency (high)
+CH3_OP4_FREQ_H:	equ $A6		; channel 3 operator 4 frequency (high)
 
-CH3_OP1_FREQ_L:	equ $A9		; Channel 3 operator 1 frequency (low)
-CH3_OP2_FREQ_L:	equ $AA		; Channel 3 operator 2 frequency (low)
-CH3_OP3_FREQ_L:	equ $A8		; Channel 3 operator 3 frequency (low)
-CH3_OP4_FREQ_L:	equ $A2		; Channel 3 operator 4 frequency (low)
+CH3_OP1_FREQ_L:	equ $A9		; channel 3 operator 1 frequency (low)
+CH3_OP2_FREQ_L:	equ $AA		; channel 3 operator 2 frequency (low)
+CH3_OP3_FREQ_L:	equ $A8		; channel 3 operator 3 frequency (low)
+CH3_OP4_FREQ_L:	equ $A2		; channel 3 operator 4 frequency (low)
 
-CH1_4_ALG_FB:	equ $B0		; Channel 1/4 Algorithm and Feedback
-CH2_5_ALG_FB:	equ $B1		; Channel 2/5 Algorithm and Feedback
-CH3_6_ALG_FB:	equ $B2		; Channel 3/6 Algorithm and Feedback
+CH1_4_ALG_FB:	equ $B0		; channel 1/4 Algorithm and Feedback
+CH2_5_ALG_FB:	equ $B1		; channel 2/5 Algorithm and Feedback
+CH3_6_ALG_FB:	equ $B2		; channel 3/6 Algorithm and Feedback
 
-CH1_4_PAN_PMS_AMS:	equ $B4		; Channel 1/4 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
-CH2_5_PAN_PMS_AMS:	equ $B5		; Channel 2/5 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
-CH3_6_PAN_PMS_AMS:	equ $B6		; Channel 3/6 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
+CH1_4_PAN_PMS_AMS:	equ $B4		; channel 1/4 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
+CH2_5_PAN_PMS_AMS:	equ $B5		; channel 2/5 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
+CH3_6_PAN_PMS_AMS:	equ $B6		; channel 3/6 Panning, Phase Modulation Sensitivity and Amplitude Modulation Sensitivity
 
 ; Generic address selectors for macros
 OP1:	equ %0000
@@ -2695,12 +2868,22 @@ OP4:	equ %1100
 
 CH1_4:	equ %0000
 CH2_4:	equ %0001
-CH3_6:	equ %0010`,
+CH3_6:	equ %0010
+
+; PSG labels
+PSG_PERIODIC_HIGH:	equ $E0
+PSG_PERIODIC_MID:	equ $E1
+PSG_PERIODIC_LOW:	equ $E2
+PSG_PERIODIC_CH2:	equ $E3
+PSG_WHITE_HIGH:		equ $E4
+PSG_WHITE_MID:		equ $E5
+PSG_WHITE_LOW:		equ $E6
+PSG_WHITE_CH2:		equ $E7`,
 
 	megaDriveZ80Code: String.raw
-`	save	; Remember previous assembler options
-	cpu Z80	; Or set to Z80UNDOC if you want the additional undocumented opcodes
-	phase 0	; Set label addresses to the start of the Z80 RAM
+`	save	; remember previous assembler options
+	cpu Z80	; or set to Z80UNDOC if you want the additional undocumented opcodes
+	phase 0	; set label addresses to the start of the Z80 RAM
 
 Z80_ROM_Start
 
@@ -2708,8 +2891,8 @@ Z80_ROM_Start
 
 Z80_ROM_End
 
-	dephase	; The rest of the labels resume normal mapping
-	restore	; Restore the previous assembler options`,
+	dephase	; the rest of the labels resume normal mapping
+	restore	; restore the previous assembler options`,
 
 	sonicDisassemblyFolders: [ '_amin', '_inc', '_incObj', '_maps', 'artkos', 'artnem', 'artunc' ]
 };

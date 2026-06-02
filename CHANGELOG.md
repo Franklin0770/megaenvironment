@@ -106,3 +106,16 @@
 - Added a command to check for updates (in case you want to do it manually);
 - Removed the unnecessary configuration generator for EASy68k;
 - The README has now the old screenshot I wasn't finding for a good while.
+
+## [1.0.12] - 2026-5-31 (hotfix)
+- Fixed extension globalStorage folder not being created automatically. This should fix most of the activation issues;
+- Fixed Z80 RST instruction;
+- Fixed the source code file name, constants file name and variables file name default value;
+- Added relative patterns to make workspace evaluation more flexible;
+- Added options in the activation error message to help troubleshooting workspace evaluation;
+- Added PSG labels in the template's constants;
+- Changed glob patterns to relative patterns to further speed up file searching;
+- Changed some messages for better clarity;
+- Removed cleaning in backup function;
+- Modernized code template comments;
+- More fixes and cleanups in the code.

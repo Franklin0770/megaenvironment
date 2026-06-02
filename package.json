@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.11",
+	"version": "1.0.12",
 	"engines": {
 		"vscode": "^1.96.0"
 	},
@@ -122,8 +122,8 @@
 			},
 			{
 				"command": "megaenvironment.backup",
-				"title": "Backup Files and Clean Folder",
-				"category": "Cleaning",
+				"title": "Backup Files",
+				"category": "Backup",
 				"when": "megaenvironment.shouldActivate"
 			},
 			{
@@ -143,11 +143,13 @@
 			},
 			{
 				"command": "megaenvironment.redownload_tools",
-				"title": "Re-download The Assembler"
+				"title": "Re-download The Assembler",
+				"category": "Tools"
 			},
 			{
 				"command": "megaenvironment.check_updates",
-				"title": "Check for new AS builds"
+				"title": "Check for new AS builds",
+				"category": "Tools"
 			}
 		],
 		"configuration": {
@@ -249,7 +251,7 @@
 				"megaenvironment.sourceCodeControl.mainFileName": {
 					"type": "string",
 					"default": "Sonic.68k",
-					"description": "The main source code file name used in the project, where the code gets executed.",
+					"description": "The main source code file name used in the project, where the code gets executed. You can put a relative path if your code isn't on the root of the project.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i)$).+\\..+$",
 					"patternErrorMessage": "Empty file name or invalid extension.",
 					"order": 13
@@ -257,7 +259,7 @@
 				"megaenvironment.sourceCodeControl.constantsFileName": {
 					"type": "string",
 					"default": "Constants.asm",
-					"description": "The source code file name of the constants used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
+					"description": "The source code file name of the constants used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it. You can put a relative path if your code isn't on the root of the project.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
 					"patternErrorMessage": "Invalid extension.",
 					"order": 14
@@ -265,7 +267,7 @@
 				"megaenvironment.sourceCodeControl.variablesFileName": {
 					"type": "string",
 					"default": "Variables.asm",
-					"description": "The source code file name of the variables used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it.",
+					"description": "The source code file name of the variables used in the project. Used when EASy68k opens. Leave it blank if you aren't providing it. You can put a relative path if your code isn't on the root of the project.",
 					"pattern": "^(?!.*\\.(?i:gen|pre|lst|log|map|noi|obj|mac|i|)$).*$",
 					"patternErrorMessage": "Invalid extension.",
 					"order": 15
@@ -279,7 +281,7 @@
 				"megaenvironment.sourceCodeControl.listingFileName": {
 					"type": "string",
 					"default": "",
-					"description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file.",
+					"description": "The file name of the code listing with extension \".lst\". Leave it blank if you want this to have the same name as the main source code file. You can put a relative path if you want this file to go somewhere else.",
 					"order": 17
 				},
 				"megaenvironment.sourceCodeControl.radixInListing": {
@@ -313,7 +315,7 @@
 				"megaenvironment.sourceCodeControl.errorListingFileName": {
 					"type": "string",
 					"default": "",
-					"description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file.",
+					"description": "The file name of the error listing with extension \".log\". Leave it blank if you want this to have the same name as the main source code file. You can put a relative path if you want this file to go somewhere else.",
 					"order": 22
 				},
 				"megaenvironment.sourceCodeControl.generateDebugFile": {
@@ -410,6 +412,17 @@
 					"markdownDescription": "Choose which files get deleted when running any cleaning commands. Do not, and I repeat, do **NOT** rename your code with these extensions for any reason, or else your code can be permanently deleted!",
 					"order": 29
 				},
+				"megaenvironment.sourceCodeControl.cleaningFolders": {
+					"type": "array",
+					"default": [
+						"."
+					],
+					"items": {
+						"type": "string"
+					},
+					"markdownDescription": "The directories where the cleaning routine should be performed. You generally should add the folders where compiled files are generated, so they can be cleaned when you execute the cleaning function.",
+					"order": 30
+				},
 				"megaenvironment.sourceCodeControl.templateSelector": {
 					"type": "array",
 					"items": {
@@ -436,44 +449,44 @@
 						"Variables"
 					],
 					"description": "Choose which initialization template gets appended to every new project you create.",
-					"order": 30
+					"order": 31
 				},
 				"megaenvironment.buildControl.outputRomName": {
 					"type": "string",
 					"default": "",
-					"description": "The output ROM file name. Leave it blank if you want this to have the same name as the main source code file.",
-					"order": 31
+					"description": "The output ROM file name. Leave it blank if you want this to have the same name as the main source code file. You can put a relative path if you want this file to go somewhere else. Note that if you do this, MegaEnvironment will attempt to look for ROMs to run in the folder you've specified.",
+					"order": 32
 				},
 				"megaenvironment.buildControl.includeRomDate": {
 					"type": "boolean",
 					"default": true,
 					"description": "Whether the output ROM file name should include date and time after the set name.",
-					"order": 32
+					"order": 33
 				},
 				"megaenvironment.buildControl.enablePreviousBuilds": {
 					"type": "boolean",
 					"default": true,
 					"description": "Whether the latest version should get marked as a previous ROM to avoid getting replaced by the newer one. The latest build has the highest number.",
-					"order": 33
+					"order": 34
 				},
 				"megaenvironment.buildControl.previousRomsAmount": {
 					"type": "integer",
 					"default": 10,
 					"description": "The maximum amount of .pre ROMs before it starts replacing the oldest build. Leaving it to 0 is not recommended, as it generates an unlimited amount of previous builds (it can flood your folder!).",
 					"minimum": 0,
-					"order": 34
+					"order": 35
 				},
 				"megaenvironment.buildControl.generateChecksum": {
 					"type": "boolean",
 					"default": true,
 					"markdownDescription": "Generates a [16-bit Mega Drive-style checksum](https://plutiedev.com/rom-header#checksum) which patches byte $18E and $18F of the ROM header.",
-					"order": 35
+					"order": 36
 				},
 				"megaenvironment.buildControl.sonicDisassemblySupport": {
 					"type": "boolean",
 					"default": false,
 					"markdownDescription": "Uses an [alternative version](https://github.com/flamewing/asl-releases) that officially supports the [Sonic 1 disassembly](https://github.com/sonicretro/s1disasm). Highly recommended if you're into Sonic ROM hacking. Some settings are not available due to this version being older.",
-					"order": 36
+					"order": 37
 				},
 				"megaenvironment.buildControl.segmentCompression.compressionAlgorithm": {
 					"type": "string",
@@ -506,7 +519,7 @@
 					],
 					"default": "kosinski",
 					"description": "The compression algorithm used to compress the specified code segment. Note that not all algorithms work with games that don't support them. Not supported in the original assembler version.",
-					"order": 37
+					"order": 38
 				},
 				"megaenvironment.buildControl.segmentCompression.startingAddress": {
 					"type": "string",
@@ -514,7 +527,7 @@
 					"description": "The starting address of the first compressed code segment. Not supported in the original assembler version.",
 					"pattern": "^[0-9A-Fa-f]{1,8}$",
 					"patternErrorMessage": "Value must be an address (e.g. from $0 to $FFFFFFFF).",
-					"order": 38
+					"order": 39
 				},
 				"megaenvironment.buildControl.segmentCompression.segmentSize": {
 					"type": "string",
@@ -522,7 +535,7 @@
 					"description": "The constant that is used to reserve space for the compressed code segments. Can also be a constant from your assembly code. Not supported in the original assembler version.",
 					"pattern": "^\\w+|[0-9A-Fa-f]{1,8}$",
 					"patternErrorMessage": "Value must be a constant or an address.",
-					"order": 39
+					"order": 40
 				},
 				"megaenvironment.buildControl.segmentCompression.insertionMethod": {
 					"type": "string",
@@ -540,31 +553,31 @@
 					],
 					"default": "after",
 					"description": "Method of inserting compressed data. Not supported in the original assembler version.",
-					"order": 40
+					"order": 41
 				},
 				"megaenvironment.buildControl.convertWavFilesInDirectory": {
 					"type": "boolean",
 					"default": true,
 					"description": "Whether this extension should convert WAV files that are stored in the \"sound\" directory. Not supported in the original assembler version.",
-					"order": 41
+					"order": 42
 				},
 				"megaenvironment.backupOptions.backupFileName": {
 					"type": "string",
 					"default": "",
 					"description": "The name of the backup files. Default name is \"Backup\" when left blank.",
-					"order": 42
+					"order": 43
 				},
 				"megaenvironment.backupOptions.includeBackupDate": {
 					"type": "boolean",
 					"default": true,
 					"description": "Whether the output backup file name should include date and time after the set name.",
-					"order": 43
+					"order": 44
 				},
 				"megaenvironment.miscellaneous.compactGlobalSymbols": {
 					"type": "boolean",
 					"default": true,
 					"description": "Stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time.",
-					"order": 44
+					"order": 45
 				},
 				"megaenvironment.miscellaneous.fillValue": {
 					"type": "string",
@@ -572,7 +585,7 @@
 					"description": "The hexadecimal value used to fill empty spaces in the ROM. Set it to FF if you plan to use an EPROM burner, since these tend to skip writing to these areas.",
 					"pattern": "^[0-9A-Fa-f]{1,2}$",
 					"patternErrorMessage": "Value must be a valid 8-bit hex value (e.g. 00 to FF).",
-					"order": 45
+					"order": 46
 				},
 				"megaenvironment.miscellaneous.errorLevel": {
 					"type": "integer",
@@ -580,7 +593,7 @@
 					"description": "The detail level of warning, error and fatal messages. The higher the value, the more information about a possible error will be printed.",
 					"minimum": 0,
 					"maximum": 2,
-					"order": 46
+					"order": 47
 				},
 				"megaenvironment.miscellaneous.maximumErrors": {
 					"type": "string",
@@ -588,135 +601,135 @@
 					"description": "The assembly terminates after the given number of errors. Leave it empty to make it unlimited, which is the default behavior.",
 					"pattern": "^\\d*$",
 					"patternErrorMessage": "Value must be empty or a number.",
-					"order": 47
+					"order": 48
 				},
 				"megaenvironment.miscellaneous.displayErrorNumber": {
 					"type": "boolean",
 					"default": false,
 					"markdownDescription": "Whether the terminal should display errors along with their [internal error number](http://john.ccac.rwth-aachen.de:8000/as/as_EN.html#ref_ChapErrMess) defined by the assembler.",
-					"order": 48
+					"order": 49
 				},
 				"megaenvironment.miscellaneous.AS-StyledErrors": {
 					"type": "boolean",
 					"default": false,
 					"description": "Whether the terminal should display errors using the original AS syntax. You also gain the ability to localize macro-related errors.",
-					"order": 49
+					"order": 50
 				},
 				"megaenvironment.miscellaneous.suppressWarnings": {
 					"type": "boolean",
 					"default": false,
 					"description": "Whether the IDE and the terminal should suppress the assembler warnings.",
-					"order": 50
+					"order": 51
 				},
 				"megaenvironment.miscellaneous.warningsAsErrors": {
 					"type": "boolean",
 					"default": false,
 					"description": "Whether the assembler should treat warnings as errors.",
-					"order": 51
+					"order": 52
 				},
 				"megaenvironment.miscellaneous.lowercaseHexadecimal": {
 					"type": "boolean",
 					"default": false,
 					"description": "Whether any hexadecimal value in the various outputs should be lowercase. Primarily for personal preference (and what a taste!).",
-					"order": 52
+					"order": 53
 				},
 				"megaenvironment.miscellaneous.quietOperation": {
 					"type": "boolean",
 					"default": false,
 					"description": "This development environment can get a bit invasive: turn this on if you want the IDE to suppress information messages.",
-					"order": 53
+					"order": 54
 				},
 				"megaenvironment.miscellaneous.verboseOperation": {
 					"type": "boolean",
 					"default": false,
 					"description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs.",
-					"order": 54
+					"order": 55
 				},
 				"megaenvironment.miscellaneous.startBlastemWithDebuggers": {
 					"type": "boolean",
 					"default": false,
 					"description": "Whether BlastEm should start with the debugging console right away. Useful if you have a ROM that crashes during initialization.",
-					"order": 55
+					"order": 56
 				},
 				"megaenvironment.paths.Blastem": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the BlastEm executable.",
 					"ignoreSync": true,
-					"order": 56
+					"order": 57
 				},
 				"megaenvironment.paths.Clownmdemu": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the ClownMDEmu executable.",
 					"ignoreSync": true,
-					"order": 57
+					"order": 58
 				},
 				"megaenvironment.paths.Regen": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the Regen executable.",
 					"ignoreSync": true,
-					"order": 58
+					"order": 59
 				},
 				"megaenvironment.paths.Gens": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the Gens executable.",
 					"ignoreSync": true,
-					"order": 59
+					"order": 60
 				},
 				"megaenvironment.paths.Bizhawk": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the BizHawk executable.",
 					"ignoreSync": true,
-					"order": 60
+					"order": 61
 				},
 				"megaenvironment.paths.Fusion": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the Fusion executable.",
 					"ignoreSync": true,
-					"order": 61
+					"order": 62
 				},
 				"megaenvironment.paths.Easy68k": {
 					"type": "string",
 					"default": "",
 					"description": "Full path to the EASy68k executable.",
 					"ignoreSync": true,
-					"order": 62
+					"order": 63
 				},
 				"megaenvironment.paths.outputPathWithoutWorkspace": {
 					"type": "string",
 					"default": "",
 					"description": "The default path where the output files get generated when there isn't an opened workspace and there's only a standalone file.",
 					"ignoreSync": true,
-					"order": 63
+					"order": 64
 				},
 				"megaenvironment.extensionOptions.checkForUpdates": {
 					"type": "boolean",
 					"default": true,
 					"description": "Automatically check for new updates each time the extension activates. There could be important fixes, so leaving it on is advised.",
-					"order": 64
+					"order": 65
 				},
 				"megaenvironment.extensionOptions.showChecksumValue": {
 					"type": "boolean",
 					"default": true,
 					"description": "Whether the checksum should be shown in the terminal. Useful when you need to hard code it into your ROM to perform the integrity check.",
-					"order": 65
+					"order": 66
 				},
 				"megaenvironment.extensionOptions.hideUnsupportedEmulators": {
 					"type": "boolean",
 					"default": false,
 					"description": "Choose to hide grayed out emulators that aren't compatible with your operative system.",
-					"order": 66
+					"order": 67
 				},
 				"megaenvironment.extensionOptions.alwaysActive": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project or don't have an assembly file open. Errors can pop up if your folder isn't a project. Changes take effect when you restart the extension.",
-					"order": 67
+					"description": "Whether the extension should remain activated even if you've opened a folder that doesn't contain a Mega Drive project or don't have an assembly file open. Errors can pop up if your folder isn't a project.",
+					"order": 68
 				}
 			}
 		},
