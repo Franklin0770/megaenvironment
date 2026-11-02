@@ -19,6 +19,7 @@ import { join, basename, normalize, dirname, extname, posix } from 'path';
 import { ChildProcess, exec, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
+import ignore from 'ignore';
 
 import PcmProcessing from './PCM Processing';
 
@@ -72,6 +73,7 @@ interface ExtensionSettings {
 
     backupName: string;
     backupDate: boolean;
+	useGitignore: boolean;
 
 	compactSymbols: boolean;
     fillValue: string;
@@ -141,6 +143,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 
     backupName: '',
     backupDate: true,
+	useGitignore: true,
 
 	compactSymbols: true,
     fillValue: '00',
@@ -207,6 +210,7 @@ const settingDescriptors = [
 	{ key: 'buildControl.convertWavFilesInDirectory',				target: 'wavConversion' },
 	{ key: 'backupOptions.backupFileName',							target: 'backupName' },
 	{ key: 'backupOptions.includeBackupDate',						target: 'backupDate' },
+	{ key: 'backupOptions.useGitignore',							target: 'useGitignore' },
 	{ key: 'miscellaneous.compactGlobalSymbols', 					target: 'compactSymbols' },
 	{ key: 'miscellaneous.fillValue',								target: 'fillValue' },
 	{ key: 'miscellaneous.errorLevel',								target: 'errorLevel' },
@@ -1805,12 +1809,38 @@ export async function activate(context: ExtensionContext) {
 		const outputPath = onProject ? sourceCodeFolder : extensionSettings.singleFileOutput;
 		process.chdir(outputPath); // Change current working folder to the project one
 
-		const zip = new AdmZip(); // Create zip archive reference
-		let files = 0;
+		const excludeItems = ignore();
 
+		if (extensionSettings.useGitignore) {
+			try {
+				excludeItems.add(await promises.readFile(join(outputPath, '.gitignore'), 'utf8'));
+			} catch (error: any) {
+				if (error.code === 'ENOENT') {
+					if (onProject) {
+						const selection = await window.showWarningMessage("No .gitignore file at the root of your folder detected. If you don't use it, disable the backup feature that uses this file.", 'Change Setting', 'Ignore');
+
+						if (selection === 'Change Setting') {
+							commands.executeCommand(
+								'workbench.action.openSettings',
+								'megaenvironment.backupOptions.useGitignore'
+							);
+							return;
+						}
+					}
+				} else {
+					window.showErrorMessage('Unknown detected error while checking for the .gitignore file. ' + error.message);
+				}
+			}
+		}
+
+		const zip = new AdmZip(); // Create zip archive reference
+		let backedItems = 0;
+		let excludedItems = 0;
+		
 		try {
 			const items = await promises.readdir('.');
 			const index = items.indexOf('Backups');
+
 			if (index !== -1) {
 				items.splice(index, 1); // Remove Backups folder
 			} else {
@@ -1821,14 +1851,23 @@ export async function activate(context: ExtensionContext) {
 				await promises.mkdir('Backups');
 			}
 
+			let path: string;
+
 			for (const item of items) {
+				path = (await promises.stat(item)).isDirectory() ? `${item}/` : item;
+
+				if (extensionSettings.useGitignore && excludeItems.ignores(path)) {
+					excludedItems++;
+					continue; // Exclude any files and folders that are in .gitignore
+				}
+
 				if ((await promises.stat(item)).isFile()) {
 					zip.addLocalFile(item);
 				} else {
 					zip.addLocalFolder(item, basename(item));
 				}
 
-				files++;
+				backedItems++;
 			}
 		} catch (error: any) {
 			window.showErrorMessage('Cannot back up your files. ' + error.message);
@@ -1848,8 +1887,12 @@ export async function activate(context: ExtensionContext) {
 
 		if (extensionSettings.quietOperation) { return; }
 
-		if (files !== 0) {
-			window.showInformationMessage(`${files} files were backed up successfully.`);
+		if (backedItems !== 0) {
+			if (excludedItems !== 0) {
+				window.showInformationMessage(`${backedItems} files were backed up successfully. ${excludedItems} files were excluded due to .gitignore rules.`);
+			} else {
+				window.showInformationMessage(`${backedItems} files were backed up successfully.`);
+			}
 		} else {
 			window.showErrorMessage('Cannot backup an empty folder.');
 		}
