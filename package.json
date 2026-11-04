@@ -573,6 +573,12 @@
 					"description": "Whether the output backup file name should include date and time after the set name.",
 					"order": 44
 				},
+				"megaenvironment.backupOptions.useGitignore": {
+					"type": "boolean",
+					"default": true,
+					"description": "Use the .gitignore text file to exclude the specified files and folders from your backup archive. Useful to avoid saving some folders that might create an instantiation loop of the current repository's backups (such as the .git folder).",
+					"order": 44.1
+				},
 				"megaenvironment.miscellaneous.compactGlobalSymbols": {
 					"type": "boolean",
 					"default": true,
