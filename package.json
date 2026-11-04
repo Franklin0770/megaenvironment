@@ -3,7 +3,7 @@
 	"displayName": "Mega Driven Environment",
 	"publisher": "Brotherhood0",
 	"description": "MDE provides cross-platform integration with The Macroassembler AS among other features, such as versioning, code highlighting and automatic updates.",
-	"version": "1.0.12",
+	"version": "1.0.13",
 	"engines": {
 		"vscode": "^1.96.0"
 	},
@@ -906,6 +906,21 @@
 			}
 		]
 	},
+	"taskDefinitions": [
+        {
+            "type": "blastem",
+            "properties": {
+                "rom": {
+                    "type": "string",
+                    "description": "The path to the assembled ROM file to run."
+                },
+				"flags": {
+					"type": "string",
+					"description": "Any additional flags to open the emulator with."
+				}
+            }
+        }
+    ],
 	"activationEvents": [
 		"onStartupFinished"
 	],
@@ -930,16 +945,21 @@
 		"@typescript-eslint/parser": "^8.17.0",
 		"@vscode/test-cli": "^0.0.11",
 		"@vscode/test-electron": "^2.4.1",
-		"eslint": "^9.16.0",
 		"typescript": "^5.8.3"
 	},
 	"dependencies": {
-		"adm-zip": "^0.5.16",
-		"glob": "^13.0.3",
+		"adm-zip": "^0.6.1",
+		"eslint": "^10.14.0",
+		"glob": "^14.0.3",
 		"serialize-javascript": "^7.0.4"
 	},
 	"overrides": {
 		"serialize-javascript": "^7.0.4",
-		"diff": "^8.0.2"
+		"diff": "^8.0.2",
+		"minimatch": "^11.0.1",
+		"glob": "^14.0.3"
+	},
+	"allowScripts": {
+		"fsevents@2.3.3": true
 	}
 }

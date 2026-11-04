@@ -10,13 +10,14 @@ import {
 	ExtensionContext, workspace, commands, window, env, Uri, 
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, EventEmitter,
 	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress,
-	RelativePattern
+	RelativePattern,
+	ShellExecution, Task, TaskScope, tasks
 } from 'vscode';
 import {
 	existsSync, writeFile, rename, unlink, createWriteStream, promises
 } from 'fs';
 import { join, basename, normalize, dirname, extname, posix } from 'path';
-import { ChildProcess, exec, spawn } from 'child_process';
+import { ChildProcess, exec, execSync, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 
@@ -314,11 +315,10 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 
 			if (existsSync(folderToUpdate)) {
 				if (!force && existsSync(join(folderToUpdate, 'version.txt'))) {
-					let response: Response | undefined;
 
-					response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + [ 'Original', 'Fixed' ][type] + '/' + folderName + '/version.txt');
+					let response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + [ 'Original', 'Fixed' ][type] + '/' + folderName + '/version.txt').catch(() => undefined);
 					
-					if (!response || !response.ok || !response.body) {
+					if (!response?.ok || !response?.body) {
 						if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 							window.showWarningMessage(`Failed to get version to check for updates for ${assemblerName}. Internet connection is either missing or insufficient, we'll have to stick with the assembler we have.`);
 							return 2;
@@ -356,23 +356,11 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 			}
 
 			progress.report({ message: 'requesting version...', increment: 20 });
-
-			let response: Response;
 			
-			try {
-				response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + [ 'latest', 'latest_fixed' ][type] + '/' + zipName);
-			} catch (error: any) {
-				if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
-					window.showWarningMessage(`Internet connection is either missing or insufficient to download ${assemblerName}, we'll have to stick with the assembler we have. ${error.message}`);
-					return 2;
-				}
+			let response = await fetch('https://github.com/Franklin0770/AS-releases/releases/download/' + [ 'latest', 'latest_fixed' ][type] + '/' + zipName).catch(() => undefined);
 
-				window.showErrorMessage(`Failed to download the latest AS compiler for ${assemblerName}. We can't proceed since there's no previously downloaded versions. Make sure you have a stable Internet connection. ${error.message}`);
-				return -1;
-			}
-
-			if (!response.ok || !response.body) {
-				if (response.status === 404) { // The classic "not found"
+			if (!response?.ok || !response.body) {
+				if (response?.status === 404) { // The classic "not found"
 					if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 						window.showWarningMessage("Hmm, it appears the download source is missing, but we can stick with what we have. It might be because I've forgotten to upload some files, sorry! If this doesn't get corrected in a few days, please let me know!");
 						return 2;
@@ -382,7 +370,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 					return -1;
 				}
 
-				window.showErrorMessage(`Failed to download ${assemblerName}. ${response.statusText}`);
+				window.showErrorMessage(`Failed to download ${assemblerName}. ${response?.statusText}`);
 
 				unlink(zipName, (error) => {
 					if (error) {
@@ -998,7 +986,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 			return 1;
 		}
 	}
-
+	
 	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
 }
 
@@ -1224,23 +1212,48 @@ async function findAndRunROM(emulator: string) {
 		return;
 	}
 
+	const romPath = rom[0].fsPath;
+
 	let errorCode = false;
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
-	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'Blastem' ? ' -d' : '';
+	let debuggerFlag = '';
 
-	exec(`"${configuration.get<string>('paths.' + emulator)}" "${rom[0].fsPath}"` + debuggerFlag, (error) => {
-		if (error) {
-			window.showErrorMessage('Cannot run the latest build. ' + error.message);
-			errorCode = true;
-			return;
+	if (emulator === 'Blastem') {
+		if (extensionSettings.blastEmDebugger) {
+			debuggerFlag = ' -d';
 		}
-	});
+
+		const execution = new ShellExecution('blastem');
+
+		const task = new Task(
+			{ type: 'blastem', rom: romPath, flags: debuggerFlag },
+			TaskScope.Workspace,
+			'BlastEm Shell',
+			'Mega Driven Environment',
+			execution
+		);
+
+		try {
+			await tasks.executeTask(task);
+			window.showInformationMessage(`Running "${basename(romPath)}" with Blastem.`);
+		} catch (error: any) {
+			window.showErrorMessage('Cannot run the latest build. ' + error.message);
+		}
+	} else {
+		exec(`"${configuration.get<string>('paths.' + emulator)}" "${romPath}"` + debuggerFlag, (error) => {
+			if (error) {
+				window.showErrorMessage('Cannot run the latest build. ' + error.message);
+				errorCode = true;
+				return;
+			}
+		});
+	}
 
 	if (errorCode || extensionSettings.quietOperation) { return; }
 
-	window.showInformationMessage(`Running "${basename(rom[0].fsPath)}" with ${emulator}.`);
+	window.showInformationMessage(`Running "${basename(romPath)}" with ${emulator}.`);
 }
 
 // From QuickRun commands. It doesn't rename the ROM outside the assembler folder, then it gets deleted automatically after execution
