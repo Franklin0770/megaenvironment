@@ -579,10 +579,17 @@
 					"description": "Use the .gitignore text file to exclude the specified files and folders from your backup archive. Useful to avoid saving some folders that might create an instantiation loop of the current repository's backups (such as the .git folder).",
 					"order": 44.1
 				},
+				"megaenvironment.backupOptions.excludeFiles": {
+					"type": "array",
+					"items": { "type": "string" },
+					"default": [],
+					"description": "You can manually choose which files and folders get excluded in the project backups with regex expressions.",
+					"order": 44.2
+				},
 				"megaenvironment.miscellaneous.compactGlobalSymbols": {
 					"type": "boolean",
 					"default": true,
-					"description": "Stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time.",
+					"description": "The assembler stores global symbols in a more compact form. In some cases, it gives a slight boost in assembly time.",
 					"order": 45
 				},
 				"megaenvironment.miscellaneous.fillValue": {
@@ -651,16 +658,102 @@
 					"description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs.",
 					"order": 55
 				},
-				"megaenvironment.miscellaneous.startBlastemWithDebuggers": {
+				"megaenvironment.blastemOptions.emulationControls.forceRegion": {
+					"type": "string",
+					"enum": [ "Disable", "J", "U", "E" ],
+					"enumDescriptions": [
+						"Disables this setting, making the default choice depend on what you've selected in BlastEm's UI settings (or the \"blastem.cfg\" file).",
+						"Use a Japanese Mega Drive as the emulated console. The video format is 60 Hz NTSC.",
+						"Use an American Genesis as the emulated console. The video format is 60 Hz NTSC.",
+						"Use an European (or Australian) Mega Drive as the emulated console. The video format is 50 Hz PAL."
+					],
+					"default": "Disable",
+					"description": "Overrides a specified console's region to emulate. If the ROM doesn't account for different regions' video timings, the game's speed will vary noticeably between 60 Hz and 50 Hz.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.emulationControls.forceMachineType": {
+					"type": "string",
+					"enum": [ "gen", "sms", "media" ],
+					"enumDescriptions": [
+						"Use a standard Sega Mega Drive / Genesis.",
+						"Use a Sega Master System / Mark III.",
+						"Transforms the emulator into a dedicated audio player capable of playing chip tune audio files natively alongside raw digital audio. VGM, VGZ, WAVE and FLAC files are supported."
+					],
+					"default": "gen",
+					"description": "Overrides a specified console type to emulate. If the ROM doesn't account for different regions' video timings, the game's speed will vary noticeably between 60 Hz and 50 Hz.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.emulationControls.disableZ80Processor": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether BlastEm should start with the debugging console right away. Useful if you have a ROM that crashes during initialization.",
+					"description": "Disables the Z80 coprocessor.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.fileAndROMLoading.loadSaveState": {
+					"type": "string",
+					"default": "",
+					"description": "Automatically loads a standard GST-format savestate from the specified file path.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.fileAndROMLoading.lock-onROM": {
+					"type": "string",
+					"default": "",
+					"description": "Loads the specified file as a lock-on cartridge (specifically utilized for combining ROMs like Sonic & Knuckles or utilizing XBAND).",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.debuggingAndLogging.startWithDebugger": {
+					"type": "boolean",
+					"default": false,
+					"description": "Automatically opens and enters the command-line debugger on emulator startup.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.debuggingAndLogging.log68kAddesses": {
+					"type": "boolean",
+					"default": false,
+					"description": "Logs 68K code addresses, which is highly useful for assembly language developers.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.debuggingAndLogging.logYMChannels": {
+					"type": "boolean",
+					"default": false,
+					"description": "Logs individual YM2612 audio channels out to standalone WAVE audio files.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.miscellaneous.fullscreenMode": {
+					"type": "boolean",
+					"default": false,
+					"description": "Toggles fullscreen mode (overriding your default configuration settings).",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.miscellaneous.forceWindowSize": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Overrides the window dimensions only in windowed mode. Leave it blank to use the UI settings (or the \"blastem.cfg\" file). The syntax is ```<width>x<height>```.",
+					"pattern": "(?:^\\d+x\\d+$)|^$",
+					"patternErrorMessage": "Value must be empty or a valid resolution.",
+					"tags": [ "flag", "flags" ],
+					"order": 56
+				},
+				"megaenvironment.blastemOptions.miscellaneous.disableOpengl": {
+					"type": "boolean",
+					"default": false,
+					"description": "Disables OpenGL rendering completely. Use this option if your computer lacks OpenGL 2 functionality.",
+					"tags": [ "flag", "flags" ],
 					"order": 56
 				},
 				"megaenvironment.paths.Blastem": {
 					"type": "string",
 					"default": "",
-					"description": "Full path to the BlastEm executable.",
+					"description": "Full path to the BlastEm executable. Use a shell command instead (such as \"blastem\") if you've installed BlastEm through your shell.",
 					"ignoreSync": true,
 					"order": 57
 				},

@@ -1,9 +1,5 @@
-/*
-TODOS:
-- Maybe some MORE asyncing (Done!);
-- Fix sonicDisassemblySupport configuration switch loop when it couldn't update the assembler (Done!);
-- Some classes for encapsulation and separation.
-*/
+// NOTE: keep in mind I sometimes make peculiar choices due to choosing performance over readability.
+// Granted, I'll still try to make the code as readable as possible, even with efficiency shortcuts.
 
 // Import just what we need
 import { 
@@ -17,7 +13,7 @@ import {
 	existsSync, writeFile, rename, unlink, createWriteStream, promises
 } from 'fs';
 import { join, basename, normalize, dirname, extname, posix } from 'path';
-import { ChildProcess, exec, execSync, spawn } from 'child_process';
+import { ChildProcess, exec, spawn } from 'child_process';
 import { pipeline } from 'stream';
 import AdmZip from 'adm-zip';
 import ignore from 'ignore';
@@ -87,7 +83,18 @@ interface ExtensionSettings {
 	lowercaseHex: boolean;
     quietOperation: boolean;
     verboseOperation: boolean;
-	blastEmDebugger: boolean;
+
+	blastemForceRegion: string;
+	blastemForceType: string;
+	blastemDisableZ80: boolean;
+	blastemLoadState: string;
+	blastemLockOnRom: string;
+	blastemDebugger: boolean;
+	blastemLog68k: boolean;
+	blastemLogYM: boolean;
+	blastemFullscreen: boolean;
+	blastemSize: string;
+	blastemDisableGl: boolean,
 
 	singleFileOutput: string;
 
@@ -157,7 +164,18 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	lowercaseHex: false,
     quietOperation: false,
     verboseOperation: false,
-	blastEmDebugger: false,
+
+	blastemForceRegion: 'Disable',
+	blastemForceType: 'gen',
+	blastemDisableZ80: false,
+	blastemLoadState: '',
+	blastemLockOnRom: '',
+	blastemDebugger: false,
+	blastemLog68k: false,
+	blastemLogYM: false,
+	blastemFullscreen: false,
+	blastemSize: '',
+	blastemDisableGl: false,
 
 	singleFileOutput: '',
 
@@ -212,6 +230,7 @@ const settingDescriptors = [
 	{ key: 'backupOptions.backupFileName',							target: 'backupName' },
 	{ key: 'backupOptions.includeBackupDate',						target: 'backupDate' },
 	{ key: 'backupOptions.useGitignore',							target: 'useGitignore' },
+	{ key: 'backupOptions.excludeFiles',							target: 'excludedBackupItems' },
 	{ key: 'miscellaneous.compactGlobalSymbols', 					target: 'compactSymbols' },
 	{ key: 'miscellaneous.fillValue',								target: 'fillValue' },
 	{ key: 'miscellaneous.errorLevel',								target: 'errorLevel' },
@@ -223,7 +242,17 @@ const settingDescriptors = [
 	{ key: 'miscellaneous.lowercaseHexadecimal',					target: 'lowercaseHex' },
 	{ key: 'miscellaneous.quietOperation',							target: 'quietOperation' },
 	{ key: 'miscellaneous.verboseOperation',						target: 'verboseOperation' },
-	{ key: 'miscellaneous.startBlastemWithDebuggers',				target: 'blastEmDebugger' },
+	{ key: 'blastemOptions.emulationControls.forceRegion', 			target: 'blastemForceRegion' },
+	{ key: 'blastemOptions.emulationControls.forceMachineType',		target: 'blastemForceType' },
+	{ key: 'blastemOptions.emulationControls.disableZ80Processor',	target: 'blastemDisableZ80' },
+	{ key: 'blastemOptions.fileAndROMLoading.loadSaveState',		target: 'blastemLoadState' },
+	{ key: 'blastemOptions.fileAndROMLoading.lock-onROM',			target: 'blastemLockOnRom' },
+	{ key: 'blastemOptions.debuggingAndLogging.startWithDebugger',	target: 'blastemDebugger' },
+	{ key: 'blastemOptions.debuggingAndLogging.log68kAddesses',		target: 'blastemLog68k' },
+	{ key: 'blastemOptions.debuggingAndLogging.logYMChannels',		target: 'blastemLogYM' },
+	{ key: 'blastemOptions.miscellaneous.fullscreenMode',			target: 'blastemFullscreen' },
+	{ key: 'blastemOptions.miscellaneous.forceWindowSize',			target: 'blastemSize' },
+	{ key: 'blastemOptions.miscellaneous.disableOpengl',			target: 'blastemDisableGl' },
 	{ key: 'paths.outputPathWithoutWorkspace',						target: 'singleFileOutput' },
 	// Rest of path variables are unlikely to get edited directly in the settings UI, so it doesn't make sense for them to stay here
 	{ key: 'extensionOptions.checkForUpdates',						target: 'checkUpdates' },
@@ -231,7 +260,9 @@ const settingDescriptors = [
 	{ key: 'extensionOptions.showChecksumValue',					target: 'showChecksum' }
 ];
 
-// Global variables that get assigned during activation
+const excludedBackupItems: RegExp[] = [];
+
+// Global variables that get initialized during activation
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
@@ -242,11 +273,11 @@ let gensCompatible: boolean;
 let bizhawkCompatible: boolean;
 let openemuCompatible: boolean;
 
-// These get assigned in "projectCheck()"
+// These get initialized in "projectCheck()"
 let sourceCodeFolder: string;
 let onProject: boolean;
 
-let toolsDownloading: boolean; // Gets assigned in "downloadAssembler()"
+let toolsDownloading: boolean; // Gets initialized in "downloadAssembler()"
 
 let activeAssembler: ChildProcess | null;
 let buttonProvider: ButtonProvider;
@@ -320,9 +351,10 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 			if (existsSync(folderToUpdate)) {
 				if (!force && existsSync(join(folderToUpdate, 'version.txt'))) {
 
-					let response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + [ 'Original', 'Fixed' ][type] + '/' + folderName + '/version.txt').catch(() => undefined);
+					let response = await fetch('https://raw.githubusercontent.com/Franklin0770/AS-releases/main/' + [ 'Original', 'Fixed' ][type] + '/' + folderName + '/version.txt')
+					.catch(() => undefined); // Catching and assigning "undefined" manually instead of generating an error
 					
-					if (!response?.ok || !response?.body) {
+					if (!response?.ok || !response.body) {
 						if (existsSync(assemblerToUpdate) && existsSync(compilerToUpdate)) {
 							window.showWarningMessage(`Failed to get version to check for updates for ${assemblerName}. Internet connection is either missing or insufficient, we'll have to stick with the assembler we have.`);
 							return 2;
@@ -338,7 +370,7 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 					}
 
 					const localBuild = +await promises.readFile(join(folderToUpdate, 'version.txt'), 'ascii');
-					const onlineBuild = +await response!.text();
+					const onlineBuild = +await response.text();
 					
 					if (localBuild >= onlineBuild) { return 0; } // No need for updates
 
@@ -1222,17 +1254,46 @@ async function findAndRunROM(emulator: string) {
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
-	let debuggerFlag = '';
-
 	if (emulator === 'Blastem') {
-		if (extensionSettings.blastEmDebugger) {
-			debuggerFlag = ' -d';
-		}
-
 		const execution = new ShellExecution('blastem');
 
+		let flags = '';
+
+		const shortFlags = [
+			...(extensionSettings.blastemDisableZ80 ? ['n'] : []),
+			...(extensionSettings.blastemDebugger ? ['d'] : []),
+			...(extensionSettings.blastemLog68k ? ['l'] : []),
+			...(extensionSettings.blastemLogYM ? ['y'] : []),
+			...(extensionSettings.blastemFullscreen ? ['f'] : []),
+			...(extensionSettings.blastemDisableGl ? ['g'] : [])
+		];
+
+		if (shortFlags.length > 0) {
+			flags += '-' + shortFlags.toString() + ' ';
+		}
+
+		if (extensionSettings.blastemForceRegion !== 'Disable') {
+			flags += '-r ' + extensionSettings.blastemForceRegion + ' ';
+		}
+
+		if (extensionSettings.blastemForceType !== 'gen') {
+			flags += '-m ' + extensionSettings.blastemForceType + ' ';
+		}
+
+		if (extensionSettings.blastemLoadState) {
+			flags += '-s "' + extensionSettings.blastemLoadState + '" ';
+		}
+
+		if (extensionSettings.blastemLockOnRom) {
+			flags += '-o "' + extensionSettings.blastemLockOnRom + '" ';
+		}
+
+		if (extensionSettings.blastemSize) {
+			flags += extensionSettings.blastemSize.replace('x', ' ');
+		}
+
 		const task = new Task(
-			{ type: 'blastem', rom: romPath, flags: debuggerFlag },
+			{ type: 'blastem', rom: romPath, flags: flags },
 			TaskScope.Workspace,
 			'BlastEm Shell',
 			'Mega Driven Environment',
@@ -1246,7 +1307,7 @@ async function findAndRunROM(emulator: string) {
 			window.showErrorMessage('Cannot run the latest build. ' + error.message);
 		}
 	} else {
-		exec(`"${configuration.get<string>('paths.' + emulator)}" "${romPath}"` + debuggerFlag, (error) => {
+		exec(`"${configuration.get<string>('paths.' + emulator)}" "${romPath}"`, (error) => {
 			if (error) {
 				window.showErrorMessage('Cannot run the latest build. ' + error.message);
 				errorCode = true;
@@ -1283,7 +1344,7 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
-	const debuggerFlag = extensionSettings.blastEmDebugger && emulator === 'Blastem' ? ' -d' : '';
+	const debuggerFlag = extensionSettings.blastemDebugger && emulator === 'Blastem' ? ' -d' : '';
 
 	exec(`"${configuration.get<string>('paths.' + emulator)}" "${join(assemblerFolder, 'rom.gen')}"` + debuggerFlag, (error) => {
 		if (error) {
@@ -1447,6 +1508,22 @@ export async function activate(context: ExtensionContext) {
 	await projectCheck();
 
 	//
+	//	Load settings
+	//
+
+	for (const setting of settingDescriptors) {
+		(extensionSettings as any)[setting.target] = configuration.get(setting.key);
+	}
+
+	for (const pattern of configuration.get<Array<string>>('megaenvironment.backupOptions.excludeFiles', [])) {
+		try {
+			excludedBackupItems.push(new RegExp(pattern));
+		} catch (error: any) {
+			window.showWarningMessage(`Invalid backup file exclusion "${pattern}". ${error.message}`);
+		}
+	}
+
+	//
 	//	Main commands
 	//
 
@@ -1546,6 +1623,7 @@ export async function activate(context: ExtensionContext) {
 		}
 
 		const platform = process.platform;
+
 		if (platform !== 'win32' && platform !== 'linux') {
 			const selection = await window.showErrorMessage('This command is not supported on your platform... but hold your horses! ClownMDEmu could be available for your platform if you use your web browser.', 'Visit Site');
 			
@@ -1830,7 +1908,7 @@ export async function activate(context: ExtensionContext) {
 			} catch (error: any) {
 				if (error.code === 'ENOENT') {
 					if (onProject) {
-						const selection = await window.showWarningMessage("No .gitignore file at the root of your folder detected. If you don't use it, disable the backup feature that uses this file.", 'Change Setting', 'Ignore');
+						const selection = await window.showWarningMessage("No \".gitignore\" file at the root of your folder detected. If you don't use it, disable the backup feature that uses this file.", 'Change Setting', 'Ignore');
 
 						if (selection === 'Change Setting') {
 							commands.executeCommand(
@@ -1841,7 +1919,7 @@ export async function activate(context: ExtensionContext) {
 						}
 					}
 				} else {
-					window.showErrorMessage('Unknown detected error while checking for the .gitignore file. ' + error.message);
+					window.showErrorMessage('Unknown error was detected while checking for the .gitignore file. ' + error.message);
 				}
 			}
 		}
@@ -1849,6 +1927,7 @@ export async function activate(context: ExtensionContext) {
 		const zip = new AdmZip(); // Create zip archive reference
 		let backedItems = 0;
 		let excludedItems = 0;
+		let userExcludedItems = 0;
 		
 		try {
 			const items = await promises.readdir('.');
@@ -1864,14 +1943,17 @@ export async function activate(context: ExtensionContext) {
 				await promises.mkdir('Backups');
 			}
 
-			let path: string;
-
 			for (const item of items) {
-				path = (await promises.stat(item)).isDirectory() ? `${item}/` : item;
+				const relativePath = (await promises.stat(item)).isDirectory() ? `${item}/` : item;
 
-				if (extensionSettings.useGitignore && excludeItems.ignores(path)) {
+				if (extensionSettings.useGitignore && excludeItems.ignores(relativePath)) {
 					excludedItems++;
 					continue; // Exclude any files and folders that are in .gitignore
+				}
+
+				if (excludedBackupItems.some(pattern => pattern.test(relativePath))) {
+					userExcludedItems++;
+					continue; // Exclude any files and folders that are manually selected by the user
 				}
 
 				if ((await promises.stat(item)).isFile()) {
@@ -1901,8 +1983,12 @@ export async function activate(context: ExtensionContext) {
 		if (extensionSettings.quietOperation) { return; }
 
 		if (backedItems !== 0) {
-			if (excludedItems !== 0) {
+			if (excludedItems !== 0 && userExcludedItems !== 0) {
+				window.showInformationMessage(`${backedItems} files were backed up successfully. ${excludedItems} files were excluded due to .gitignore rules. ${userExcludedItems} files were excluded by yourself.`);
+			} else if (excludedItems !== 0) {
 				window.showInformationMessage(`${backedItems} files were backed up successfully. ${excludedItems} files were excluded due to .gitignore rules.`);
+			} else if (userExcludedItems !== 0) {
+				window.showInformationMessage(`${backedItems} files were backed up successfully. ${userExcludedItems} files were excluded by yourself.`);
 			} else {
 				window.showInformationMessage(`${backedItems} files were backed up successfully.`);
 			}
@@ -2052,15 +2138,32 @@ export async function activate(context: ExtensionContext) {
 		}
 	});
 
+	//
+	//	Initialize the "Run latest ROM" treeView under the file explorer panel
+	//
+
+	buttonProvider = new ButtonProvider();
+
+	const treeView = window.registerTreeDataProvider('run_emulator', buttonProvider);
+
+	//
+	//	Disposable management (actually make them get disposed once the extension in deactivated)
+	//
+
 	context.subscriptions.push(
 		workspace.onDidChangeConfiguration(event => updateConfiguration(event)), workspace.onDidChangeWorkspaceFolders(projectCheck), workspace.onDidOpenTextDocument(projectCheck),
 		assemble, clean_and_assemble,
 		run_BlastEm, run_ClownMdEmu, run_Regen, run_Gens, run_BizHawk, run_Fusion, run_OpenEmu,
 		assemble_and_run_BlastEm, assemble_and_run_ClownMDEmu, assemble_and_run_Regen, assemble_and_run_Gens, assemble_and_run_BizHawk, assemble_and_run_Fusion, assemble_and_run_OpenEmu,
-		backup, cleanup, open_EASy68k, newProject, redownloadTools, downloadButton, checkForUpdates
+		backup, cleanup, open_EASy68k, newProject, redownloadTools,
+		treeView, downloadButton, checkForUpdates
 	);
 
-	if (!shouldActivate) { return; }
+	if (!shouldActivate) { return; } // Only make the commands work when the extension encounters an error during startup
+
+	//
+	//	Setup local and setting variables related to the OS compatibility
+	//
 
 	switch (process.platform) {
 		case 'win32':
@@ -2102,16 +2205,6 @@ export async function activate(context: ExtensionContext) {
 			window.showErrorMessage("Hey, whatever operative system you're using is not supported! Please, let me know which operative system you're running VS Code on!");
 			return;
 	}
-	
-	for (const setting of settingDescriptors) {
-		(extensionSettings as any)[setting.target] = configuration.get(setting.key);
-	}
-
-	buttonProvider = new ButtonProvider();
-
-	const treeView = window.registerTreeDataProvider('run_emulator', buttonProvider);
-
-	context.subscriptions.push(treeView);
 
 	if (extensionSettings.checkUpdates || !existsSync(assemblerFolder)) {
 		await downloadAssembler(false, false);
@@ -2130,38 +2223,37 @@ async function projectCheck(): Promise<void> {
 	}
 
 	const projectFolders = workspace.workspaceFolders;
-	const editor = window.activeTextEditor;
-
-	let relativePatten;
 
 	if (projectFolders) {
-		relativePatten = new RelativePattern(
+		const relativePatten = new RelativePattern(
 			projectFolders[0],
-			'{*,*/*,*/*/*,*/*/*/*}.{68k,z80,asm}'
+			'{*,*/*,*/*/*}.{68k,z80,asm}' // The search extends to a maximum of three subfolders, else it wouldn't make sense to activate with buried code
 		);
-	}
 	
-	if (projectFolders && ((await workspace.findFiles(relativePatten!, undefined, 1)).length > 0
-		|| (await workspace.findFiles(extensionSettings.mainName, undefined, 1)).length > 0)) { // If it finds a project with the right files
-		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
-		sourceCodeFolder = projectFolders[0].uri.fsPath;
-		onProject = true;
+		if (((await workspace.findFiles(relativePatten, undefined, 1)).length > 0 // Automatically search for any assembly related files
+			|| (await workspace.findFiles(extensionSettings.mainName, undefined, 1)).length > 0)) { // If it finds a project with the right files
+			commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
+			sourceCodeFolder = projectFolders[0].uri.fsPath;
+			onProject = true;
 
-		if ((await promises.readdir(sourceCodeFolder)).some(f => strings.sonicDisassemblyFolders.includes(f)) && !extensionSettings.sonicDisassembly) {
-			window.showWarningMessage("It looks like you're using a Sonic disassembly. Please, turn on the associated compatibility setting to make compiling work, or else you'll get random errors!", 'Change Setting')
-			.then(selection => {
-				if (selection === 'Change Setting') {
-					commands.executeCommand(
-						'workbench.action.openSettings',
-						'megaenvironment.buildControl.sonicDisassemblySupport'
-					);
-				}
-			});
+			if ((await promises.readdir(sourceCodeFolder)).some(f => strings.sonicDisassemblyFolders.includes(f)) && !extensionSettings.sonicDisassembly) {
+				window.showWarningMessage("It looks like you're using a Sonic disassembly. Please, turn on the associated compatibility setting to make compiling work, or else you'll get random errors!", 'Change Setting')
+				.then(selection => { // Using ".then()" instead of "await" to prevent blocking the rest of the extension's execution
+					if (selection === 'Change Setting') {
+						commands.executeCommand(
+							'workbench.action.openSettings',
+							'megaenvironment.buildControl.sonicDisassemblySupport'
+						);
+					}
+				});
+			}
+
+			shouldActivate = true;
+			return;
 		}
-
-		shouldActivate = true;
-		return;
 	}
+
+	const editor = window.activeTextEditor;
 	
 	if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the associated languages
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
@@ -2175,7 +2267,7 @@ async function projectCheck(): Promise<void> {
 	shouldActivate = false;
 }
 
-async function failedActivationMessage(message: string) {
+async function failedActivationMessage(message: string) { // Instead of replicating the same buttons in every error message, might as well create a function
 	const selection = await window.showErrorMessage(message, 'Retry', 'Force Activation');
 
 	switch (selection) {
@@ -2204,6 +2296,7 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 	if (!event.affectsConfiguration('megaenvironment')) { return; } // Quick return if the extension isn't involved
 
 	const configuration = workspace.getConfiguration('megaenvironment');
+
 	// Do additional stuff when certain settings get changed
 	if (event.affectsConfiguration('megaenvironment.buildControl.sonicDisassemblySupport')) {
 		extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
@@ -2211,14 +2304,21 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 		const windowsExtension = process.platform === 'win32' ? '.exe' : '';
 		assemblerPath = join(assemblerFolder, 'asl' + windowsExtension);
 		compilerPath = join(assemblerFolder, 'p2bin' + windowsExtension);
+	} else if (event.affectsConfiguration('megaenvironment.backupOptions.excludeFiles')) {
+		for (const pattern of configuration.get<Array<string>>('megaenvironment.backupOptions.excludeFiles', [])) {
+		try {
+			excludedBackupItems.push(new RegExp(pattern));
+		} catch (error: any) {
+			window.showWarningMessage(`Invalid backup file exclusion "${pattern}". ${error.message}`);
+		}
+	}
 	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.hideUnsupportedEmulators')) {
-		buttonProvider.refresh(); // Update the TreeView with the new setting
+		buttonProvider.refresh(); // Update the treeView with the new setting
 	} else if (event.affectsConfiguration('megaenvironment.extensionOptions.alwaysActive')) {
 		await projectCheck();
 	}
 
 	// Updates "settingsDescriptors" each time a setting is changed
-
 	for (const setting of settingDescriptors) {
 		if (!event.affectsConfiguration(`megaenvironment.${setting.key}`)) { continue; }
 
@@ -2236,6 +2336,7 @@ class EmulatorTreeItem extends TreeItem {
 	) {
 		super(label, TreeItemCollapsibleState.None);
 
+		// Set the icon type according to its current compatibility with the OS
 		this.iconPath = compatible
 			? new ThemeIcon('play-circle')
 			: new ThemeIcon('error');
