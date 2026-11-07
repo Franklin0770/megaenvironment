@@ -646,16 +646,22 @@
 					"description": "Whether any hexadecimal value in the various outputs should be lowercase. Primarily for personal preference (and what a taste!).",
 					"order": 53
 				},
+				"megaenvironment.miscellaneous.verboseOperation": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether the terminal should log the shell output of the commands the extension executes.",
+					"order": 55
+				},
 				"megaenvironment.miscellaneous.quietOperation": {
 					"type": "boolean",
 					"default": false,
 					"description": "This development environment can get a bit invasive: turn this on if you want the IDE to suppress information messages.",
 					"order": 54
 				},
-				"megaenvironment.miscellaneous.verboseOperation": {
+				"megaenvironment.miscellaneous.alwaysShowTerminal": {
 					"type": "boolean",
 					"default": false,
-					"description": "Whether the terminal should always show the output each time a build is assembled. By default, the terminal only pops up when an error occurs.",
+					"description": "Whether the terminal should always appear to show the output each time a build is assembled. By default, the terminal only pops up when an error occurs.",
 					"order": 55
 				},
 				"megaenvironment.blastemOptions.emulationControls.forceRegion": {

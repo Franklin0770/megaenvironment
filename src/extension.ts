@@ -7,7 +7,8 @@ import {
 	ProgressLocation, TreeItem, TreeItemCollapsibleState, ThemeIcon, EventEmitter,
 	Command, TreeDataProvider, ConfigurationChangeEvent, StatusBarAlignment, Progress,
 	RelativePattern,
-	ShellExecution, Task, TaskScope, tasks
+	ShellExecution, Task, TaskScope, tasks,
+	LogOutputChannel
 } from 'vscode';
 import {
 	existsSync, writeFile, rename, unlink, createWriteStream, promises
@@ -81,8 +82,9 @@ interface ExtensionSettings {
 	suppressWarnings: boolean;
 	warningsAsErrors: boolean;
 	lowercaseHex: boolean;
+	verboseOperation: boolean;
     quietOperation: boolean;
-    verboseOperation: boolean;
+	showTerminal: boolean;
 
 	blastemForceRegion: string;
 	blastemForceType: string;
@@ -164,6 +166,7 @@ let extensionSettings: ExtensionSettings = { // Settings variable assignments
 	lowercaseHex: false,
     quietOperation: false,
     verboseOperation: false,
+	showTerminal: false,
 
 	blastemForceRegion: 'Disable',
 	blastemForceType: 'gen',
@@ -240,8 +243,9 @@ const settingDescriptors = [
 	{ key: 'miscellaneous.suppressWarnings',						target: 'suppressWarnings' },
 	{ key: 'miscellaneous.warningsAsErrors',						target: 'warningsAsErrors' },
 	{ key: 'miscellaneous.lowercaseHexadecimal',					target: 'lowercaseHex' },
-	{ key: 'miscellaneous.quietOperation',							target: 'quietOperation' },
 	{ key: 'miscellaneous.verboseOperation',						target: 'verboseOperation' },
+	{ key: 'miscellaneous.quietOperation',							target: 'quietOperation' },
+	{ key: 'miscellaneous.alwaysShowTerminal',						target: 'showTerminal' },
 	{ key: 'blastemOptions.emulationControls.forceRegion', 			target: 'blastemForceRegion' },
 	{ key: 'blastemOptions.emulationControls.forceMachineType',		target: 'blastemForceType' },
 	{ key: 'blastemOptions.emulationControls.disableZ80Processor',	target: 'blastemDisableZ80' },
@@ -282,7 +286,8 @@ let toolsDownloading: boolean; // Gets initialized in "downloadAssembler()"
 let activeAssembler: ChildProcess | null;
 let buttonProvider: ButtonProvider;
 
-const outputChannel = window.createOutputChannel('AS');
+const mdeLogger = window.createOutputChannel('Mega Driven Environment', { log: true });
+const asLogger = window.createOutputChannel('AS', { log: true });
 
 async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promise<0 | 1 | 2 | -1> {
 	toolsDownloading = true;
@@ -682,13 +687,13 @@ async function assemblerChecks(temporary: boolean): Promise<boolean> {
 // If the number is negative we shall not proceed (this case only -1)
 async function executeAssemblyCommand(progress: Progress<{ message: string; increment: number }>): Promise<0 | 1 | -1> {
 	if (activeAssembler) {
-		outputChannel.show();
+		asLogger.show();
 		window.showErrorMessage("Slow down, please! You're already assembling something.");
 		return -1;
 	}
 
 	// We proceed with the assembler, which creates the program file
-	outputChannel.clear();
+	asLogger.clear();
 	const sonicDisassembly = extensionSettings.sonicDisassembly;
 
 	if (sonicDisassembly && extensionSettings.wavConversion && onProject) {
@@ -701,39 +706,64 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	let warnings = false;
 
-	const aslArgs: string[] = [
-		join(sourceCodeFolder, sourceCode),
-		...['-o', join(assemblerFolder, 'code.p')],
-		...(extensionSettings.compactSymbols ? ['-A'] : []),
-		...(extensionSettings.listingFile ? ['-L'] : []),
-		...(extensionSettings.caseSensitive ? ['-U'] : []),
-		...(extensionSettings.errorLevel ? ['-x'.repeat(extensionSettings.errorLevel)] : []),
-		...(extensionSettings.errorNumber ? ['-n'] : []),
-		...(extensionSettings.lowercaseHex ? ['-h'] : []),
-		...(extensionSettings.suppressWarnings ? ['-w'] : []),
-		...(extensionSettings.passWarning ? ['-r', extensionSettings.passWarning] : []),
-		...(extensionSettings.crossReferencesListing ? ['-C'] : []),
-		...(extensionSettings.sectionListing ? ['-s'] : []),
-		...(extensionSettings.macroListing ? ['-M'] : []),
-		...(extensionSettings.sourceListing ? ['-P'] : []),
-		...(extensionSettings.warningsAsErrors ? ['-Werror'] : []),
-		...(!extensionSettings.asErrors ? ['-gnuerrors'] : []),
-		...(!extensionSettings.superiorWarnings ? ['-supmode'] : []),
-		...(extensionSettings.compatibilityMode ? ['-compmode'] : []),
-		...(extensionSettings.relaxedMode ? ['-relaxed'] : []),
-		...(!extensionSettings.signWarning && !sonicDisassembly ? ['-wno-implicit-sign-extension'] : []),
-		...(extensionSettings.jumpsWarning && !sonicDisassembly ? ['-wrelative'] : []),
-		...(extensionSettings.listUnknown && !sonicDisassembly ? ['-list-unknown-values'] : []),
-		...(extensionSettings.forwardReferences !== 1 && !sonicDisassembly ? ['-maxsympass', extensionSettings.forwardReferences.toString()] : []),
-		...(extensionSettings.underscoreMacroArgs && !sonicDisassembly ? ['-underscore-macroargs'] : []),
-		...(extensionSettings.debugFile !== 'None' && onProject ? ['-g', extensionSettings.debugFile] : []),
-		...(extensionSettings.defaultCpu ? ['-cpu', extensionSettings.defaultCpu] : []),
-		...(extensionSettings.radix !== 10 ? ['-RADIX', extensionSettings.radix.toString()] : []),
-		...(extensionSettings.listingRadix !== 16 ? ['-LISTRADIX', extensionSettings.listingRadix.toString()] : []),
-		...(extensionSettings.splitByte ? ['-SPLITBYTE', extensionSettings.splitByte] : []),
-		...(extensionSettings.maximumErrors ? ['-maxerrors', extensionSettings.maximumErrors] : []),
-		...(extensionSettings.sonicDisassembly ? ['-c', '-shareout', join(assemblerFolder, 'code.h')] : [])
-	];
+	const aslArgs: string[] = [ join(sourceCodeFolder, sourceCode), '-o', join(assemblerFolder, 'code.p') ];
+
+	if (extensionSettings.compactSymbols) { aslArgs.push('-A'); }
+	if (extensionSettings.listingFile) { aslArgs.push('-L'); }
+	if (extensionSettings.caseSensitive) { aslArgs.push('-U'); }
+	if (extensionSettings.errorLevel) { aslArgs.push('-' + 'x'.repeat(extensionSettings.errorLevel)); }
+	if (extensionSettings.errorNumber) { aslArgs.push('-n'); }
+	if (extensionSettings.lowercaseHex) { aslArgs.push('-h'); }
+	if (extensionSettings.suppressWarnings) { aslArgs.push('-w'); }
+	if (extensionSettings.passWarning) { aslArgs.push('-r', extensionSettings.passWarning); }
+	if (extensionSettings.crossReferencesListing) { aslArgs.push('-C'); }
+	if (extensionSettings.sectionListing) { aslArgs.push('-s'); }
+	if (extensionSettings.macroListing) { aslArgs.push('-M'); }
+	if (extensionSettings.sourceListing) { aslArgs.push('-P'); }
+	if (extensionSettings.warningsAsErrors) { aslArgs.push('-Werror'); }
+	if (!extensionSettings.asErrors) { aslArgs.push('-gnuerrors'); }
+	if (!extensionSettings.superiorWarnings) { aslArgs.push('-supmode'); }
+	if (extensionSettings.compatibilityMode) { aslArgs.push('-compmode'); }
+	if (extensionSettings.relaxedMode) { aslArgs.push('-relaxed'); }
+
+	if (!extensionSettings.signWarning && !extensionSettings.sonicDisassembly) {
+		aslArgs.push('-wno-implicit-sign-extension');
+	}
+	if (extensionSettings.jumpsWarning && !extensionSettings.sonicDisassembly) {
+		aslArgs.push('-wrelative');
+	}
+	if (extensionSettings.listUnknown && !extensionSettings.sonicDisassembly) {
+		aslArgs.push('-list-unknown-values');
+	}
+	if (extensionSettings.forwardReferences !== 1 && !extensionSettings.sonicDisassembly) {
+		aslArgs.push('-maxsympass', extensionSettings.forwardReferences.toString());
+	}
+
+	if (extensionSettings.underscoreMacroArgs && !extensionSettings.sonicDisassembly) {
+		aslArgs.push('-underscore-macroargs');
+	}
+
+	if (extensionSettings.debugFile !== 'None' && onProject) {
+		aslArgs.push('-g', extensionSettings.debugFile);
+	}
+	if (extensionSettings.defaultCpu) {
+		aslArgs.push('-cpu', extensionSettings.defaultCpu);
+	}
+	if (extensionSettings.radix !== 10) {
+		aslArgs.push('-RADIX', extensionSettings.radix.toString());
+	}
+	if (extensionSettings.listingRadix !== 16) {
+		aslArgs.push('-LISTRADIX', extensionSettings.listingRadix.toString());
+	}
+	if (extensionSettings.splitByte) {
+		aslArgs.push('-SPLITBYTE', extensionSettings.splitByte);
+	}
+	if (extensionSettings.maximumErrors) {
+		aslArgs.push('-maxerrors', extensionSettings.maximumErrors);
+	}
+	if (extensionSettings.sonicDisassembly) {
+		aslArgs.push('-c', '-shareout', join(assemblerFolder, 'code.h'));
+	}
 
 	if (extensionSettings.listingFile) {
 		if (onProject) {
@@ -812,7 +842,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		activeAssembler = spawn(assemblerPath, aslArgs, { cwd: sourceCodeFolder });
 
 		activeAssembler.stdout!.on('data', (data) => {
-			outputChannel.append(data.toString());
+			asLogger.append(data.toString());
 		});
 
 		activeAssembler.stderr!.on('data', (data) => {
@@ -830,7 +860,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 
 		activeAssembler.on('error', (error: any) => {
-			outputChannel.appendLine(error.message);
+			asLogger.error(error.message);
 			activeAssembler = null;
 			resolve({ aslCode: 4 });
 		});
@@ -838,14 +868,14 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 	switch (aslCode) {
 		case 0:
-			if (extensionSettings.verboseOperation) {
-				outputChannel.show();
+			if (extensionSettings.showTerminal) {
+				asLogger.show();
 			}
 
 			if (aslErr && !extensionSettings.suppressWarnings) {
-				outputChannel.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
-				outputChannel.appendLine(aslErr);
-				outputChannel.appendLine('============================================================');
+				asLogger.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
+				asLogger.warn(aslErr);
+				asLogger.appendLine('============================================================');
 				warnings = true;
 			}
 			break;
@@ -854,9 +884,9 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 			let errorLocation = 'log file';
 
 			if (!extensionSettings.errorFile) {
-				outputChannel.appendLine('\n==================== ASSEMBLER ERRORS ====================\n');
-				outputChannel.append(aslErr);
-				outputChannel.show();
+				asLogger.appendLine('\n==================== ASSEMBLER ERRORS ====================\n');
+				asLogger.error(aslErr);
+				asLogger.show();
 				errorLocation = 'terminal';
 			}
 
@@ -895,7 +925,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 	// Now, to the compiler!
 
 	if (activeAssembler) {
-		outputChannel.show();
+		asLogger.show();
 		window.showErrorMessage("Just a second! I'm still compiling.");
 		return -1;
 	}
@@ -924,7 +954,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 		if (!sonicDisassembly) {
 			activeAssembler.stdout!.on('data', (data) => {
-				outputChannel.append('\n' + data.toString());
+				asLogger.append('\n' + data.toString());
 			});
 		}
 
@@ -943,7 +973,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 
 		activeAssembler.on('error', (error: any) => {
-			outputChannel.appendLine(error.message);
+			asLogger.error(error.message);
 			activeAssembler = null;
 			resolve({ p2binCode: 1 });
 		});
@@ -957,16 +987,16 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 	switch (p2binCode) {
 		case 0:
 			if (p2binErr && extensionSettings.suppressWarnings) {
-				outputChannel.appendLine('\n==================== COMPILER WARNINGS ====================\n');
-				outputChannel.appendLine(p2binErr);
-				outputChannel.appendLine('===========================================================');
+				asLogger.appendLine('\n==================== COMPILER WARNINGS ====================\n');
+				asLogger.warn(p2binErr);
+				asLogger.appendLine('===========================================================');
 				warnings = true;
 			}
 			break;
 
 		default:
-			outputChannel.appendLine('\n==================== COMPILER ERRORS ====================\n');
-			outputChannel.append(p2binErr);
+			asLogger.appendLine('\n==================== COMPILER ERRORS ====================\n');
+			asLogger.error(p2binErr);
 
 			window.showErrorMessage("The compiler has thrown an unknown error. Check the terminal for more details. If you believe this doesn't depend on you, please let me know!");
 
@@ -988,7 +1018,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 			// If the file isn't big enough to support the checksum feature
 			if (size <= 0) {
-				outputChannel.append('\nChecksum not calculated due to ROM being too small to include headers.');
+				asLogger.append('\nChecksum not calculated due to ROM being too small to include headers.');
 				await fileHandler.close();
 				return (+warnings) as 0 | 1;
 			}
@@ -1011,12 +1041,12 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 			await fileHandler.close();
 
 			if (extensionSettings.showChecksum) {
-				outputChannel.append('\nChecksum value: 0x' + sum[0].toString(16).toUpperCase());
+				asLogger.append('\nChecksum value: 0x' + sum[0].toString(16).toUpperCase());
 			}
 		} catch (error: any) {
 			window.showErrorMessage('Cannot patch your ROM with its checksum. ' + error.message);
 			if (extensionSettings.showChecksum) {
-				outputChannel.append('\nChecksum not generated due to unexpected error.');
+				asLogger.warn('\nChecksum not generated due to unexpected error.');
 			}
 
 			return 1;
@@ -1199,7 +1229,7 @@ async function renameRom(outputPath: string, warnings: boolean, progress: Progre
 
 		switch (selection) {
 			case 'Show Terminal':
-				outputChannel.show();
+				asLogger.show();
 				return;
 
 			case 'Open Folder':
@@ -1257,41 +1287,40 @@ async function findAndRunROM(emulator: string) {
 	if (emulator === 'Blastem') {
 		const execution = new ShellExecution('blastem');
 
-		let flags = '';
+		const flags: string[] = [];
+		const shortFlags: string[] = [];
 
-		const shortFlags = [
-			...(extensionSettings.blastemDisableZ80 ? ['n'] : []),
-			...(extensionSettings.blastemDebugger ? ['d'] : []),
-			...(extensionSettings.blastemLog68k ? ['l'] : []),
-			...(extensionSettings.blastemLogYM ? ['y'] : []),
-			...(extensionSettings.blastemFullscreen ? ['f'] : []),
-			...(extensionSettings.blastemDisableGl ? ['g'] : [])
-		];
+		if (extensionSettings.blastemDisableZ80) { shortFlags.push('n'); }
+		if (extensionSettings.blastemDebugger) { shortFlags.push('d'); }
+		if (extensionSettings.blastemLog68k) { shortFlags.push('l'); }
+		if (extensionSettings.blastemLogYM) { shortFlags.push('y'); }
+		if (extensionSettings.blastemFullscreen) { shortFlags.push('f'); }
+		if (extensionSettings.blastemDisableGl) { shortFlags.push('g'); }
 
 		if (shortFlags.length > 0) {
-			flags += '-' + shortFlags.toString() + ' ';
+			flags.push(`-${shortFlags.join('')}`);
 		}
 
 		if (extensionSettings.blastemForceRegion !== 'Disable') {
-			flags += '-r ' + extensionSettings.blastemForceRegion + ' ';
+			flags.push('-r', extensionSettings.blastemForceRegion);
 		}
 
 		if (extensionSettings.blastemForceType !== 'gen') {
-			flags += '-m ' + extensionSettings.blastemForceType + ' ';
+			flags.push('-m', extensionSettings.blastemForceType);
 		}
 
 		if (extensionSettings.blastemLoadState) {
-			flags += '-s "' + extensionSettings.blastemLoadState + '" ';
+			flags.push('-s', extensionSettings.blastemLoadState);
 		}
 
 		if (extensionSettings.blastemLockOnRom) {
-			flags += '-o "' + extensionSettings.blastemLockOnRom + '" ';
+			flags.push('-o', extensionSettings.blastemLockOnRom);
 		}
 
 		if (extensionSettings.blastemSize) {
-			flags += extensionSettings.blastemSize.replace('x', ' ');
+			flags.push(extensionSettings.blastemSize.replace('x', ' '));
 		}
-
+		
 		const task = new Task(
 			{ type: 'blastem', rom: romPath, flags: flags },
 			TaskScope.Workspace,
@@ -1299,7 +1328,7 @@ async function findAndRunROM(emulator: string) {
 			'Mega Driven Environment',
 			execution
 		);
-
+		
 		try {
 			await tasks.executeTask(task);
 			window.showInformationMessage(`Running "${basename(romPath)}" with Blastem.`);
@@ -1369,7 +1398,7 @@ async function runTemporaryRom(emulator: string, progress: Progress<{ message?: 
 			const selection = await window.showWarningMessage(`Build succeded with warnings at ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}:${currentDate.getSeconds().toString().padStart(2, '0')}, running it with ${emulator}.`, 'Show Terminal');
 
 			if (selection === 'Show Terminal') {
-				outputChannel.show();
+				asLogger.show();
 			}
 		}
 	})();
@@ -1491,21 +1520,30 @@ async function cleanProjectFolder() {
 // This method is called when the extension is activated
 // This extension gets activated when it detects a project or when the user is using a contributed language
 export async function activate(context: ExtensionContext) {
+	mdeLogger.info('Extension started.');
+
 	const configuration = workspace.getConfiguration('megaenvironment');
 	extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
-	extensionSettings.mainName = configuration.get<string>('sourceCodeControl.mainFileName', 'Sonic.68k');
+	//extensionSettings.mainName = configuration.get<string>('sourceCodeControl.mainFileName', 'Sonic.68k');
 
 	const extensionFolder = context.globalStorageUri.fsPath;
 
 	if (!existsSync(extensionFolder)) {
 		await promises.mkdir(extensionFolder);
+		asLogger.appendLine('Extension global storage folder not present, creating it: ' + extensionFolder);
 	}
 
 	assemblerFolder = join(extensionFolder, !extensionSettings.sonicDisassembly ? 'Original' : 'Fixed');
 	assemblerPath = join(assemblerFolder, 'asl');
 	compilerPath = join(assemblerFolder, 'p2bin');
 
+	const start = Date.now();
+
 	await projectCheck();
+
+	mdeLogger.debug(`project was checked in ${Date.now()-start} ms`);
+
+	mdeLogger.info('Project is evaluated and ready to be used.');
 
 	//
 	//	Load settings
@@ -1794,7 +1832,7 @@ export async function activate(context: ExtensionContext) {
 						const selection = await window.showWarningMessage(`Build succeded with warnings at ${hours}:${minutes}:${seconds}, running it with OpenEmu.`, 'Show Terminal');
 
 						if (selection === 'Show Terminal') {
-							outputChannel.show();
+							asLogger.show();
 						}
 					}
 				})();
@@ -1997,7 +2035,7 @@ export async function activate(context: ExtensionContext) {
 		}
 	});
 
-	const cleanup = commands.registerCommand('megaenvironment.cleanup', () => cleanProjectFolder());
+	const cleanup = commands.registerCommand('megaenvironment.cleanup', cleanProjectFolder);
 
 	const newProject = commands.registerCommand('megaenvironment.new_project', async () => {
 		const uri = await window.showOpenDialog({
@@ -2009,6 +2047,8 @@ export async function activate(context: ExtensionContext) {
 		});
 
 		if (!uri || uri.length === 0) { return; }
+
+		const start = Date.now();
 
 		const newPath = uri[0].fsPath;
 		const extensions = [ '.asm', '.68k', '.s', '.z80', ...extensionSettings.cleaningExtensions ];
@@ -2119,6 +2159,8 @@ export async function activate(context: ExtensionContext) {
 		await commands.executeCommand('vscode.openFolder', Uri.file(newPath), true);
 
 		await projectCheck();
+
+		mdeLogger.debug(`project was created and checked in ${Date.now()-start}`);
 	});
 
 	const checkForUpdates = commands.registerCommand('megaenvironment.check_updates', async () => {
@@ -2126,6 +2168,8 @@ export async function activate(context: ExtensionContext) {
 			failedActivationMessage("You can't check for updates on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
+
+		const start = Date.now();
 
 		switch (await downloadAssembler(extensionSettings.sonicDisassembly, false)) {
 			case 0:
@@ -2219,6 +2263,7 @@ async function projectCheck(): Promise<void> {
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = true;
 		shouldActivate = true;
+		mdeLogger.info('Extension activated due to forced activation by the user (alwaysActive = true)');
 		return;
 	}
 
@@ -2229,9 +2274,10 @@ async function projectCheck(): Promise<void> {
 			projectFolders[0],
 			'{*,*/*,*/*/*}.{68k,z80,asm}' // The search extends to a maximum of three subfolders, else it wouldn't make sense to activate with buried code
 		);
+
+		const foundAutomatically = (await workspace.findFiles(relativePatten, undefined, 1)).length > 0; // Automatically search for any assembly related files
 	
-		if (((await workspace.findFiles(relativePatten, undefined, 1)).length > 0 // Automatically search for any assembly related files
-			|| (await workspace.findFiles(extensionSettings.mainName, undefined, 1)).length > 0)) { // If it finds a project with the right files
+		if (foundAutomatically || (await workspace.findFiles(extensionSettings.mainName, undefined, 1)).length > 0) { // If it finds a project with the right files
 			commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 			sourceCodeFolder = projectFolders[0].uri.fsPath;
 			onProject = true;
@@ -2249,6 +2295,9 @@ async function projectCheck(): Promise<void> {
 			}
 
 			shouldActivate = true;
+			mdeLogger.info(foundAutomatically
+				? 'Extension activated because it automatically found a compatible file'
+				: 'Extension activated because it found manually a compatible file specified by the user (mainFileName)');
 			return;
 		}
 	}
@@ -2259,12 +2308,14 @@ async function projectCheck(): Promise<void> {
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = false;
 		shouldActivate = true;
+		mdeLogger.info('Extension activated for using a compatible language in standalone mode');
 		return;
 	}
 
 	commands.executeCommand('setContext', 'megaenvironment.shouldActivate', false); // If we didn't find anything, we have no reason to activate, so
 	onProject = false;
 	shouldActivate = false;
+	mdeLogger.error('No compatible file was found making the extension not that useful. Deactivating.');
 }
 
 async function failedActivationMessage(message: string) { // Instead of replicating the same buttons in every error message, might as well create a function
@@ -2294,6 +2345,8 @@ async function failedActivationMessage(message: string) { // Instead of replicat
 
 async function updateConfiguration(event: ConfigurationChangeEvent) {
 	if (!event.affectsConfiguration('megaenvironment')) { return; } // Quick return if the extension isn't involved
+
+	const start = Date.now();
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 
@@ -2326,6 +2379,8 @@ async function updateConfiguration(event: ConfigurationChangeEvent) {
 
 		return;
 	}
+
+	mdeLogger.debug(`configuration updated in ${Date.now()-start} ms`);
 }
 
 class EmulatorTreeItem extends TreeItem {
