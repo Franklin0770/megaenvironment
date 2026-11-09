@@ -270,7 +270,6 @@ const excludedBackupItems: RegExp[] = [];
 let assemblerFolder: string;
 let assemblerPath: string;
 let compilerPath: string;
-let shouldActivate: boolean;
 
 let regenCompatible: boolean;
 let gensCompatible: boolean;
@@ -280,14 +279,15 @@ let openemuCompatible: boolean;
 // These get initialized in "projectCheck()"
 let sourceCodeFolder: string;
 let onProject: boolean;
+let shouldActivate = false;
 
 let toolsDownloading: boolean; // Gets initialized in "downloadAssembler()"
 
 let activeAssembler: ChildProcess | null;
 let buttonProvider: ButtonProvider;
 
-const mdeLogger = window.createOutputChannel('Mega Driven Environment', { log: true });
-const asLogger = window.createOutputChannel('AS', { log: true });
+const asLogger = window.createOutputChannel('AS'); // This channel is user-friendly, so we don't log
+const mdeLogger = window.createOutputChannel('MDE Debug', { log: true });
 
 async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promise<0 | 1 | 2 | -1> {
 	toolsDownloading = true;
@@ -295,6 +295,9 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 	   Returns 0 if successful with no newly downloaded builds, 1 if it downloaded a new build, 
 	   2 if there was an error but the code can continue, -1 if the code can't continue due to an error.
 	   In every report there's an increment value. */
+
+	const start = Date.now();
+
 	const exitCode = await window.withProgress(
 		{
 			location: ProgressLocation.Window,
@@ -520,6 +523,8 @@ async function downloadAssembler(fixedAssembler: boolean, force: boolean): Promi
 		}
 	);
 
+	mdeLogger.debug(`online update routine performed in ${Date.now()-start} ms`);
+
 	toolsDownloading = false;
 	return exitCode;
 }
@@ -692,6 +697,8 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		return -1;
 	}
 
+	let start = Date.now();
+
 	// We proceed with the assembler, which creates the program file
 	asLogger.clear();
 	const sonicDisassembly = extensionSettings.sonicDisassembly;
@@ -819,6 +826,8 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		window.showWarningMessage('You have cleared the assets folders in the settings! Brace yourself for "include" errors.');
 	}
 
+	mdeLogger.debug(`ASL flags compiled in ${Date.now()-start} ms`);
+
 	if (toolsDownloading) {
 		new Promise<void>((resolve) => {
 			const check = () => {
@@ -860,7 +869,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 
 		activeAssembler.on('error', (error: any) => {
-			asLogger.error(error.message);
+			asLogger.appendLine(error.message);
 			activeAssembler = null;
 			resolve({ aslCode: 4 });
 		});
@@ -874,7 +883,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 			if (aslErr && !extensionSettings.suppressWarnings) {
 				asLogger.appendLine('\n==================== ASSEMBLER WARNINGS ====================\n');
-				asLogger.warn(aslErr);
+				asLogger.appendLine(aslErr);
 				asLogger.appendLine('============================================================');
 				warnings = true;
 			}
@@ -885,7 +894,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 			if (!extensionSettings.errorFile) {
 				asLogger.appendLine('\n==================== ASSEMBLER ERRORS ====================\n');
-				asLogger.error(aslErr);
+				asLogger.append(aslErr);
 				asLogger.show();
 				errorLocation = 'terminal';
 			}
@@ -973,7 +982,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		});
 
 		activeAssembler.on('error', (error: any) => {
-			asLogger.error(error.message);
+			asLogger.appendLine(error.message);
 			activeAssembler = null;
 			resolve({ p2binCode: 1 });
 		});
@@ -988,7 +997,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		case 0:
 			if (p2binErr && extensionSettings.suppressWarnings) {
 				asLogger.appendLine('\n==================== COMPILER WARNINGS ====================\n');
-				asLogger.warn(p2binErr);
+				asLogger.appendLine(p2binErr);
 				asLogger.appendLine('===========================================================');
 				warnings = true;
 			}
@@ -996,7 +1005,7 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 
 		default:
 			asLogger.appendLine('\n==================== COMPILER ERRORS ====================\n');
-			asLogger.error(p2binErr);
+			asLogger.append(p2binErr);
 
 			window.showErrorMessage("The compiler has thrown an unknown error. Check the terminal for more details. If you believe this doesn't depend on you, please let me know!");
 
@@ -1011,6 +1020,8 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 	progress.report({ increment: !sonicDisassembly ? 30 : 20, message: 'Generating checksum...' }); // 60, 70
 
 	if (extensionSettings.generateChecksum) {
+		start = Date.now();
+
 		try {
 			const fileHandler = await promises.open('rom.gen', 'r+');
 
@@ -1046,11 +1057,13 @@ async function executeAssemblyCommand(progress: Progress<{ message: string; incr
 		} catch (error: any) {
 			window.showErrorMessage('Cannot patch your ROM with its checksum. ' + error.message);
 			if (extensionSettings.showChecksum) {
-				asLogger.warn('\nChecksum not generated due to unexpected error.');
+				asLogger.append('\nChecksum not generated due to unexpected error.');
 			}
 
 			return 1;
 		}
+
+		mdeLogger.debug(`checksum calculated in ${Date.now()-start} ms`);
 	}
 	
 	return (+warnings) as 0 | 1; // Reuse "warnings" if there were prior warnings. 0 if false, 1 if true
@@ -1078,6 +1091,8 @@ async function assembleRom(progress: Progress<{ message: string; increment?: num
 	progress.report({ message: 'Versioning...', increment: 10 });
 
 	// If we are in a workspace (project) the output folder is the same as the source code one, else we have to take the user's custom one
+
+	const start = Date.now();
 
 	let outputPath;
 	let relativePattern;
@@ -1174,6 +1189,8 @@ async function assembleRom(progress: Progress<{ message: string; increment?: num
 	}
 
 	await renameRom(outputPath, warnings, progress);
+
+	mdeLogger.debug(`versioning done in ${Date.now()-start} ms`);
 }
 
 // After versioning, we can rename the lastest ROM from "rom.gen" to whatever we need
@@ -1433,6 +1450,8 @@ async function cleanProjectFolder() {
 		return;
 	}
 
+	const start = Date.now();
+
 	let items: string[];
 
 	const cleaningFolders = extensionSettings.cleaningFolders;
@@ -1502,6 +1521,8 @@ async function cleanProjectFolder() {
 		}
 	}
 
+	mdeLogger.debug(`cleaned the project in ${Date.now()-start} ms`);
+
 	if (extensionSettings.quietOperation) { return; }
 
 	switch (items!.length) {
@@ -1520,7 +1541,7 @@ async function cleanProjectFolder() {
 // This method is called when the extension is activated
 // This extension gets activated when it detects a project or when the user is using a contributed language
 export async function activate(context: ExtensionContext) {
-	mdeLogger.info('Extension started.');
+	mdeLogger.info('extension started');
 
 	const configuration = workspace.getConfiguration('megaenvironment');
 	extensionSettings.sonicDisassembly = configuration.get<boolean>('buildControl.sonicDisassemblySupport', false);
@@ -1538,12 +1559,6 @@ export async function activate(context: ExtensionContext) {
 	compilerPath = join(assemblerFolder, 'p2bin');
 
 	const start = Date.now();
-
-	await projectCheck();
-
-	mdeLogger.debug(`project was checked in ${Date.now()-start} ms`);
-
-	mdeLogger.info('Project is evaluated and ready to be used.');
 
 	//
 	//	Load settings
@@ -1935,6 +1950,8 @@ export async function activate(context: ExtensionContext) {
 			return;
 		}
 
+		const start = Date.now();
+
 		const outputPath = onProject ? sourceCodeFolder : extensionSettings.singleFileOutput;
 		process.chdir(outputPath); // Change current working folder to the project one
 
@@ -2017,6 +2034,8 @@ export async function activate(context: ExtensionContext) {
 		}
 
 		zip.writeZip(join('Backups', `${fileName}.zip`));
+
+		mdeLogger.debug(`backup performed in ${Date.now()-start} ms`);
 
 		if (extensionSettings.quietOperation) { return; }
 
@@ -2158,9 +2177,7 @@ export async function activate(context: ExtensionContext) {
 
 		await commands.executeCommand('vscode.openFolder', Uri.file(newPath), true);
 
-		await projectCheck();
-
-		mdeLogger.debug(`project was created and checked in ${Date.now()-start}`);
+		mdeLogger.debug(`project was created in ${Date.now()-start}`);
 	});
 
 	const checkForUpdates = commands.registerCommand('megaenvironment.check_updates', async () => {
@@ -2168,8 +2185,6 @@ export async function activate(context: ExtensionContext) {
 			failedActivationMessage("You can't check for updates on this workspace, because no Mega Drive project has been detected! Please, make sure your folder follows the correct structure.");
 			return;
 		}
-
-		const start = Date.now();
 
 		switch (await downloadAssembler(extensionSettings.sonicDisassembly, false)) {
 			case 0:
@@ -2259,17 +2274,18 @@ export async function activate(context: ExtensionContext) {
 // Performs various checks to see it the extension should activate while being in a project (valid workspace) or in an opened assembly file
 // It also assigns the source code folder path to "sourceCodeFolder" and initializes "shouldActivate"
 async function projectCheck(): Promise<void> {
+	const start = Date.now();
+
 	if (workspace.getConfiguration('megaenvironment.extensionOptions').get<boolean>('alwaysActive')) { // There's only this check, this is why putting it to extensionSettings is redundant
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = true;
 		shouldActivate = true;
-		mdeLogger.info('Extension activated due to forced activation by the user (alwaysActive = true)');
-		return;
+		mdeLogger.info('extension activated due to forced activation by the user (alwaysActive = true)');
 	}
 
 	const projectFolders = workspace.workspaceFolders;
 
-	if (projectFolders) {
+	if (!shouldActivate && projectFolders) {
 		const relativePatten = new RelativePattern(
 			projectFolders[0],
 			'{*,*/*,*/*/*}.{68k,z80,asm}' // The search extends to a maximum of three subfolders, else it wouldn't make sense to activate with buried code
@@ -2296,26 +2312,30 @@ async function projectCheck(): Promise<void> {
 
 			shouldActivate = true;
 			mdeLogger.info(foundAutomatically
-				? 'Extension activated because it automatically found a compatible file'
-				: 'Extension activated because it found manually a compatible file specified by the user (mainFileName)');
-			return;
+				? 'extension activated because it automatically found a compatible file'
+				: 'extension activated because it found manually a compatible file specified by the user (mainFileName)');
 		}
 	}
 
 	const editor = window.activeTextEditor;
 	
-	if ((editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the associated languages
+	if ((!shouldActivate && editor && [ 'm68k-as', 'z80-as', 'm68k-sdisasm', 'asm-collection' ].includes(editor.document.languageId))) { // If the standalone file is using one of the associated languages
 		commands.executeCommand('setContext', 'megaenvironment.shouldActivate', true);
 		onProject = false;
 		shouldActivate = true;
-		mdeLogger.info('Extension activated for using a compatible language in standalone mode');
+		mdeLogger.info('extension activated for using a compatible language in standalone mode');
+	}
+
+	if (shouldActivate) {
+		mdeLogger.debug(`project was checked in ${Date.now()-start} ms`);
+		mdeLogger.info('project is evaluated and ready to be used');
 		return;
 	}
 
 	commands.executeCommand('setContext', 'megaenvironment.shouldActivate', false); // If we didn't find anything, we have no reason to activate, so
 	onProject = false;
 	shouldActivate = false;
-	mdeLogger.error('No compatible file was found making the extension not that useful. Deactivating.');
+	mdeLogger.error('no compatible file were found making the extension not that useful. Deactivating.');
 }
 
 async function failedActivationMessage(message: string) { // Instead of replicating the same buttons in every error message, might as well create a function

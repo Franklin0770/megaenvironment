@@ -14,7 +14,7 @@
 	"repository": {
 		"comments": {
 			"name": "comment.sdisasm",
-			"match": "\\;.*$"
+			"match": ";.*$"
 		},
 		"numbers": {
 			"name": "number.sdisasm",
@@ -39,14 +39,12 @@
 		"delimiters": {
 			"patterns": [
 				{
-					"name": "delimiter.sdisasm",
-					"begin": "\"",
-					"end": "\""
+					"match": "\".*\"",
+					"name": "delimiter.sdisasm"
 				},
 				{
-					"name": "delimiter.sdisasm",
-					"begin": "'",
-					"end": "'"
+					"match": "'.*'",
+					"name": "delimiter.sdisasm"
 				}
 			]
 		}

@@ -20,89 +20,90 @@
 	],
 	"repository": {
 		"instructions": {
-			"name": "instruction.mnemonic.as",
+			"name": "keyword.control.instruction.as instruction.mnemonic.as keyword1.sdisasm.as",
 			"match": "\\b(?<!\\.)(?i:move[qapm]?|[lp]ea|add[aiqx]?|sub[aiqx]?|cmp[aim]?|clr|tst|b(?:tst|chg|set|clr)|andi?|e?ori?|not|ls[lr]|as[lr]|rox?[lr]|negx?|ex[gt]|swap|[asn]bcd|mul[su]|div[su]|nop|tas|s(?:t|f|eq|ne|pl|mi|cc|cs|vs|vc|hi|ls|ge|lt|gt|le)|stop|chk|illegal|link|unlk|reset|trapv?)\\b"
 		},
 		"instructions-jump": {
-			"name": "instruction.jump.as",
+			"name": "entity.name.function.call.as instruction.jump.as keyword2.sdisasm.as",
 			"match": "\\b(?i:b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr)|rt[ser])\\b"
 		},
 		"sizes": {
-			"name": "instruction.size.as",
+			"name": "support.type.memory.size.as instruction.size.as",
 			"match": "(?<=[\\w)])(?i:\\.[bwls])(?!\\w)"
 		},
 		"autoincrements": {
-			"name": "instruction.autoincrement.as",
+			"name": "keyword.operator.arithmetic.as instruction.autoincrement.as",
 			"match": "(?i:(?<=\\(a[0-7]\\))\\+|\\-(?=\\(a[0-7]\\)))"
 		},
 		"variables": {
-			"name": "variable.register.as",
+			"name": "variable.language.register.as variable.register.as",
 			"match": "\\b(?i:[da][0-7]|u?sp|ccr|pc|sr)\\b"
 		},
 		"constants": {
 			"patterns": [
 				{
-					"name": "constant.immediate.as",
+					"name": "constant.immediate.as constant.numeric.immediate.as number.sdisasm.as",
 					"match": "(?<=\\s+)#(?=[\\w|$%@\\-('\"])"
 				},
 				{
-					"name": "constant.numeric.as",
+					"name": "constant.numeric.as constant.numeric.immediate.as number.sdisasm.as",
 					"match": "(?<![\\w\\)])-?(?:\\d{1,10}|\\$[0-9a-fA-F]{1,8}|%[01]{1,32}|@[0-7]{1,11})(?!\\w)"
 				}
 			]
 		},
 		"comments": {
-			"name": "directive.comment.as",
-			"match": "\\;.*$"
+			"match": "(;).*$",
+			"name": "comment.line.semicolon.as directive.comment.as comment.sdisasm.as",
+			"captures": {
+				"1": { "name": "punctuation.definition.comment.as" }
+			}
 		},
 		"strings": {
 			"patterns": [
 				{
-					"name": "directive.string.as",
-					"begin": "\"",
-					"end": "\""
+					"name": "string.quoted.double.as directive.string.as delimiter.sdisasm.as",
+					"match": "\"[^\"]*\""
 				},
 				{
-					"name": "directive.string.as",
-					"begin": "'",
-					"end": "'"
+					"name": "string.quoted.single.as directive.string.as delimiter.sdisasm.as",
+					"match": "'[^']*'"
 				}
 			]
 		},
 		"labels": {
 			"patterns": [
 				{
-					"name": "directive.label.global.as",
+					"name": "entity.name.function.label.as directive.label.global.as",
 					"match": "(?:^\\w+:?)|(?:\\s\\w+:)"
 				},
 				{
-					"name": "directive.label.local.as",
+					"name": "entity.name.function.label.local.as directive.label.local.as",
 					"match": "(?:^\\.[\\w\\.]+:?)|(?:\\s\\.[\\w\\.]+:)"
 				},
 				{
-					"name": "directive.label.temporary.as",
+					"name": "entity.name.tag.label.as directive.label.temporary.as",
 					"match": "(?:^\\$\\$[\\w\\.]+:?)|(?:\\s\\$\\$[\\w\\.]+:)"
 				},
 				{
-					"name": "directive.label.nameless.as",
+					"name": "keyword.operator.arithmetic.as directive.label.nameless.as",
 					"match": "^[+-]$"
 				}
 			]
 		},
 		"operators": {
-			"name": "directive.operator.as",
+			"name": "keyword.operator.as directive.operator.as operator.sdisasm.as",
 			"match": "(?:\\w[\\s\\(]?)?\\K(?::=|==|!=|<=|>=|<>|<<|>>|\\|\\||&&|!!|><|[-+*\\/#^~|&=<>!])"
 		},
 		"functions": {
-			"name": "directive.function.as",
+			"name": "entity.name.function.as directive.function.as",
 			"match": "(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bit(?:cnt|pos)|(?:first|last)bit|sgn|abs|to(?:upper|lower)|(?:up|low)string|strlen|substr|charfromstr|strstr|val|exprtype|fsize|symused)(?=\\([^)\n]+\\))"
 		},
 		"symbols": {
-			"name": "directive.symbol.as",
+			"name": "constant.language.as directive.symbol.as keyword3.sdisasm.as",
 			"match": "(?<!\\w)(?:TRUE|FALSE|MOMCPU(?:NAME)?|CONSTPI|FLOATMAX|VERSION|ARCHITECTURE|DATE|TIME|FILE|LINE|PASS|SECTION)|[\\.\\$](?![\\w\\$])"	
 		},
 		"pseudo-instructions": {
-			"name": "directive.pseudo.as",
+			"name": "keyword.control.directive.as directive.pseudo.as keyword3.sdisasm.as",
 			"match": "\\b(?i:d[cs]|set|equ|b?include|r?org|cpu|(?:de)?phase|rept|macro|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|while|page(?:size)?|listing|padding|save|restore|align|message|warning|error|fatal|(?:end)?section|label|charset|codepage|pushv|popv|(?:sup|comp)mode|intsyntax|relaxed|segment|assume|(?:end)?expect|irpc?|exitm|shift|maxnest|newpage|macexp_(?:dft|ovr)|title|(?:out)?radix|public|global|forward|shared|read)\\b"
 		},
 		"instruction-label-structure": {
@@ -110,17 +111,17 @@
 				{
 					"match": "(?i:\\b(b(?:ra|sr|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])|j(?:mp|sr))(\\.[swl])?)\\b\\s+((?:\\.|\\$\\$)?(?:[\\w\\.]+|[*$+-]))",
 					"captures": {
-						"1": { "name": "instruction.jump.as" },
-						"2": { "name": "instruction.size.as" },
-						"3": { "name": "directive.label.jump.as" }
+						"1": { "name": "entity.name.function.call.as instruction.jump.as keyword2.sdisasm.as" },
+						"2": { "name": "support.type.memory.size.as instruction.size.as" },
+						"3": { "name": "entity.name.function.label.as directive.label.jump.as" }
 					}
 				},
 				{
 					"match": "(?i:\\b(db(?:t|f|c[cs]|eq|ne|pl|mi|v[sc]|h[is]|l[os]|g[et]|l[te])))\\b\\s+(?i:\\b(d[0-7])\\b)\\s*,\\s*((?:\\.|\\$\\$)?(?:[\\w\\.]+|[*$+-]))",
 					"captures": {
-						"1": { "name": "instruction.jump.as" },
-						"2": { "name": "variable.register.as" },
-						"3": { "name": "directive.label.jump.as" }
+						"1": { "name": "entity.name.function.call.as instruction.jump.as keyword2.sdisasm.as" },
+						"2": { "name": "variable.language.register.as variable.register.as" },
+						"3": { "name": "entity.name.function.label.as directive.label.jump.as" }
 					}
 				}
 			]

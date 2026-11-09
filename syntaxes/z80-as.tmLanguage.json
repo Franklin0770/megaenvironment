@@ -19,75 +19,76 @@
 		"instructions": {
 			"patterns": [
 				{
-					"name": "instruction.mnemonic.as",
+					"name": "keyword.control.instruction.as instruction.mnemonic.as keyword1.sdisasm.as",
 					"match": "\\b(?i:ld[id]?|ld[id]r|inc|dec|ad[dc]|sub|sbc|and|x?or|cpl?|exx?|push|pop|cp[id]r?|nop|bit|s[lr]a|s[rl]l|r[rl]d|r[lr]c?a?|set|res|[ed]i|im|halt|daa|neg|[cs]cf|ini?r?|indr?|out[ir]?|ot[id]r)\\b"
 				},
 				{
-					"name": "instruction.jump.as",
+					"name": "entity.name.function.call.as instruction.jump.as",
 					"match": "\\b(?i:j[pr]|call|djnz|ret[in]|rst)\\b(?!\\s+(?:\\$\\$|[\\w+-]))"
 				}
 			]
 		},
 		"variables": {
-			"name": "variable.register.as",
+			"name": "variable.language.register.as variable.register.as keyword2.sdisasm.as",
 			"match": "\\b(?i:af'?|bc|de|hl|i[xy][hl]?|sp|a|b|c|d|e|h|l|r|i)(?![\\w'])"
 		},
 		"constants": {
-			"name": "constant.numeric.as",
+			"name": "constant.numeric.immediate.as constant.numeric.as number.sdisasm.as",
 			"match": "(?<![\\w\\)])-?(?:\\d{1,5}|[0-9a-fA-F]{1,4}h|[01]{1,16}b|[0-7]{1,6}[oq])(?!\\w)"
 		},
 		"comments": {
-			"name": "directive.comment.as",
-			"match": "\\;.*$"
+			"match": "(;).*$",
+			"name": "comment.line.semicolon.as directive.comment.as comment.sdisasm.as",
+			"captures": {
+				"1": { "name": "punctuation.definition.comment.as" }
+			}
 		},
 		"strings": {
 			"patterns": [
 				{
-					"name": "directive.string.as",
-					"begin": "\"",
-					"end": "\""
+					"name": "string.quoted.double.as directive.string.as delimiter.sdisasm.as",
+					"match": "\"[^\"]*\""
 				},
 				{
-					"name": "directive.string.as",
-					"begin": "'",
-  					"end": ""
+					"name": "string.quoted.single.as directive.string.as delimiter.sdisasm.as",
+					"match": "'[^']*'"
 				}
 			]
 		},
 		"labels": {
 			"patterns": [
 				{
-					"name": "directive.label.global.as",
+					"name": "entity.name.function.label.as directive.label.global.as",
 					"match": "(?:^\\w+:?)|(?:\\s\\w+:)"
 				},
 				{
-					"name": "directive.label.local.as",
+					"name": "entity.name.function.label.local.as directive.label.local.as",
 					"match": "(?:^\\.[\\w\\.]+:?)|(?:\\s\\.[\\w\\.]+:)"
 				},
 				{
-					"name": "directive.label.temporary.as",
+					"name": "entity.name.tag.label.as directive.label.temporary.as",
 					"match": "(?:^\\$\\$[\\w\\.]+:?)|(?:\\s\\$\\$[\\w\\.]+:)"
 				},
 				{
-					"name": "directive.label.nameless.as",
+					"name": "keyword.operator.arithmetic.as directive.label.nameless.as",
 					"match": "^[+-]$"
 				}
 			]
 		},
 		"operators": {
-			"name": "directive.operator.as",
+			"name": "keyword.operator.as directive.operator.as operator.sdisasm.as",
 			"match": "(?:\\w[\\s\\(]?)?\\K(?::=|==|!=|<=|>=|<>|<<|>>|\\|\\||&&|!!|><|[-+*\\/#^~|&=<>!])"
 		},
 		"functions": {
-			"name": "directive.function.as",
+			"name": "entity.name.function.as directive.function.as",
 			"match": "(?i:sqrt|a?sinh?|a?cosh?|a?tanh?|a?coth?|exp|a?log|a?ld|ln|int|bit(?:cnt|pos)|(?:first|last)bit|sgn|abs|to(?:upper|lower)|(?:up|low)string|strlen|substr|charfromstr|strstr|val|exprtype|fsize|symused)(?=\\([^)\n]+\\))"
 		},
 		"symbols": {
-			"name": "directive.symbol.as",
+			"name": "constant.language.as directive.symbol.as",
 			"match": "(?<!\\w)(?:TRUE|FALSE|MOMCPU(?:NAME)?|CONSTPI|FLOATMAX|VERSION|ARCHITECTURE|DATE|TIME|FILE|LINE|PASS|SECTION)|[\\.\\$](?![\\w\\$])"	
 		},
 		"pseudo-instructions": {
-			"name": "directive.pseudo.as",
+			"name": "keyword.control.directive.as directive.pseudo.as",
 			"match": "\\b(?i:d[bw]|set|equ|b?include|r?org|cpu|(?:de)?phase|rept|macro|function|endm?|(?:end)?struct|(?:end)?if|ifn?(?:def|symexist|used|exist|b)|else(?:if)?|switch|(?:else|end)?case|while|page(?:size)?|listing|padding|save|restore|align|message|warning|error|fatal|(?:end)?section|warnrelative|label|charset|codepage|pushv|popv|(?:sup|comp)mode|intsyntax|relaxed|segment|assume|(?:end)?expect|irpc?|exitm|shift|maxnest|newpage|macexp_(?:dft|ovr)|title|(?:out)?radix|public|global|forward|shared|read)\\b"
 		},
 		"instruction-label-structure": {
@@ -95,45 +96,45 @@
 				{
 					"match": "\\b(?i:(j[pr]|call))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))\\s*,\\s*((?:\\.|\\$\\$)?(?:[\\w\\.]+))",
 					"captures": {
-						"1": { "name": "instruction.jump.as" },
-						"2": { "name": "variable.flag.as" },
-						"3": { "name": "directive.label.jump.as" }
+						"1": { "name": "entity.name.function.call.as instruction.jump.as" },
+						"2": { "name": "keyword.control.instruction.j.as variable.flag.as" },
+						"3": { "name": "entity.name.function.label.as directive.label.jump.as" }
 					}
 				},
 				{
 					"match": "\\b(?i:(j[pr]|call|djnz))\\b\\s+((?:\\.|\\$\\$)?[\\w\\.]+)\\b(?!\\s*,)",
 					"captures": {
-						"1": { "name": "instruction.jump.as" },
-						"2": { "name": "directive.label.jump.as" }
+						"1": { "name": "entity.name.function.call.as instruction.jump.as" },
+						"2": { "name": "entity.name.function.label.as directive.label.jump.as" }
 					}
 				},
 				{
 					"match": "\\b(?i:(ret))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))?",
 					"captures": {
-						"1": { "name": "instruction.jump.as" },
-						"2": { "name": "variable.flag.as" }
+						"1": { "name": "entity.name.function.call.as instruction.jump.as" },
+						"2": { "name": "keyword.control.instruction.j.as variable.flag.as" }
 					}
 				},
 				{
 					"match": "\\b(?i:(rst)\\b\\s+([0123][08]h))",
 					"captures": {
-						"1": { "name": "instruction.jump.as" },
-						"2": { "name": "directive.label.jump.as" }
+						"1": { "name": "entity.name.function.call.as instruction.jump.as" },
+						"2": { "name": "entity.name.function.label.as directive.label.jump.as" }
 					}
 				},
 				{
 					"match": "\\b(?i:(j))\\b\\s+((?:\\.|\\$\\$)?[\\w\\.]+)\\b(?!\\s*,)",
 					"captures": {
-						"1": { "name": "directive.pseudo.as" },
-						"2": { "name": "directive.label.jump.as" }
+						"1": { "name": "keyword.control.directive.as directive.pseudo.as" },
+						"2": { "name": "entity.name.function.label.as directive.label.jump.as" }
 					}
 				},
 				{
 					"match": "\\b(?i:(j))\\b\\s+((?i:\\b(?:z|nz|c|nc|p|pe|po|m)\\b))\\s*,\\s*((?:\\.|\\$\\$)?(?:[\\w\\.]+))",
 					"captures": {
-						"1": { "name": "directive.pseudo.as" },
-						"2": { "name": "variable.flag.as" },
-						"3": { "name": "directive.label.jump.as" }
+						"1": { "name": "keyword.control.directive.as directive.pseudo.as" },
+						"2": { "name": "keyword.control.instruction.j.as variable.flag.as" },
+						"3": { "name": "entity.name.function.label.as directive.label.jump.as" }
 					}
 				}
 			]

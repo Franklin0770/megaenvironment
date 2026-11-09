@@ -1,5 +1,9 @@
 {
+	"json.schemaDownload.trustedDomains": {
+		"https://raw.githubusercontent.com/martinring/": true
+	},
 	"cSpell.words": [
-		"Clownmdemu"
+		"Clownmdemu",
+		"sdisasm"
 	]
 }
